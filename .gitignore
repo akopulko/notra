@@ -1,0 +1,45 @@
+# Xcode
+DerivedData/
+build/
+*.xcuserstate
+*.xcscmblueprint
+xcuserdata/
+*.xcresult
+*.ipa
+*.dSYM
+
+# SwiftPM
+.build/
+.swiftpm/
+
+# Local signing and private developer config
+Config/LocalSigning.xcconfig
+Config/LocalInfo-iCloud.plist
+*.mobileprovision
+*.provisionprofile
+*.p12
+*.p8
+*.cer
+*.pem
+*.key
+
+# Local editor/agent files
+AGENTS.MD
+AGENTS.md
+.zed/
+.vscode/
+.idea/
+.codex/
+.agents/
+
+# Logs, caches, crash reports
+*.log
+*.sqlite
+*.sqlite-*
+*.db
+*.crash
+*.ips
+crashreport*
+
+# macOS
+.DS_Store

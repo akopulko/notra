@@ -1,0 +1,9 @@
+// Public defaults. Keep personal signing values in ignored LocalSigning.xcconfig.
+NOTRA_BUNDLE_IDENTIFIER = app.notra.Notra
+NOTRA_CODE_SIGN_ENTITLEMENTS = Notra/Notra.entitlements
+NOTRA_INFO_PLIST_FILE = NotraInfo.plist
+NOTRA_ICLOUD_CONTAINER_IDENTIFIER =
+DEVELOPMENT_TEAM =
+CODE_SIGN_STYLE = Automatic
+
+#include? "LocalSigning.xcconfig"

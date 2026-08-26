@@ -1,0 +1,166 @@
+import SwiftUI
+
+struct HeadingToolbarMenu: View {
+    let action: (MarkdownHeadingLevel) -> Void
+    let isEnabled: Bool
+
+    var body: some View {
+        Menu {
+            ForEach(MarkdownHeadingLevel.allCases, id: \.self) { level in
+                Button(level.menuTitle) {
+                    action(level)
+                }
+            }
+        } label: {
+            Image(systemName: NoteFormattingCommand.heading.systemImage)
+        }
+        .help(NoteFormattingCommand.heading.title)
+        .accessibilityLabel(NoteFormattingCommand.heading.title)
+        .disabled(!isEnabled)
+    }
+}
+
+struct FormatToolbarButton: View {
+    let command: NoteFormattingCommand
+    let isEnabled: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(command.title, systemImage: command.systemImage, action: action)
+            .labelStyle(.iconOnly)
+            .help(command.title)
+            .accessibilityLabel(command.title)
+            .disabled(!isEnabled)
+    }
+}
+
+struct MarkdownFormattingToolbar: ToolbarContent {
+    let applyHeading: (MarkdownHeadingLevel) -> Void
+    let applyFormatting: (NoteFormattingCommand) -> Void
+    let isEnabled: Bool
+
+    @ToolbarContentBuilder
+    var body: some ToolbarContent {
+        ToolbarItemGroup(placement: .primaryAction) {
+            HeadingToolbarMenu(action: applyHeading, isEnabled: isEnabled)
+            ForEach(NoteFormattingCommand.toolbarCommandGroups[0], id: \.self) { command in
+                FormatToolbarButton(command: command, isEnabled: isEnabled) {
+                    applyFormatting(command)
+                }
+            }
+        }
+        ToolbarSpacer(.fixed)
+        ToolbarItemGroup(placement: .primaryAction) {
+            ForEach(NoteFormattingCommand.toolbarCommandGroups[1], id: \.self) { command in
+                FormatToolbarButton(command: command, isEnabled: isEnabled) {
+                    applyFormatting(command)
+                }
+            }
+        }
+        ToolbarSpacer(.fixed)
+        ToolbarItemGroup(placement: .primaryAction) {
+            ForEach(NoteFormattingCommand.toolbarCommandGroups[2], id: \.self) { command in
+                FormatToolbarButton(command: command, isEnabled: isEnabled) {
+                    applyFormatting(command)
+                }
+            }
+        }
+    }
+}
+
+struct EditorUndoRedoToolbar: ToolbarContent {
+    let availability: EditorUndoRedoAvailability
+    let undo: () -> Void
+    let redo: () -> Void
+
+    var body: some ToolbarContent {
+        ToolbarItemGroup(placement: .primaryAction) {
+            Button("Undo", systemImage: "arrow.uturn.backward", action: undo)
+                .labelStyle(.iconOnly)
+                .help("Undo")
+                .accessibilityLabel("Undo")
+                .disabled(!availability.canUndo)
+            Button("Redo", systemImage: "arrow.uturn.forward", action: redo)
+                .labelStyle(.iconOnly)
+                .help("Redo")
+                .accessibilityLabel("Redo")
+                .disabled(!availability.canRedo)
+        }
+    }
+}
+
+extension MarkdownHeadingLevel {
+    var menuTitle: String {
+        "\(markdownPrefix)h\(rawValue) Heading"
+    }
+}
+
+extension NoteFormattingCommand {
+    static let toolbarCommandGroups: [[NoteFormattingCommand]] = [
+        [.bold, .italic],
+        [.unorderedList, .orderedList, .todo, .quote],
+        [.link, .table, .code]
+    ]
+
+    static var editorMenuCommands: [NoteFormattingCommand] {
+        #if os(iOS)
+        toolbarCommandGroups.flatMap(\.self) + [.image]
+        #else
+        toolbarCommandGroups.flatMap(\.self)
+        #endif
+    }
+
+    var title: String {
+        switch self {
+        case .bold:
+            "Bold"
+        case .italic:
+            "Italic"
+        case .heading:
+            "Headers"
+        case .unorderedList:
+            "Bulleted List"
+        case .orderedList:
+            "Numbered List"
+        case .quote:
+            "Quote"
+        case .todo:
+            "Checklist"
+        case .code:
+            "Code"
+        case .link:
+            "Link"
+        case .table:
+            "Table"
+        case .image:
+            "Image"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .bold:
+            "bold"
+        case .italic:
+            "italic"
+        case .heading:
+            "textformat.size"
+        case .unorderedList:
+            "list.bullet"
+        case .orderedList:
+            "list.number"
+        case .quote:
+            "quote.opening"
+        case .todo:
+            "checklist"
+        case .code:
+            "chevron.left.forwardslash.chevron.right"
+        case .link:
+            "link"
+        case .table:
+            "tablecells"
+        case .image:
+            "photo"
+        }
+    }
+}

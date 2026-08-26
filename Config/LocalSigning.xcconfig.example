@@ -1,0 +1,13 @@
+// Copy to LocalSigning.xcconfig for private local signing. Do not commit the copy.
+// Keep these values private.
+
+// DEVELOPMENT_TEAM = YOURTEAMID
+// NOTRA_BUNDLE_IDENTIFIER = com.yourname.Notra
+
+// Optional private iCloud setup:
+// 1. Copy LocalInfo-iCloud.plist.example to LocalInfo-iCloud.plist.
+// 2. Replace iCloud.example.Notra in LocalInfo-iCloud.plist with your real iCloud container.
+// 3. Uncomment these settings and use your real iCloud container below.
+// NOTRA_CODE_SIGN_ENTITLEMENTS = Notra/Notra-iCloud.entitlements
+// NOTRA_INFO_PLIST_FILE = Config/LocalInfo-iCloud.plist
+// NOTRA_ICLOUD_CONTAINER_IDENTIFIER = iCloud.example.Notra
