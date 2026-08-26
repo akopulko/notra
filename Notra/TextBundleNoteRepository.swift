@@ -149,10 +149,12 @@ struct TextBundleNoteRepository {
                     .creationDate ?? .distantPast
                 let markdown = try markdownContent(in: url)
                 let preview = Self.preview(for: markdown)
+                let attachmentSummary = try attachmentSummary(for: url, markdown: markdown)
                 return try NoteSummary(
                     url: url,
                     previewText: preview.text,
                     previewFirstLineIsHeading: preview.firstLineIsHeading,
+                    attachmentSummary: attachmentSummary,
                     createdAt: createdAt,
                     modifiedAt: modifiedDate(of: url)
                 )
@@ -362,6 +364,7 @@ struct TextBundleNoteRepository {
                 let values = try url.resourceValues(forKeys: [.isRegularFileKey])
                 return values.isRegularFile == true
             }
+            .map(\.notraCanonicalFileURL)
             .sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
     }
 
@@ -401,6 +404,43 @@ struct TextBundleNoteRepository {
 }
 
 private extension TextBundleNoteRepository {
+    private func attachmentSummary(for noteURL: URL, markdown: String) throws -> NoteAttachmentSummary {
+        let assetBaseURL = noteURL.appendingPathComponent(Self.assetsFolder, isDirectory: true)
+        let linkedURLs = MarkdownAttachmentReferences.linkedURLs(in: markdown, assetBaseURL: assetBaseURL)
+        guard !linkedURLs.isEmpty else {
+            return .empty
+        }
+
+        var firstLinkedImageURL: URL?
+        var hasLinkedNonImageAttachment = false
+        for assetURL in try assetURLs(in: noteURL) {
+            let standardizedURL = assetURL.notraCanonicalFileURL
+            guard linkedURLs.contains(standardizedURL) else {
+                continue
+            }
+
+            let contentType = try assetURL.resourceValues(forKeys: [.contentTypeKey]).contentType
+                ?? UTType(filenameExtension: assetURL.pathExtension)
+            switch TextBundleAssetKind(contentType: contentType, filename: assetURL.lastPathComponent) {
+            case .image where firstLinkedImageURL == nil:
+                firstLinkedImageURL = standardizedURL
+            case .attachment:
+                hasLinkedNonImageAttachment = true
+            default:
+                break
+            }
+
+            if firstLinkedImageURL != nil, hasLinkedNonImageAttachment {
+                break
+            }
+        }
+
+        return NoteAttachmentSummary(
+            firstLinkedImageURL: firstLinkedImageURL,
+            hasLinkedNonImageAttachment: hasLinkedNonImageAttachment
+        )
+    }
+
     private func metadataJSONObject(at infoURL: URL) throws -> [String: Any] {
         guard FileManager.default.fileExists(atPath: infoURL.path(percentEncoded: false)) else {
             return [:]
@@ -526,11 +566,8 @@ private extension TextBundleNoteRepository {
     private func validatedAttachmentURL(_ attachmentURL: URL, in noteURL: URL) throws -> URL {
         let assetsURL = noteURL
             .appendingPathComponent(Self.assetsFolder, isDirectory: true)
-            .resolvingSymlinksInPath()
-            .standardizedFileURL
-        let resolvedAttachmentURL = attachmentURL
-            .resolvingSymlinksInPath()
-            .standardizedFileURL
+            .notraCanonicalFileURL
+        let resolvedAttachmentURL = attachmentURL.notraCanonicalFileURL
         let values = try resolvedAttachmentURL.resourceValues(forKeys: [.isRegularFileKey])
 
         guard resolvedAttachmentURL.deletingLastPathComponent() == assetsURL,

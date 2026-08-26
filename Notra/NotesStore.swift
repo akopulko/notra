@@ -484,7 +484,7 @@ private extension NotesStore {
             return TextBundleAsset(
                 url: url,
                 contentType: contentType,
-                isLinked: linkedURLs.contains(url.standardizedFileURL)
+                isLinked: linkedURLs.contains(url.notraCanonicalFileURL)
             )
         }
         selectedNoteBundleSize = repository.totalBundleSize(at: selectedNote.url)
@@ -507,7 +507,7 @@ private extension NotesStore {
             TextBundleAsset(
                 url: attachment.url,
                 contentType: attachment.contentType,
-                isLinked: linkedURLs.contains(attachment.url.standardizedFileURL)
+                isLinked: linkedURLs.contains(attachment.url.notraCanonicalFileURL)
             )
         }
     }

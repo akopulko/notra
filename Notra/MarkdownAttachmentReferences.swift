@@ -23,7 +23,7 @@ enum MarkdownAttachmentReferences {
         from markdown: String,
         assetBaseURL: URL
     ) -> String {
-        let targetURL = targetURL.standardizedFileURL
+        let targetURL = targetURL.notraCanonicalFileURL
         let ranges = references(in: markdown).compactMap { reference -> Range<String.Index>? in
             guard let sourceURL = resolve(reference.source, assetBaseURL: assetBaseURL),
                   sourceURL == targetURL,
@@ -53,8 +53,8 @@ enum MarkdownAttachmentReferences {
                     return nil
                 }
 
-                let baseURL = assetBaseURL.standardizedFileURL
-                let resolvedURL = absoluteURL.standardizedFileURL
+                let baseURL = assetBaseURL.notraCanonicalFileURL
+                let resolvedURL = absoluteURL.notraCanonicalFileURL
                 guard resolvedURL.path.hasPrefix("\(baseURL.path)/") else {
                     return nil
                 }
@@ -86,10 +86,10 @@ enum MarkdownAttachmentReferences {
             return nil
         }
 
-        let baseURL = assetBaseURL.standardizedFileURL
+        let baseURL = assetBaseURL.notraCanonicalFileURL
         let resolvedURL = relativeComponents.reduce(baseURL) { url, component in
             url.appendingPathComponent(String(component))
-        }.standardizedFileURL
+        }.notraCanonicalFileURL
         let basePath = baseURL.path
         let resolvedPath = resolvedURL.path
 

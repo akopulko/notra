@@ -81,7 +81,10 @@ struct NotraStorageTests {
         let secondURL = secondAsset.url
 
         let attachments = try repository.assetURLs(in: note.url)
-        #expect(attachments == [firstURL, secondURL].sorted { $0.lastPathComponent < $1.lastPathComponent })
+        let expectedAttachments = [firstURL, secondURL]
+            .map(\.notraCanonicalFileURL)
+            .sorted { $0.lastPathComponent < $1.lastPathComponent }
+        #expect(attachments == expectedAttachments)
 
         try repository.deleteAttachment(firstURL, from: note.url)
 
@@ -151,6 +154,92 @@ struct NotraStorageTests {
             try repository.deleteAttachment(outsideURL, from: note.url)
         }
         #expect(FileManager.default.fileExists(atPath: outsideURL.path(percentEncoded: false)))
+    }
+
+    @Test func noteSummaryIgnoresUnlinkedAssets() throws {
+        let repository = try makeRepository()
+        let note = try repository.createNote()
+        _ = try repository.importImage(
+            data: onePixelPNGData,
+            originalFilename: "photo.png",
+            into: note.url
+        )
+
+        let summary = try #require(try repository.listNotes().first { $0.url == note.url })
+
+        #expect(summary.attachmentSummary == .empty)
+    }
+
+    @Test func noteSummaryShowsPaperclipForLinkedImage() throws {
+        let repository = try makeRepository()
+        var note = try repository.createNote()
+        let asset = try repository.importImage(
+            data: onePixelPNGData,
+            originalFilename: "photo.png",
+            into: note.url
+        )
+        note.markdown = "![Photo](\(asset.source))"
+        try repository.save(note)
+
+        let summary = try #require(try repository.listNotes().first { $0.url == note.url })
+
+        #expect(summary.attachmentSummary.firstLinkedImageURL == asset.url.notraCanonicalFileURL)
+        #expect(!summary.attachmentSummary.hasLinkedNonImageAttachment)
+        #expect(summary.attachmentSummary.showsPaperclip)
+    }
+
+    @Test func noteSummaryUsesPaperclipForLinkedNonImageAttachment() throws {
+        let repository = try makeRepository()
+        var note = try repository.createNote()
+        let sourceURL = try makeSourceFile(named: "report.pdf", data: Data("report".utf8))
+        let asset = try repository.importAttachment(
+            from: sourceURL,
+            into: note.url,
+            maximumByteCount: 100
+        )
+        note.markdown = "[Report](\(asset.source))"
+        try repository.save(note)
+
+        let summary = try #require(try repository.listNotes().first { $0.url == note.url })
+
+        #expect(summary.attachmentSummary.firstLinkedImageURL == nil)
+        #expect(summary.attachmentSummary.hasLinkedNonImageAttachment)
+        #expect(summary.attachmentSummary.showsPaperclip)
+    }
+
+    @Test func noteSummaryShowsPaperclipForLinkedImageAndAttachment() throws {
+        let repository = try makeRepository()
+        var note = try repository.createNote()
+        let imageAsset = try repository.importImage(
+            data: onePixelPNGData,
+            originalFilename: "photo.png",
+            into: note.url
+        )
+        let sourceURL = try makeSourceFile(named: "report.pdf", data: Data("report".utf8))
+        let fileAsset = try repository.importAttachment(
+            from: sourceURL,
+            into: note.url,
+            maximumByteCount: 100
+        )
+        note.markdown = "![Photo](\(imageAsset.source))\n[Report](\(fileAsset.source))"
+        try repository.save(note)
+
+        let summary = try #require(try repository.listNotes().first { $0.url == note.url })
+
+        #expect(summary.attachmentSummary.firstLinkedImageURL == imageAsset.url.notraCanonicalFileURL)
+        #expect(summary.attachmentSummary.hasLinkedNonImageAttachment)
+        #expect(summary.attachmentSummary.showsPaperclip)
+    }
+
+    @Test func noteSummaryIgnoresMissingLinkedAssets() throws {
+        let repository = try makeRepository()
+        var note = try repository.createNote()
+        note.markdown = "![Missing](assets/missing.jpg)\n[Missing](assets/missing.pdf)"
+        try repository.save(note)
+
+        let summary = try #require(try repository.listNotes().first { $0.url == note.url })
+
+        #expect(summary.attachmentSummary == .empty)
     }
 
     @Test func savesMarkdownRoundTrip() throws {

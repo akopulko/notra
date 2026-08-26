@@ -1,5 +1,33 @@
 import Foundation
 
+#if canImport(Darwin)
+import Darwin
+#endif
+
+struct NoteAttachmentSummary: Equatable, Sendable {
+    static let empty = NoteAttachmentSummary(
+        firstLinkedImageURL: nil,
+        hasLinkedNonImageAttachment: false
+    )
+
+    let firstLinkedImageURL: URL?
+    let hasLinkedNonImageAttachment: Bool
+
+    var showsPaperclip: Bool {
+        firstLinkedImageURL != nil || hasLinkedNonImageAttachment
+    }
+
+    var accessibilityDescription: String {
+        if firstLinkedImageURL != nil {
+            return "Contains image"
+        }
+        if hasLinkedNonImageAttachment {
+            return "Contains attachment"
+        }
+        return ""
+    }
+}
+
 struct NoteSummary: Identifiable, Equatable {
     static let emptyPreviewText = "<Empty Note>"
 
@@ -7,6 +35,7 @@ struct NoteSummary: Identifiable, Equatable {
     let url: URL
     let previewText: String
     let previewFirstLineIsHeading: Bool
+    let attachmentSummary: NoteAttachmentSummary
     let createdAt: Date
     let modifiedAt: Date
 
@@ -14,13 +43,16 @@ struct NoteSummary: Identifiable, Equatable {
         url: URL,
         previewText: String,
         previewFirstLineIsHeading: Bool = false,
+        attachmentSummary: NoteAttachmentSummary = .empty,
         createdAt: Date,
         modifiedAt: Date
     ) {
-        id = url
-        self.url = url
+        let normalizedURL = url.notraCanonicalFileURL
+        id = normalizedURL
+        self.url = normalizedURL
         self.previewText = previewText
         self.previewFirstLineIsHeading = previewFirstLineIsHeading
+        self.attachmentSummary = attachmentSummary
         self.createdAt = createdAt
         self.modifiedAt = modifiedAt
     }
@@ -41,8 +73,9 @@ struct Note: Identifiable, Equatable {
         createdAt: Date,
         modifiedAt: Date
     ) {
-        id = url
-        self.url = url
+        let normalizedURL = url.notraCanonicalFileURL
+        id = normalizedURL
+        self.url = normalizedURL
         self.markdown = markdown
         self.metadata = metadata
         self.createdAt = createdAt
@@ -74,5 +107,23 @@ enum MarkdownHeadingLevel: Int, CaseIterable, Hashable {
 
     var markdownPrefix: String {
         "\(String(repeating: "#", count: rawValue)) "
+    }
+}
+
+extension URL {
+    var notraCanonicalFileURL: URL {
+        guard isFileURL else {
+            return standardizedFileURL
+        }
+
+        #if canImport(Darwin)
+        let filePath = path(percentEncoded: false)
+        if let resolvedPath = filePath.withCString({ realpath($0, nil) }) {
+            defer { free(resolvedPath) }
+            return URL(fileURLWithPath: String(cString: resolvedPath)).standardizedFileURL
+        }
+        #endif
+
+        return standardizedFileURL
     }
 }
