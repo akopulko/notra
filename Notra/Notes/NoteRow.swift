@@ -20,7 +20,7 @@ struct NoteRow: View {
                 HStack(spacing: 4) {
                     Text(
                         sortField == .dateCreated ? note.createdAt : note.modifiedAt,
-                        format: .dateTime.month().day().hour().minute()
+                        format: .dateTime.month().day().year().hour().minute()
                     )
                     if note.attachmentSummary.showsPaperclip {
                         Image(systemName: "paperclip")
