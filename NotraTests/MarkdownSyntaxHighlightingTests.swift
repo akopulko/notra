@@ -31,7 +31,7 @@ struct MarkdownSyntaxHighlightingTests {
         #expect(roles.contains(.inlineCode))
     }
 
-    @Test func highlightsFencesWithoutHighlightingFenceContent() {
+    @Test func highlightsFencesAndRecognizedFenceContent() {
         let markdown = """
         ```swift
         let value = 1
@@ -41,7 +41,53 @@ struct MarkdownSyntaxHighlightingTests {
         let spans = MarkdownSyntaxHighlighter().spans(in: markdown)
 
         #expect(spans.filter { $0.role == .codeFence }.count == 2)
-        #expect(spans.allSatisfy { String(markdown[$0.range]) != "let" })
+        #expect(spans.contains { $0.role == .codeKeyword && String(markdown[$0.range]) == "let" })
+    }
+
+    @Test func highlightsSupportedLanguageFenceContent() {
+        let markdown = """
+        ```swift
+        // A comment
+        let answer: Int = 42
+        print(\"Notra\")
+        ```
+        """
+
+        let roles = MarkdownSyntaxHighlighter().spans(in: markdown).map(\.role)
+
+        #expect(roles.contains(.codeComment))
+        #expect(roles.contains(.codeKeyword))
+        #expect(roles.contains(.codeType))
+        #expect(roles.contains(.codeNumber))
+        #expect(roles.contains(.codeFunction))
+        #expect(roles.contains(.codeString))
+    }
+
+    @Test func recognizesSupportedFenceLanguageAliases() {
+        let supportedTags = [
+            "swift", "python", "py", "javascript", "js", "jsx", "typescript", "ts", "tsx", "json",
+            "html", "htm", "css", "bash", "sh", "zsh", "shell", "sql", "yaml", "yml", "c", "cpp",
+            "cxx", "cc", "csharp", "cs", "java", "go", "rust", "rs", "kotlin", "kt", "ruby", "rb",
+            "php", "xml", "markdown", "md",
+        ]
+
+        for tag in supportedTags {
+            #expect(MarkdownCodeLanguage(fenceTag: tag) != nil)
+        }
+        #expect(MarkdownCodeLanguage(fenceTag: "unknown") == nil)
+    }
+
+    @Test func leavesUnsupportedFenceContentUnhighlighted() {
+        let markdown = """
+        ```unknown
+        let answer = 42
+        ```
+        """
+
+        let roles = MarkdownSyntaxHighlighter().spans(in: markdown).map(\.role)
+
+        #expect(!roles.contains(.codeKeyword))
+        #expect(!roles.contains(.codeNumber))
     }
 
     @Test func malformedMarkdownDoesNotCreateInlineSpans() {

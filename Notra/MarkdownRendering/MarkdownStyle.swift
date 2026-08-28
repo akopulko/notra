@@ -13,6 +13,7 @@ struct MarkdownStyle: Equatable {
     let dividerColor: Color
     let quoteAccentColor: Color
     let codeTextColor: Color
+    let codeSyntaxTheme: MarkdownHighlightTheme?
     let codeBlockFont: Font
     let inlineCodeFont: Font
     let blockSpacing: CGFloat
@@ -45,6 +46,7 @@ struct MarkdownStyle: Equatable {
             dividerColor: markerColor.opacity(theme == nil ? 0.2 : 0.45),
             quoteAccentColor: theme?.quote.color ?? borderColor,
             codeTextColor: theme?.code.color ?? (isPDF ? .black : .primary),
+            codeSyntaxTheme: isPDF ? nil : theme,
             codeBlockFont: .system(.body, design: .monospaced),
             inlineCodeFont: .system(.callout, design: .monospaced),
             blockSpacing: 0,

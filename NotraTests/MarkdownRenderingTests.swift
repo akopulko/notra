@@ -5,6 +5,23 @@ import Testing
 
 @MainActor
 struct MarkdownRenderingTests {
+    @Test func previewCodeSyntaxThemeFollowsThePreviewThemeOption() {
+        let themedPreview = MarkdownStyle.notra(
+            previewFontName: AppearanceFont.defaultName,
+            theme: .tokyoNight
+        )
+        let defaultPreview = MarkdownStyle.notra(previewFontName: AppearanceFont.defaultName)
+        let themedPDF = MarkdownStyle.notra(
+            previewFontName: AppearanceFont.defaultName,
+            theme: .tokyoNight,
+            renderMode: .pdf
+        )
+
+        #expect(themedPreview.codeSyntaxTheme == .tokyoNight)
+        #expect(defaultPreview.codeSyntaxTheme == nil)
+        #expect(themedPDF.codeSyntaxTheme == nil)
+    }
+
     @Test
     func `parses representative markdown surface`() {
         let document = SwiftMarkdownParser().parse("""

@@ -42,6 +42,15 @@ enum MarkdownHighlightRole: Equatable {
     case tableHeader
     case tableDelimiter
     case tableBody
+    case codeComment
+    case codeKeyword
+    case codeString
+    case codeNumber
+    case codeType
+    case codeFunction
+    case codeOperator
+    case codeTag
+    case codeAttribute
 }
 
 struct MarkdownHighlightSpan: Equatable {
@@ -99,6 +108,15 @@ struct MarkdownHighlightTheme: Equatable {
     let quote: MarkdownSyntaxColor
     let link: MarkdownSyntaxColor
     let table: MarkdownSyntaxColor
+    let codeComment: MarkdownSyntaxColor
+    let codeKeyword: MarkdownSyntaxColor
+    let codeString: MarkdownSyntaxColor
+    let codeNumber: MarkdownSyntaxColor
+    let codeType: MarkdownSyntaxColor
+    let codeFunction: MarkdownSyntaxColor
+    let codeOperator: MarkdownSyntaxColor
+    let codeTag: MarkdownSyntaxColor
+    let codeAttribute: MarkdownSyntaxColor
 
     static let tokyoNight = MarkdownHighlightTheme(
         marker: MarkdownSyntaxColor(hex: "#565F89"),
@@ -107,7 +125,16 @@ struct MarkdownHighlightTheme: Equatable {
         code: MarkdownSyntaxColor(hex: "#9ECE6A"),
         quote: MarkdownSyntaxColor(hex: "#E0AF68"),
         link: MarkdownSyntaxColor(hex: "#2AC3DE"),
-        table: MarkdownSyntaxColor(hex: "#0DB9D7")
+        table: MarkdownSyntaxColor(hex: "#0DB9D7"),
+        codeComment: MarkdownSyntaxColor(hex: "#565F89"),
+        codeKeyword: MarkdownSyntaxColor(hex: "#BB9AF7"),
+        codeString: MarkdownSyntaxColor(hex: "#9ECE6A"),
+        codeNumber: MarkdownSyntaxColor(hex: "#FF9E64"),
+        codeType: MarkdownSyntaxColor(hex: "#2AC3DE"),
+        codeFunction: MarkdownSyntaxColor(hex: "#7DCFFF"),
+        codeOperator: MarkdownSyntaxColor(hex: "#89DDFF"),
+        codeTag: MarkdownSyntaxColor(hex: "#7AA2F7"),
+        codeAttribute: MarkdownSyntaxColor(hex: "#E0AF68")
     )
 
     static let light = MarkdownHighlightTheme(
@@ -117,7 +144,16 @@ struct MarkdownHighlightTheme: Equatable {
         code: MarkdownSyntaxColor(hex: "#047857"),
         quote: MarkdownSyntaxColor(hex: "#B45309"),
         link: MarkdownSyntaxColor(hex: "#0369A1"),
-        table: MarkdownSyntaxColor(hex: "#0E7490")
+        table: MarkdownSyntaxColor(hex: "#0E7490"),
+        codeComment: MarkdownSyntaxColor(hex: "#6B7280"),
+        codeKeyword: MarkdownSyntaxColor(hex: "#7C3AED"),
+        codeString: MarkdownSyntaxColor(hex: "#047857"),
+        codeNumber: MarkdownSyntaxColor(hex: "#C2410C"),
+        codeType: MarkdownSyntaxColor(hex: "#0369A1"),
+        codeFunction: MarkdownSyntaxColor(hex: "#0E7490"),
+        codeOperator: MarkdownSyntaxColor(hex: "#0891B2"),
+        codeTag: MarkdownSyntaxColor(hex: "#1D4ED8"),
+        codeAttribute: MarkdownSyntaxColor(hex: "#B45309")
     )
 
     static func preferred(for colorScheme: ColorScheme) -> MarkdownHighlightTheme {
@@ -130,7 +166,11 @@ struct MarkdownHighlightTheme: Equatable {
     }
 
     func color(for role: MarkdownHighlightRole) -> MarkdownSyntaxColor {
-        switch role {
+        if let codeRole = role.codeRole {
+            return codeColor(for: codeRole)
+        }
+
+        return switch role {
         case .headingMarker, .linkMarker, .thematicBreak:
             marker
         case .headingText:
@@ -151,6 +191,22 @@ struct MarkdownHighlightTheme: Equatable {
             heading
         case .tableMarker, .tableDelimiter, .tableBody:
             table
+        case .codeComment, .codeKeyword, .codeString, .codeNumber, .codeType, .codeFunction, .codeOperator, .codeTag, .codeAttribute:
+            marker
+        }
+    }
+
+    func codeColor(for role: MarkdownCodeHighlightRole) -> MarkdownSyntaxColor {
+        switch role {
+        case .comment: codeComment
+        case .keyword: codeKeyword
+        case .string: codeString
+        case .number: codeNumber
+        case .type: codeType
+        case .function: codeFunction
+        case .operator: codeOperator
+        case .tag: codeTag
+        case .attribute: codeAttribute
         }
     }
 }
@@ -175,7 +231,7 @@ struct MarkdownSyntaxHighlighter {
     func spans(in markdown: String) -> [MarkdownHighlightSpan] {
         var spans: [MarkdownHighlightSpan] = []
         var lineStart = markdown.startIndex
-        var isInFence = false
+        var fenceState = MarkdownCodeFenceState.closed
 
         while lineStart < markdown.endIndex {
             let lineEnd = markdown[lineStart...].firstIndex(of: "\n") ?? markdown.endIndex
@@ -189,7 +245,7 @@ struct MarkdownSyntaxHighlighter {
             parseLine(
                 markdown,
                 range: lineRange,
-                isInFence: &isInFence,
+                fenceState: &fenceState,
                 nextLine: nextLine,
                 spans: &spans
             )
@@ -201,22 +257,34 @@ struct MarkdownSyntaxHighlighter {
     }
 
     func parseLine(_ line: String, isInFence: Bool, nextLine: String? = nil) -> MarkdownLineParseResult {
+        parseLine(
+            line,
+            fenceState: MarkdownCodeFenceState(isInFence: isInFence),
+            nextLine: nextLine
+        )
+    }
+
+    func parseLine(
+        _ line: String,
+        fenceState initialFenceState: MarkdownCodeFenceState,
+        nextLine: String? = nil
+    ) -> MarkdownLineParseResult {
         var spans: [MarkdownHighlightSpan] = []
-        var inFence = isInFence
+        var fenceState = initialFenceState
         parseLine(
             line,
             range: line.startIndex..<line.endIndex,
-            isInFence: &inFence,
+            fenceState: &fenceState,
             nextLine: nextLine,
             spans: &spans
         )
-        return MarkdownLineParseResult(spans: spans, opensFence: inFence != isInFence)
+        return MarkdownLineParseResult(spans: spans, fenceStateAfter: fenceState)
     }
 
     private func parseLine(
         _ markdown: String,
         range: Range<String.Index>,
-        isInFence: inout Bool,
+        fenceState: inout MarkdownCodeFenceState,
         nextLine: String?,
         spans: inout [MarkdownHighlightSpan]
     ) {
@@ -224,11 +292,22 @@ struct MarkdownSyntaxHighlighter {
 
         if isCodeFence(in: markdown, startingAt: contentStart, lineEnd: range.upperBound) {
             spans.append(MarkdownHighlightSpan(role: .codeFence, range: contentStart..<range.upperBound))
-            isInFence.toggle()
+            fenceState = fenceState.isInFence
+                ? .closed
+                : MarkdownCodeFenceState(
+                    isInFence: true,
+                    language: fenceLanguage(in: markdown, startingAt: contentStart, lineEnd: range.upperBound)
+                )
             return
         }
 
-        guard !isInFence else {
+        guard !fenceState.isInFence else {
+            appendCodeSpans(
+                in: markdown,
+                range: range,
+                language: fenceState.language,
+                spans: &spans
+            )
             return
         }
 
@@ -564,6 +643,43 @@ extension MarkdownSyntaxHighlighter {
         return count >= 3
     }
 
+    private func fenceLanguage(in markdown: String, startingAt index: String.Index, lineEnd: String.Index) -> MarkdownCodeLanguage? {
+        let marker = markdown[index]
+        var current = index
+        while current < lineEnd, markdown[current] == marker {
+            current = markdown.index(after: current)
+        }
+        let tag = String(markdown[current..<lineEnd])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .split(whereSeparator: \.isWhitespace)
+            .first
+            .map(String.init)
+        return tag.flatMap(MarkdownCodeLanguage.init(fenceTag:))
+    }
+
+    private func appendCodeSpans(
+        in markdown: String,
+        range: Range<String.Index>,
+        language: MarkdownCodeLanguage?,
+        spans: inout [MarkdownHighlightSpan]
+    ) {
+        guard let language else {
+            return
+        }
+
+        let code = String(markdown[range])
+        for span in MarkdownCodeSyntaxHighlighter().spans(in: code, language: language) {
+            let lowerOffset = code.distance(from: code.startIndex, to: span.range.lowerBound)
+            let upperOffset = code.distance(from: code.startIndex, to: span.range.upperBound)
+            spans.append(
+                MarkdownHighlightSpan(
+                    role: MarkdownHighlightRole(codeRole: span.role),
+                    range: markdown.index(range.lowerBound, offsetBy: lowerOffset)..<markdown.index(range.lowerBound, offsetBy: upperOffset)
+                )
+            )
+        }
+    }
+
     private func firstIndex(
         of character: Character,
         in markdown: String,
@@ -612,6 +728,37 @@ extension MarkdownSyntaxHighlighter {
         }
 
         return nil
+    }
+}
+
+private extension MarkdownHighlightRole {
+    var codeRole: MarkdownCodeHighlightRole? {
+        switch self {
+        case .codeComment: .comment
+        case .codeKeyword: .keyword
+        case .codeString: .string
+        case .codeNumber: .number
+        case .codeType: .type
+        case .codeFunction: .function
+        case .codeOperator: .operator
+        case .codeTag: .tag
+        case .codeAttribute: .attribute
+        default: nil
+        }
+    }
+
+    init(codeRole: MarkdownCodeHighlightRole) {
+        switch codeRole {
+        case .comment: self = .codeComment
+        case .keyword: self = .codeKeyword
+        case .string: self = .codeString
+        case .number: self = .codeNumber
+        case .type: self = .codeType
+        case .function: self = .codeFunction
+        case .operator: self = .codeOperator
+        case .tag: self = .codeTag
+        case .attribute: self = .codeAttribute
+        }
     }
 }
 
@@ -748,7 +895,23 @@ extension MarkdownSyntaxHighlighter {
 
 struct MarkdownLineParseResult {
     let spans: [MarkdownHighlightSpan]
-    let opensFence: Bool
+    let fenceStateAfter: MarkdownCodeFenceState
+
+    var opensFence: Bool {
+        fenceStateAfter.isInFence
+    }
+}
+
+struct MarkdownCodeFenceState: Equatable {
+    let isInFence: Bool
+    let language: MarkdownCodeLanguage?
+
+    static let closed = MarkdownCodeFenceState(isInFence: false, language: nil)
+
+    init(isInFence: Bool, language: MarkdownCodeLanguage? = nil) {
+        self.isInFence = isInFence
+        self.language = isInFence ? language : nil
+    }
 }
 
 struct MarkdownUTF16Span: Equatable {
@@ -760,8 +923,16 @@ struct MarkdownUTF16Span: Equatable {
 struct MarkdownLineHighlight {
     let range: Range<Int>
     let spans: [MarkdownUTF16Span]
-    let opensFence: Bool
-    let isInFence: Bool
+    let fenceStateBefore: MarkdownCodeFenceState
+    let fenceStateAfter: MarkdownCodeFenceState
+
+    var opensFence: Bool {
+        fenceStateBefore.isInFence != fenceStateAfter.isInFence
+    }
+
+    var isInFence: Bool {
+        fenceStateBefore.isInFence
+    }
 }
 
 struct MarkdownHighlightCache {
@@ -823,9 +994,9 @@ struct MarkdownHighlightCache {
             changedCount += 1
         }
 
-        var parity = false
-        for line in oldCache.prefix(prefix) where line.opensFence {
-            parity.toggle()
+        var fenceState = MarkdownCodeFenceState.closed
+        for line in oldCache.prefix(prefix) {
+            fenceState = line.fenceStateAfter
         }
 
         var updatedLines = Array(oldCache.prefix(prefix))
@@ -837,7 +1008,7 @@ struct MarkdownHighlightCache {
             Self.appendParsedLine(
                 entry: newEntries[entryIndex],
                 highlighter: highlighter,
-                parity: &parity,
+                fenceState: &fenceState,
                 nextLine: newEntries.count > entryIndex + 1 ? newEntries[entryIndex + 1].content : nil,
                 into: &updatedLines
             )
@@ -846,13 +1017,13 @@ struct MarkdownHighlightCache {
         for index in 0..<suffix {
             let newLineIndex = newEntries.count - suffix + index
             let oldLineIndex = oldCache.count - suffix + index
-            guard parity != oldCache[oldLineIndex].isInFence else {
+            guard fenceState != oldCache[oldLineIndex].fenceStateBefore else {
                 break
             }
             Self.appendParsedLine(
                 entry: newEntries[newLineIndex],
                 highlighter: highlighter,
-                parity: &parity,
+                fenceState: &fenceState,
                 nextLine: newEntries.count > newLineIndex + 1 ? newEntries[newLineIndex + 1].content : nil,
                 into: &updatedLines
             )
@@ -874,8 +1045,8 @@ struct MarkdownHighlightCache {
                 MarkdownLineHighlight(
                     range: newEntries[newLineIndex].range,
                     spans: spans,
-                    opensFence: oldLine.opensFence,
-                    isInFence: oldLine.isInFence
+                    fenceStateBefore: oldLine.fenceStateBefore,
+                    fenceStateAfter: oldLine.fenceStateAfter
                 )
             )
         }
@@ -935,11 +1106,11 @@ struct MarkdownHighlightCache {
     private static func appendParsedLine(
         entry: (range: Range<Int>, content: String),
         highlighter: MarkdownSyntaxHighlighter,
-        parity: inout Bool,
+        fenceState: inout MarkdownCodeFenceState,
         nextLine: String?,
         into lines: inout [MarkdownLineHighlight]
     ) {
-        let parsed = highlighter.parseLine(entry.content, isInFence: parity, nextLine: nextLine)
+        let parsed = highlighter.parseLine(entry.content, fenceState: fenceState, nextLine: nextLine)
         let spans = parsed.spans.map { span in
             MarkdownUTF16Span(
                 role: span.role,
@@ -951,13 +1122,11 @@ struct MarkdownHighlightCache {
             MarkdownLineHighlight(
                 range: entry.range,
                 spans: spans,
-                opensFence: parsed.opensFence,
-                isInFence: parity
+                fenceStateBefore: fenceState,
+                fenceStateAfter: parsed.fenceStateAfter
             )
         )
-        if parsed.opensFence {
-            parity.toggle()
-        }
+        fenceState = parsed.fenceStateAfter
     }
 
     private static func lineEntries(for text: String) -> [(range: Range<Int>, content: String)] {
@@ -982,13 +1151,13 @@ struct MarkdownHighlightCache {
 
     private static func buildLines(for text: String) -> [MarkdownLineHighlight] {
         var lines: [MarkdownLineHighlight] = []
-        var isInFence = false
+        var fenceState = MarkdownCodeFenceState.closed
         let highlighter = MarkdownSyntaxHighlighter()
         let entries = lineEntries(for: text)
 
         for (index, entry) in entries.enumerated() {
             let nextLine = entries.count > index + 1 ? entries[index + 1].content : nil
-            let parsed = highlighter.parseLine(entry.content, isInFence: isInFence, nextLine: nextLine)
+            let parsed = highlighter.parseLine(entry.content, fenceState: fenceState, nextLine: nextLine)
             let spans = parsed.spans.map { span in
                 MarkdownUTF16Span(
                     role: span.role,
@@ -1000,13 +1169,11 @@ struct MarkdownHighlightCache {
                 MarkdownLineHighlight(
                     range: entry.range,
                     spans: spans,
-                    opensFence: parsed.opensFence,
-                    isInFence: isInFence
+                    fenceStateBefore: fenceState,
+                    fenceStateAfter: parsed.fenceStateAfter
                 )
             )
-            if parsed.opensFence {
-                isInFence.toggle()
-            }
+            fenceState = parsed.fenceStateAfter
         }
 
         return lines

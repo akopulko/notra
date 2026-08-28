@@ -162,12 +162,18 @@ private struct CodeBlockView: View {
     }
 
     private var codeText: some View {
-        Text(code)
-            .font(style.codeBlockFont)
-            .foregroundStyle(style.codeTextColor)
-            .textSelection(.enabled)
-            .padding(16)
-            .frame(maxWidth: .infinity, alignment: .leading)
+        Text(
+            MarkdownCodeSyntaxHighlighter().highlight(
+                code,
+                languageTag: language,
+                theme: style.codeSyntaxTheme,
+                baseColor: style.codeTextColor
+            )
+        )
+        .font(style.codeBlockFont)
+        .textSelection(.enabled)
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var accessibilityLabel: String {
