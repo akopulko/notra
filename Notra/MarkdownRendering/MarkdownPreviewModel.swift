@@ -9,14 +9,18 @@ final class MarkdownPreviewModel {
         case parsed(NotraMarkdownDocument)
     }
 
-    private let parser: any MarkdownParsing
+    private let parser: @Sendable (String) -> NotraMarkdownDocument
     private var parsedMarkdown: String?
     private var parseGeneration = 0
     @ObservationIgnored private var parseTask: Task<Void, Never>?
 
     var state: State = .idle
 
-    init(parser: any MarkdownParsing = SwiftMarkdownParser()) {
+    init(
+        parser: @escaping @Sendable (String) -> NotraMarkdownDocument = { markdown in
+            SwiftMarkdownParser().parse(markdown)
+        }
+    ) {
         self.parser = parser
     }
 
@@ -37,7 +41,7 @@ final class MarkdownPreviewModel {
         parseTask?.cancel()
         parseTask = Task { [parser] in
             let document = await Task.detached(priority: .userInitiated) {
-                parser.parse(markdown)
+                parser(markdown)
             }.value
 
             let durationMilliseconds = Int(Date.now.timeIntervalSince(startedAt) * 1000)

@@ -489,12 +489,13 @@ private struct SettingsWindowCenteringView: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: NSView, context: Context) {
-        DispatchQueue.main.async {
-            guard let window = nsView.window else {
+        let coordinator = context.coordinator
+        Task { @MainActor [weak nsView, coordinator] in
+            guard let window = nsView?.window else {
                 return
             }
 
-            context.coordinator.center(window)
+            coordinator.center(window)
         }
     }
 

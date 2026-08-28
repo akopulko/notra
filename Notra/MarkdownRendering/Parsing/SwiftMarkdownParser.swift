@@ -1,7 +1,7 @@
 import Foundation
 import Markdown
 
-struct SwiftMarkdownParser: MarkdownParsing {
+struct SwiftMarkdownParser {
     private let extendedAutolinkParser: GFMExtendedAutolinkParser
     private let tableParser: GFMTableBlockParser
 

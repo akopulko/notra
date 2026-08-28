@@ -10,7 +10,12 @@ enum AppLog {
     }
 
     #if DEBUG
-    nonisolated(unsafe) static var minimumLevelOverride: Level?
+    private static let minimumLevelLock = OSAllocatedUnfairLock(initialState: Level?.none)
+
+    static var minimumLevelOverride: Level? {
+        get { minimumLevelLock.withLock { $0 } }
+        set { minimumLevelLock.withLock { $0 = newValue } }
+    }
     #endif
 
     static func debug(

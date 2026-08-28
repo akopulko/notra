@@ -2,12 +2,13 @@ import Foundation
 import Observation
 import UniformTypeIdentifiers
 
+@MainActor
 @Observable
 final class NotesStore {
     @ObservationIgnored
     private let repository: TextBundleNoteRepository
     @ObservationIgnored
-    private let searchIndex: any NoteSearchIndex
+    private let searchIndex: SQLiteNoteSearchIndex
     @ObservationIgnored
     private var sortPreferenceStorage: NoteSortPreferenceStorage
 
@@ -31,7 +32,7 @@ final class NotesStore {
     init(
         repository: TextBundleNoteRepository = .production(),
         sortPreferenceStorage: NoteSortPreferenceStorage = .standard,
-        searchIndex: (any NoteSearchIndex)? = nil
+        searchIndex: SQLiteNoteSearchIndex? = nil
     ) {
         self.repository = repository
         self.searchIndex = searchIndex ?? SQLiteNoteSearchIndex.production()
@@ -535,35 +536,24 @@ private extension NotesStore {
                 + "noteCount=\(noteIDs.count)"
         )
         let index = searchIndex
-        if rebuild {
-            searchIndexTask = Task { [weak self, index] in
-                do {
+        searchIndexTask = Task { [weak self, index] in
+            do {
+                if rebuild {
                     try await index.rebuild(noteIDs: noteIDs)
-                    guard !Task.isCancelled else {
-                        return
-                    }
-                    self?.markSearchIndexReady()
-                } catch is CancellationError {
-                    return
-                } catch {
-                    AppLog.error("Failed to rebuild note search index: \(error.localizedDescription)")
-                    self?.markSearchIndexUnavailable()
-                }
-            }
-        } else {
-            searchIndexTask = Task { [weak self, index] in
-                do {
+                } else {
                     try await index.synchronize(noteIDs: noteIDs)
-                    guard !Task.isCancelled else {
-                        return
-                    }
-                    self?.markSearchIndexReady()
-                } catch is CancellationError {
-                    return
-                } catch {
-                    AppLog.error("Failed to synchronize note search index: \(error.localizedDescription)")
-                    self?.markSearchIndexUnavailable()
                 }
+
+                guard !Task.isCancelled else {
+                    return
+                }
+                self?.markSearchIndexReady()
+            } catch is CancellationError {
+                return
+            } catch {
+                let operation = rebuild ? "rebuild" : "synchronize"
+                AppLog.error("Failed to \(operation) note search index: \(error.localizedDescription)")
+                self?.markSearchIndexUnavailable()
             }
         }
     }
@@ -655,16 +645,12 @@ private extension NotesStore {
                 )
                 let bundleSize = repository.totalBundleSize(at: selectedNote.url)
                 let reloadedNotes = try repository.listNotes()
-                await MainActor.run {
-                    self.applySortedNotes(reloadedNotes)
-                    self.selectedNoteBundleSize = bundleSize
-                }
+                self.applySortedNotes(reloadedNotes)
+                self.selectedNoteBundleSize = bundleSize
                 AppLog.debug("Autosaved note: \(noteName)")
             } catch {
                 AppLog.error("Autosave failed: \(error.localizedDescription)")
-                await MainActor.run {
-                    self.errorMessage = error.localizedDescription
-                }
+                self.errorMessage = error.localizedDescription
             }
         }
     }

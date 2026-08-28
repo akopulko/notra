@@ -23,14 +23,6 @@ enum NoteSearchStatus: Equatable, Sendable {
     case unavailable
 }
 
-protocol NoteSearchIndex: Sendable {
-    func synchronize(noteIDs: [URL]) async throws
-    func rebuild(noteIDs: [URL]) async throws
-    func index(noteID: URL, markdown: String, tags: [NoteTag]) async throws
-    func remove(noteID: URL) async throws
-    func search(_ query: String, limit: Int, offset: Int) async throws -> NoteSearchPage
-}
-
 enum NoteSearchIndexError: LocalizedError, Equatable, Sendable {
     case database(String)
     case notReady
@@ -48,7 +40,7 @@ enum NoteSearchIndexError: LocalizedError, Equatable, Sendable {
     }
 }
 
-actor SQLiteNoteSearchIndex: NoteSearchIndex {
+actor SQLiteNoteSearchIndex {
     private nonisolated static let databaseDirectoryName = "Notra"
     private nonisolated static let databaseFilename = "NoteSearch.sqlite"
     private nonisolated static let schemaVersion = 2

@@ -1,9 +1,5 @@
 import Foundation
 
-protocol MarkdownParsing: Sendable {
-    nonisolated func parse(_ markdown: String) -> NotraMarkdownDocument
-}
-
 struct NotraMarkdownDocument: Equatable, Sendable {
     let blocks: [MarkdownBlock]
     let compactParagraphIDs: Set<String>
