@@ -6,11 +6,16 @@ protocol MarkdownParsing: Sendable {
 
 struct NotraMarkdownDocument: Equatable, Sendable {
     let blocks: [MarkdownBlock]
+    let compactParagraphIDs: Set<String>
     let renderRows: [MarkdownRenderRow]
 
-    nonisolated init(blocks: [MarkdownBlock]) {
+    nonisolated init(blocks: [MarkdownBlock], compactParagraphIDs: Set<String> = []) {
         self.blocks = blocks
-        renderRows = MarkdownRenderRowBuilder.rows(from: blocks)
+        self.compactParagraphIDs = compactParagraphIDs
+        renderRows = MarkdownRenderRowBuilder.rows(
+            from: blocks,
+            compactParagraphIDs: compactParagraphIDs
+        )
     }
 }
 
@@ -91,17 +96,31 @@ struct MarkdownRenderRow: Equatable, Identifiable, Sendable {
     let marker: MarkdownListMarker?
     let quoteDepth: Int
     let isInsideListItem: Bool
+    let usesCompactParagraphSpacing: Bool
 }
 
 private enum MarkdownRenderRowBuilder {
-    nonisolated static func rows(from blocks: [MarkdownBlock]) -> [MarkdownRenderRow] {
+    private struct RenderingContext {
+        let nestingLevel: Int
+        let quoteDepth: Int
+        let isInsideListItem: Bool
+        let compactParagraphIDs: Set<String>
+    }
+
+    nonisolated static func rows(
+        from blocks: [MarkdownBlock],
+        compactParagraphIDs: Set<String>
+    ) -> [MarkdownRenderRow] {
         var rows: [MarkdownRenderRow] = []
         append(
             blocks,
             to: &rows,
-            nestingLevel: 0,
-            quoteDepth: 0,
-            isInsideListItem: false
+            context: RenderingContext(
+                nestingLevel: 0,
+                quoteDepth: 0,
+                isInsideListItem: false,
+                compactParagraphIDs: compactParagraphIDs
+            )
         )
         return rows
     }
@@ -109,9 +128,7 @@ private enum MarkdownRenderRowBuilder {
     private nonisolated static func append(
         _ blocks: [MarkdownBlock],
         to rows: inout [MarkdownRenderRow],
-        nestingLevel: Int,
-        quoteDepth: Int,
-        isInsideListItem: Bool
+        context: RenderingContext
     ) {
         for block in blocks {
             switch block {
@@ -119,35 +136,38 @@ private enum MarkdownRenderRowBuilder {
                 append(
                     items,
                     to: &rows,
-                    nestingLevel: nestingLevel + (isInsideListItem ? 1 : 0),
-                    quoteDepth: quoteDepth,
+                    context: context,
                     orderedStart: nil
                 )
             case let .orderedList(_, start, items):
                 append(
                     items,
                     to: &rows,
-                    nestingLevel: nestingLevel + (isInsideListItem ? 1 : 0),
-                    quoteDepth: quoteDepth,
+                    context: context,
                     orderedStart: start
                 )
             case let .blockQuote(_, blocks):
                 append(
                     blocks,
                     to: &rows,
-                    nestingLevel: nestingLevel,
-                    quoteDepth: quoteDepth + 1,
-                    isInsideListItem: isInsideListItem
+                    context: RenderingContext(
+                        nestingLevel: context.nestingLevel,
+                        quoteDepth: context.quoteDepth + 1,
+                        isInsideListItem: context.isInsideListItem,
+                        compactParagraphIDs: context.compactParagraphIDs
+                    )
                 )
             default:
                 rows.append(
                     MarkdownRenderRow(
                         id: block.id,
                         block: block,
-                        nestingLevel: nestingLevel,
+                        nestingLevel: context.nestingLevel,
                         marker: nil,
-                        quoteDepth: quoteDepth,
-                        isInsideListItem: isInsideListItem
+                        quoteDepth: context.quoteDepth,
+                        isInsideListItem: context.isInsideListItem,
+                        usesCompactParagraphSpacing: !context.isInsideListItem
+                            && context.compactParagraphIDs.contains(block.id)
                     )
                 )
             }
@@ -157,8 +177,7 @@ private enum MarkdownRenderRowBuilder {
     private nonisolated static func append(
         _ items: [MarkdownListItem],
         to rows: inout [MarkdownRenderRow],
-        nestingLevel: Int,
-        quoteDepth: Int,
+        context: RenderingContext,
         orderedStart: Int?
     ) {
         for (offset, item) in items.enumerated() {
@@ -167,16 +186,19 @@ private enum MarkdownRenderRowBuilder {
             } else if let orderedStart {
                 .ordered(orderedStart + offset)
             } else {
-                .unordered(nestingLevel)
+                .unordered(context.nestingLevel + (context.isInsideListItem ? 1 : 0))
             }
 
             let firstRowIndex = rows.count
             append(
                 item.blocks,
                 to: &rows,
-                nestingLevel: nestingLevel,
-                quoteDepth: quoteDepth,
-                isInsideListItem: true
+                context: RenderingContext(
+                    nestingLevel: context.nestingLevel + (context.isInsideListItem ? 1 : 0),
+                    quoteDepth: context.quoteDepth,
+                    isInsideListItem: true,
+                    compactParagraphIDs: context.compactParagraphIDs
+                )
             )
 
             guard firstRowIndex < rows.count else {
@@ -190,7 +212,8 @@ private enum MarkdownRenderRowBuilder {
                 nestingLevel: firstRow.nestingLevel,
                 marker: marker,
                 quoteDepth: firstRow.quoteDepth,
-                isInsideListItem: firstRow.isInsideListItem
+                isInsideListItem: firstRow.isInsideListItem,
+                usesCompactParagraphSpacing: firstRow.usesCompactParagraphSpacing
             )
         }
     }

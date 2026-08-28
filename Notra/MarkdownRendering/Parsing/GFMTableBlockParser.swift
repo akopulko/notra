@@ -30,21 +30,35 @@ struct GFMTableBlockParser: Sendable {
             return nil
         }
 
-        let blocks = segments.enumerated().flatMap { offset, segment in
+        var blocks: [MarkdownBlock] = []
+        var compactParagraphIDs: Set<String> = []
+
+        for (offset, segment) in segments.enumerated() {
             switch segment {
             case let .markdown(markdown):
                 let path = segments.count == 1 ? "document" : "document.segment.\(offset)"
-                return swiftParser.parseSwiftMarkdown(markdown, path: path).blocks
+                let document = swiftParser.parseSwiftMarkdown(markdown, path: path)
+                blocks.append(contentsOf: document.blocks)
+                compactParagraphIDs.formUnion(document.compactParagraphIDs)
             case let .table(lines):
                 guard let table = table(from: lines, path: "document.segment.\(offset)") else {
-                    return swiftParser.parseSwiftMarkdown(lines.joined(separator: "\n"), path: "document.segment.\(offset)").blocks
+                    let document = swiftParser.parseSwiftMarkdown(
+                        lines.joined(separator: "\n"),
+                        path: "document.segment.\(offset)"
+                    )
+                    blocks.append(contentsOf: document.blocks)
+                    compactParagraphIDs.formUnion(document.compactParagraphIDs)
+                    continue
                 }
 
-                return [.table(id: "document.segment.\(offset)", table)]
+                blocks.append(.table(id: "document.segment.\(offset)", table))
             }
         }
 
-        return NotraMarkdownDocument(blocks: blocks)
+        return NotraMarkdownDocument(
+            blocks: blocks,
+            compactParagraphIDs: compactParagraphIDs
+        )
     }
 
     private nonisolated func segments(in markdown: String) -> [Segment] {

@@ -148,6 +148,54 @@ struct MarkdownRenderingTests {
     }
 
     @Test
+    func `compacts a paragraph directly followed by a list`() {
+        let document = SwiftMarkdownParser().parse("""
+        User can:
+        - Create a trip
+        - Archive a trip
+        """)
+
+        #expect(document.renderRows.first?.usesCompactParagraphSpacing == true)
+    }
+
+    @Test
+    func `preserves paragraph spacing before a list separated by a blank line`() {
+        let document = SwiftMarkdownParser().parse("""
+        User can:
+
+        - Create a trip
+        - Archive a trip
+        """)
+
+        #expect(document.renderRows.first?.usesCompactParagraphSpacing == false)
+    }
+
+    @Test
+    func `compacts a paragraph directly followed by an ordered list`() {
+        let document = SwiftMarkdownParser().parse("""
+        Steps:
+        1. Create a trip
+        2. Archive a trip
+        """)
+
+        #expect(document.renderRows.first?.usesCompactParagraphSpacing == true)
+    }
+
+    @Test
+    func `preserves compact paragraph spacing in documents with tables`() {
+        let document = SwiftMarkdownParser().parse("""
+        User can:
+        - Create a trip
+
+        | Status |
+        | --- |
+        | Active |
+        """)
+
+        #expect(document.renderRows.first?.usesCompactParagraphSpacing == true)
+    }
+
+    @Test
     func `parses raw HTML as literal text`() {
         let document = SwiftMarkdownParser().parse("""
         <section>

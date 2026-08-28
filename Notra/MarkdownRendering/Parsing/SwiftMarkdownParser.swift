@@ -23,7 +23,30 @@ struct SwiftMarkdownParser: MarkdownParsing {
 
     nonisolated func parseSwiftMarkdown(_ markdown: String, path: String) -> NotraMarkdownDocument {
         let document = Document(parsing: markdown)
-        return NotraMarkdownDocument(blocks: blocks(in: document, path: path))
+        return NotraMarkdownDocument(
+            blocks: blocks(in: document, path: path),
+            compactParagraphIDs: compactParagraphIDs(in: document, path: path)
+        )
+    }
+
+    private nonisolated func compactParagraphIDs(in document: Document, path: String) -> Set<String> {
+        let children = Array(document.children)
+        var result: Set<String> = []
+
+        for offset in children.indices.dropLast() {
+            guard children[offset] is Paragraph,
+                  children[offset + 1] is UnorderedList || children[offset + 1] is OrderedList,
+                  let paragraphRange = children[offset].range,
+                  let listRange = children[offset + 1].range,
+                  listRange.lowerBound.line == paragraphRange.upperBound.line + 1
+            else {
+                continue
+            }
+
+            result.insert("\(path).\(offset)")
+        }
+
+        return result
     }
 
     private nonisolated func blocks(in markup: any Markup, path: String) -> [MarkdownBlock] {
