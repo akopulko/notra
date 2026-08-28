@@ -32,6 +32,7 @@ struct GFMTableBlockParser: Sendable {
 
         var blocks: [MarkdownBlock] = []
         var compactParagraphIDs: Set<String> = []
+        var spacedListIDs: Set<String> = []
 
         for (offset, segment) in segments.enumerated() {
             switch segment {
@@ -40,6 +41,7 @@ struct GFMTableBlockParser: Sendable {
                 let document = swiftParser.parseSwiftMarkdown(markdown, path: path)
                 blocks.append(contentsOf: document.blocks)
                 compactParagraphIDs.formUnion(document.compactParagraphIDs)
+                spacedListIDs.formUnion(document.spacedListIDs)
             case let .table(lines):
                 guard let table = table(from: lines, path: "document.segment.\(offset)") else {
                     let document = swiftParser.parseSwiftMarkdown(
@@ -48,6 +50,7 @@ struct GFMTableBlockParser: Sendable {
                     )
                     blocks.append(contentsOf: document.blocks)
                     compactParagraphIDs.formUnion(document.compactParagraphIDs)
+                    spacedListIDs.formUnion(document.spacedListIDs)
                     continue
                 }
 
@@ -57,7 +60,8 @@ struct GFMTableBlockParser: Sendable {
 
         return NotraMarkdownDocument(
             blocks: blocks,
-            compactParagraphIDs: compactParagraphIDs
+            compactParagraphIDs: compactParagraphIDs,
+            spacedListIDs: spacedListIDs
         )
     }
 

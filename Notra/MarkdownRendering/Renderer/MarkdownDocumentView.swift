@@ -87,7 +87,8 @@ private struct MarkdownDocumentContentView: View {
                 marker: row.marker,
                 quoteDepth: row.quoteDepth,
                 isInsideListItem: row.isInsideListItem,
-                usesCompactParagraphSpacing: row.usesCompactParagraphSpacing
+                usesCompactParagraphSpacing: row.usesCompactParagraphSpacing,
+                usesListTrailingParagraphSpacing: row.usesListTrailingParagraphSpacing
             )
         }
     }

@@ -182,6 +182,30 @@ struct MarkdownRenderingTests {
     }
 
     @Test
+    func `preserves spacing after an unordered list followed by a blank line`() {
+        let document = SwiftMarkdownParser().parse("""
+        - First
+        - Second
+
+        After the list
+        """)
+
+        #expect(document.renderRows.map(\.usesListTrailingParagraphSpacing) == [false, true, false])
+    }
+
+    @Test
+    func `preserves spacing after an ordered list followed by a blank line`() {
+        let document = SwiftMarkdownParser().parse("""
+        1. First
+        2. Second
+
+        After the list
+        """)
+
+        #expect(document.renderRows.map(\.usesListTrailingParagraphSpacing) == [false, true, false])
+    }
+
+    @Test
     func `preserves compact paragraph spacing in documents with tables`() {
         let document = SwiftMarkdownParser().parse("""
         User can:
@@ -193,6 +217,21 @@ struct MarkdownRenderingTests {
         """)
 
         #expect(document.renderRows.first?.usesCompactParagraphSpacing == true)
+    }
+
+    @Test
+    func `preserves list spacing in documents with tables`() {
+        let document = SwiftMarkdownParser().parse("""
+        - First
+
+        After the list
+
+        | Status |
+        | --- |
+        | Active |
+        """)
+
+        #expect(document.renderRows.map(\.usesListTrailingParagraphSpacing) == [true, false, false])
     }
 
     @Test

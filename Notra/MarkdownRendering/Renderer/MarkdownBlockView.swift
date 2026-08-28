@@ -12,6 +12,7 @@ struct MarkdownBlockView: View {
     let quoteDepth: Int
     var isInsideListItem = false
     var usesCompactParagraphSpacing = false
+    var usesListTrailingParagraphSpacing = false
 
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
@@ -93,6 +94,10 @@ struct MarkdownBlockView: View {
     private var paragraphBottomSpacing: CGFloat {
         if usesCompactParagraphSpacing {
             return 0
+        }
+
+        if usesListTrailingParagraphSpacing {
+            return style.paragraphSpacing
         }
 
         return isInsideListItem ? style.listItemParagraphSpacing : style.paragraphSpacing

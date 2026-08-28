@@ -7,14 +7,21 @@ protocol MarkdownParsing: Sendable {
 struct NotraMarkdownDocument: Equatable, Sendable {
     let blocks: [MarkdownBlock]
     let compactParagraphIDs: Set<String>
+    let spacedListIDs: Set<String>
     let renderRows: [MarkdownRenderRow]
 
-    nonisolated init(blocks: [MarkdownBlock], compactParagraphIDs: Set<String> = []) {
+    nonisolated init(
+        blocks: [MarkdownBlock],
+        compactParagraphIDs: Set<String> = [],
+        spacedListIDs: Set<String> = []
+    ) {
         self.blocks = blocks
         self.compactParagraphIDs = compactParagraphIDs
+        self.spacedListIDs = spacedListIDs
         renderRows = MarkdownRenderRowBuilder.rows(
             from: blocks,
-            compactParagraphIDs: compactParagraphIDs
+            compactParagraphIDs: compactParagraphIDs,
+            spacedListIDs: spacedListIDs
         )
     }
 }
@@ -97,6 +104,7 @@ struct MarkdownRenderRow: Equatable, Identifiable, Sendable {
     let quoteDepth: Int
     let isInsideListItem: Bool
     let usesCompactParagraphSpacing: Bool
+    let usesListTrailingParagraphSpacing: Bool
 }
 
 private enum MarkdownRenderRowBuilder {
@@ -105,11 +113,13 @@ private enum MarkdownRenderRowBuilder {
         let quoteDepth: Int
         let isInsideListItem: Bool
         let compactParagraphIDs: Set<String>
+        let spacedListIDs: Set<String>
     }
 
     nonisolated static func rows(
         from blocks: [MarkdownBlock],
-        compactParagraphIDs: Set<String>
+        compactParagraphIDs: Set<String>,
+        spacedListIDs: Set<String>
     ) -> [MarkdownRenderRow] {
         var rows: [MarkdownRenderRow] = []
         append(
@@ -119,7 +129,8 @@ private enum MarkdownRenderRowBuilder {
                 nestingLevel: 0,
                 quoteDepth: 0,
                 isInsideListItem: false,
-                compactParagraphIDs: compactParagraphIDs
+                compactParagraphIDs: compactParagraphIDs,
+                spacedListIDs: spacedListIDs
             )
         )
         return rows
@@ -132,19 +143,31 @@ private enum MarkdownRenderRowBuilder {
     ) {
         for block in blocks {
             switch block {
-            case let .unorderedList(_, items):
+            case let .unorderedList(id, items):
+                let firstRowIndex = rows.count
                 append(
                     items,
                     to: &rows,
                     context: context,
                     orderedStart: nil
                 )
-            case let .orderedList(_, start, items):
+                applyTrailingParagraphSpacing(
+                    to: &rows,
+                    after: firstRowIndex,
+                    if: context.spacedListIDs.contains(id)
+                )
+            case let .orderedList(id, start, items):
+                let firstRowIndex = rows.count
                 append(
                     items,
                     to: &rows,
                     context: context,
                     orderedStart: start
+                )
+                applyTrailingParagraphSpacing(
+                    to: &rows,
+                    after: firstRowIndex,
+                    if: context.spacedListIDs.contains(id)
                 )
             case let .blockQuote(_, blocks):
                 append(
@@ -154,7 +177,8 @@ private enum MarkdownRenderRowBuilder {
                         nestingLevel: context.nestingLevel,
                         quoteDepth: context.quoteDepth + 1,
                         isInsideListItem: context.isInsideListItem,
-                        compactParagraphIDs: context.compactParagraphIDs
+                        compactParagraphIDs: context.compactParagraphIDs,
+                        spacedListIDs: context.spacedListIDs
                     )
                 )
             default:
@@ -167,7 +191,8 @@ private enum MarkdownRenderRowBuilder {
                         quoteDepth: context.quoteDepth,
                         isInsideListItem: context.isInsideListItem,
                         usesCompactParagraphSpacing: !context.isInsideListItem
-                            && context.compactParagraphIDs.contains(block.id)
+                            && context.compactParagraphIDs.contains(block.id),
+                        usesListTrailingParagraphSpacing: false
                     )
                 )
             }
@@ -197,7 +222,8 @@ private enum MarkdownRenderRowBuilder {
                     nestingLevel: context.nestingLevel + (context.isInsideListItem ? 1 : 0),
                     quoteDepth: context.quoteDepth,
                     isInsideListItem: true,
-                    compactParagraphIDs: context.compactParagraphIDs
+                    compactParagraphIDs: context.compactParagraphIDs,
+                    spacedListIDs: context.spacedListIDs
                 )
             )
 
@@ -213,9 +239,33 @@ private enum MarkdownRenderRowBuilder {
                 marker: marker,
                 quoteDepth: firstRow.quoteDepth,
                 isInsideListItem: firstRow.isInsideListItem,
-                usesCompactParagraphSpacing: firstRow.usesCompactParagraphSpacing
+                usesCompactParagraphSpacing: firstRow.usesCompactParagraphSpacing,
+                usesListTrailingParagraphSpacing: firstRow.usesListTrailingParagraphSpacing
             )
         }
+    }
+
+    private nonisolated static func applyTrailingParagraphSpacing(
+        to rows: inout [MarkdownRenderRow],
+        after firstRowIndex: Int,
+        if shouldApply: Bool
+    ) {
+        guard shouldApply, firstRowIndex < rows.count else {
+            return
+        }
+
+        let lastRowIndex = rows.index(before: rows.endIndex)
+        let lastRow = rows[lastRowIndex]
+        rows[lastRowIndex] = MarkdownRenderRow(
+            id: lastRow.id,
+            block: lastRow.block,
+            nestingLevel: lastRow.nestingLevel,
+            marker: lastRow.marker,
+            quoteDepth: lastRow.quoteDepth,
+            isInsideListItem: lastRow.isInsideListItem,
+            usesCompactParagraphSpacing: lastRow.usesCompactParagraphSpacing,
+            usesListTrailingParagraphSpacing: true
+        )
     }
 }
 
