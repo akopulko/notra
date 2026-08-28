@@ -167,7 +167,7 @@ private struct CodeBlockView: View {
                 code,
                 languageTag: language,
                 theme: style.codeSyntaxTheme,
-                baseColor: style.codeTextColor
+                baseColor: style.codeBlockBaseTextColor
             )
         )
         .font(style.codeBlockFont)

@@ -68,6 +68,10 @@ struct MarkdownStyle: Equatable {
 
         return .custom(previewFontName, size: size, relativeTo: .title).weight(.semibold)
     }
+
+    var codeBlockBaseTextColor: Color {
+        codeSyntaxTheme == nil ? codeTextColor : textColor
+    }
 }
 
 extension EnvironmentValues {
