@@ -14,25 +14,39 @@ struct MarkdownImageView: View {
 
     let reference: MarkdownImageReference
     let context: MarkdownRenderContext
+    var mode: MarkdownRenderMode = .preview
+    var preloadedImage: CGImage?
 
     var body: some View {
         Group {
-            switch state {
-            case .idle, .loading:
-                placeholder(systemImage: "photo")
-                    .redacted(reason: .placeholder)
-            case let .loaded(image):
-                image
-                    .resizable()
-                    .scaledToFit()
-                    .clipShape(.rect(cornerRadius: 6))
-            case .failed:
-                placeholder(systemImage: "exclamationmark.triangle")
+            if mode == .pdf {
+                if let preloadedImage {
+                    Image(decorative: preloadedImage, scale: 1, orientation: .up)
+                        .resizable()
+                        .scaledToFit()
+                        .clipShape(.rect(cornerRadius: 6))
+                }
+            } else {
+                switch state {
+                case .idle, .loading:
+                    placeholder(systemImage: "photo")
+                        .redacted(reason: .placeholder)
+                case let .loaded(image):
+                    image
+                        .resizable()
+                        .scaledToFit()
+                        .clipShape(.rect(cornerRadius: 6))
+                case .failed:
+                    placeholder(systemImage: "exclamationmark.triangle")
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityLabel(reference.alt.isEmpty ? "Image" : reference.alt)
         .task(id: resolvedURL) {
+            guard mode == .preview else {
+                return
+            }
             await loadImage()
         }
     }

@@ -5,21 +5,34 @@ struct MarkdownTableView: View {
 
     let table: MarkdownTable
     let context: MarkdownRenderContext
+    var mode: MarkdownRenderMode = .preview
+    var preloadedImages: [URL: CGImage] = [:]
 
     var body: some View {
         if columnCount > 0 {
-            ScrollView(.horizontal) {
-                Grid(horizontalSpacing: 0, verticalSpacing: 0) {
-                    headerRow
-                    bodyRows
-                }
-                .clipShape(.rect(cornerRadius: 6))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 6)
-                        .stroke(style.borderColor, lineWidth: 1)
+            Group {
+                if mode == .pdf {
+                    tableGrid
+                } else {
+                    ScrollView(.horizontal) {
+                        tableGrid
+                    }
                 }
             }
             .padding(.bottom, style.paragraphSpacing)
+        }
+    }
+
+    private var tableGrid: some View {
+        Grid(horizontalSpacing: 0, verticalSpacing: 0) {
+            headerRow
+            bodyRows
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .clipShape(.rect(cornerRadius: 6))
+        .overlay {
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(style.borderColor, lineWidth: 1)
         }
     }
 
@@ -64,26 +77,36 @@ struct MarkdownTableView: View {
         isLastColumn: Bool,
         isLastRow: Bool
     ) -> some View {
-        MarkdownInlineContentView(inlines: inlines, context: context)
-            .fontWeight(isHeader ? .semibold : .regular)
-            .padding(style.tableCellPadding)
-            .frame(minWidth: 96, maxWidth: .infinity, alignment: alignment(for: column))
-            .background(backgroundColor(isHeader: isHeader))
-            .overlay(alignment: .trailing) {
-                if !isLastColumn {
-                    style.borderColor.frame(width: 1)
-                }
+        MarkdownInlineContentView(
+            inlines: inlines,
+            context: context,
+            mode: mode,
+            preloadedImages: preloadedImages
+        )
+        .fontWeight(isHeader ? .semibold : .regular)
+        .padding(style.tableCellPadding)
+        .frame(
+            minWidth: mode == .pdf ? 0 : 96,
+            maxWidth: .infinity,
+            alignment: alignment(for: column)
+        )
+        .fixedSize(horizontal: false, vertical: true)
+        .background(backgroundColor(isHeader: isHeader))
+        .overlay(alignment: .trailing) {
+            if !isLastColumn {
+                style.borderColor.frame(width: 1)
             }
-            .overlay(alignment: .bottom) {
-                if !isLastRow {
-                    style.borderColor.frame(height: 1)
-                }
+        }
+        .overlay(alignment: .bottom) {
+            if !isLastRow {
+                style.borderColor.frame(height: 1)
             }
+        }
     }
 
     private func backgroundColor(isHeader: Bool) -> some View {
         if isHeader {
-            return BackgroundFill.thin.view
+            return (mode == .pdf ? BackgroundFill.printable : BackgroundFill.thin).view
         }
 
         return BackgroundFill.clear.view

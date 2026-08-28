@@ -24,25 +24,27 @@ struct MarkdownStyle: Equatable {
 
     static func notra(
         previewFontName: String,
-        theme: MarkdownHighlightTheme? = nil
+        theme: MarkdownHighlightTheme? = nil,
+        renderMode: MarkdownRenderMode = .preview
     ) -> MarkdownStyle {
+        let isPDF = renderMode == .pdf
         let linkColor = theme?.link.color ?? Color(red: 44 / 255, green: 101 / 255, blue: 207 / 255)
-        let markerColor = theme?.marker.color ?? Color.secondary
-        let borderColor = theme?.marker.color.opacity(0.5) ?? Color.secondary.opacity(0.25)
+        let markerColor = theme?.marker.color ?? (isPDF ? Color.gray : Color.secondary)
+        let borderColor = theme?.marker.color.opacity(0.5) ?? (isPDF ? Color.gray.opacity(0.5) : Color.secondary.opacity(0.25))
 
         return MarkdownStyle(
             bodyFont: AppearanceFont.bodyFont(named: previewFontName),
             previewFontName: previewFontName,
             headingScales: [2, 1.5, 1.25, 1, 0.875, 0.85],
-            textColor: .primary,
-            secondaryTextColor: .secondary,
-            headingColor: theme?.heading.color ?? .primary,
+            textColor: isPDF ? .black : .primary,
+            secondaryTextColor: isPDF ? .gray : .secondary,
+            headingColor: theme?.heading.color ?? (isPDF ? .black : .primary),
             linkColor: linkColor,
             markerColor: markerColor,
             borderColor: borderColor,
             dividerColor: markerColor.opacity(theme == nil ? 0.2 : 0.45),
             quoteAccentColor: theme?.quote.color ?? borderColor,
-            codeTextColor: theme?.code.color ?? .primary,
+            codeTextColor: theme?.code.color ?? (isPDF ? .black : .primary),
             codeBlockFont: .system(.body, design: .monospaced),
             inlineCodeFont: .system(.callout, design: .monospaced),
             blockSpacing: 0,
@@ -77,6 +79,7 @@ extension EnvironmentValues {
 enum BackgroundFill {
     case regular
     case thin
+    case printable
     case clear
 
     @ViewBuilder
@@ -86,6 +89,8 @@ enum BackgroundFill {
             Rectangle().fill(.regularMaterial)
         case .thin:
             Rectangle().fill(.thinMaterial)
+        case .printable:
+            Rectangle().fill(Color(red: 0.94, green: 0.94, blue: 0.94))
         case .clear:
             Color.clear
         }

@@ -4,7 +4,7 @@ set -eu
 script_dir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 cd "$script_dir/.."
 
-derived_data_path="${TMPDIR:-/tmp}/NotraDerivedData"
+derived_data_path="${TMPDIR:-/tmp}/NotraDerivedData-macOS"
 code_signing_allowed="${CODE_SIGNING_ALLOWED:-NO}"
 
 "$script_dir/lint.sh"

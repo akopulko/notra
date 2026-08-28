@@ -5,6 +5,8 @@ struct MarkdownBlockView: View {
 
     let block: MarkdownBlock
     let context: MarkdownRenderContext
+    let mode: MarkdownRenderMode
+    let preloadedImages: [URL: CGImage]
     let nestingLevel: Int
     let marker: MarkdownListMarker?
     let quoteDepth: Int
@@ -39,14 +41,24 @@ struct MarkdownBlockView: View {
     private var leafBlock: some View {
         switch block {
         case let .paragraph(_, inlines):
-            MarkdownInlineContentView(inlines: inlines, context: context)
-                .padding(.bottom, paragraphBottomSpacing)
+            MarkdownInlineContentView(
+                inlines: inlines,
+                context: context,
+                mode: mode,
+                preloadedImages: preloadedImages
+            )
+            .padding(.bottom, paragraphBottomSpacing)
         case let .heading(_, level, inlines):
             heading(level: level, inlines: inlines)
         case let .codeBlock(_, language, code):
-            CodeBlockView(language: language, code: code)
+            CodeBlockView(language: language, code: code, mode: mode)
         case let .table(_, table):
-            MarkdownTableView(table: table, context: context)
+            MarkdownTableView(
+                table: table,
+                context: context,
+                mode: mode,
+                preloadedImages: preloadedImages
+            )
         case .horizontalRule:
             Divider()
                 .overlay(style.dividerColor)
@@ -58,10 +70,15 @@ struct MarkdownBlockView: View {
 
     private func heading(level: Int, inlines: [MarkdownInline]) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            MarkdownInlineContentView(inlines: inlines, context: context)
-                .font(style.headingFont(level: level))
-                .fontWeight(.semibold)
-                .foregroundStyle(style.headingColor)
+            MarkdownInlineContentView(
+                inlines: inlines,
+                context: context,
+                mode: mode,
+                preloadedImages: preloadedImages
+            )
+            .font(style.headingFont(level: level))
+            .fontWeight(.semibold)
+            .foregroundStyle(style.headingColor)
 
             if level <= 2 {
                 Divider()
@@ -114,20 +131,33 @@ private struct CodeBlockView: View {
 
     let language: String?
     let code: String
+    let mode: MarkdownRenderMode
 
     var body: some View {
-        ScrollView(.horizontal) {
-            Text(code)
-                .font(style.codeBlockFont)
-                .foregroundStyle(style.codeTextColor)
-                .textSelection(.enabled)
-                .padding(16)
-                .frame(maxWidth: .infinity, alignment: .leading)
+        Group {
+            if mode == .pdf {
+                codeText
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                ScrollView(.horizontal) {
+                    codeText
+                        .fixedSize(horizontal: true, vertical: false)
+                }
+            }
         }
         .background(secondaryBackgroundFill.view)
         .clipShape(.rect(cornerRadius: 6))
         .accessibilityLabel(accessibilityLabel)
         .padding(.bottom, style.paragraphSpacing)
+    }
+
+    private var codeText: some View {
+        Text(code)
+            .font(style.codeBlockFont)
+            .foregroundStyle(style.codeTextColor)
+            .textSelection(.enabled)
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var accessibilityLabel: String {

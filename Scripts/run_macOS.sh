@@ -5,7 +5,7 @@ script_dir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 cd "$script_dir/.."
 
 configuration="${CONFIGURATION:-Debug}"
-derived_data_path="${TMPDIR:-/tmp}/NotraDerivedData"
+derived_data_path="${TMPDIR:-/tmp}/NotraDerivedData-macOS"
 
 if [ "${CODE_SIGNING_ALLOWED+x}" ]; then
   code_signing_allowed="$CODE_SIGNING_ALLOWED"

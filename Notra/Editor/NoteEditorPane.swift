@@ -6,6 +6,7 @@ import PhotosUI
 
 struct NoteEditorPane: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var colorScheme
     @Bindable var store: NotesStore
     @Binding var isEditing: Bool
     let editorFocusRequest: Int
@@ -14,6 +15,8 @@ struct NoteEditorPane: View {
     let requestAttachmentSelection: () -> Void
     @AppStorage(AttachmentSettingKey.maximumSizeMB) private var maximumAttachmentSizeMB =
         AttachmentSettings.defaultMaximumSizeMB
+    @AppStorage(AppearanceSettingKey.previewFontName) private var previewFontName = AppearanceFont.defaultName
+    @AppStorage(AppearanceSettingKey.previewUsesEditorTheme) private var previewUsesEditorTheme = true
     @State private var headingFormattingRequest = MarkdownHeadingFormattingRequest(id: 0, level: .h1)
     @State private var boldFormattingRequest = 0
     @State private var italicFormattingRequest = 0
@@ -36,6 +39,8 @@ struct NoteEditorPane: View {
     @State private var isAttachmentInspectorPresented = false
     @State private var tagFeedback: NoteTagFeedback?
     @State private var tagFeedbackDismissTask: Task<Void, Never>?
+    @State private var pdfShareState = PDFShareState.unavailable
+    @State private var pdfShareRetryID = 0
     #if os(iOS)
     @State private var selectedImageItem: PhotosPickerItem?
     @State private var isImagePickerPresented = false
@@ -95,6 +100,32 @@ struct NoteEditorPane: View {
         .onChange(of: editorFocusRequest) {
             if editorFocusRequest > 0 {
                 isEditing = true
+            }
+        }
+        .task(id: pdfShareTask) {
+            let snapshot = pdfShareSnapshot
+            pdfShareState = snapshot == nil ? .unavailable : .generating
+            guard let snapshot else {
+                return
+            }
+
+            try? await Task.sleep(for: .milliseconds(250))
+            guard !Task.isCancelled else {
+                return
+            }
+
+            do {
+                let item = try NotePDFExporter().export(snapshot: snapshot)
+                guard !Task.isCancelled else {
+                    return
+                }
+                pdfShareState = .ready(item)
+            } catch {
+                guard !Task.isCancelled else {
+                    return
+                }
+                AppLog.error("Failed to prepare PDF for sharing: \(error.localizedDescription)")
+                pdfShareState = .failed
             }
         }
         .toolbar {
@@ -192,7 +223,37 @@ struct NoteEditorPane: View {
             .disabled(!store.hasSelection || !isEditing)
         }
         ToolbarItem(placement: .primaryAction) {
-            Button("Share", systemImage: "square.and.arrow.up") {}
+            switch pdfShareState {
+            case let .ready(item):
+                ShareLink(
+                    item: item,
+                    preview: SharePreview(item.suggestedFilename)
+                ) {
+                    Label("Share", systemImage: "square.and.arrow.up")
+                }
+                .labelStyle(.iconOnly)
+                .help("Share")
+                .accessibilityLabel("Share")
+            case .failed:
+                Button("Retry Share", systemImage: "arrow.clockwise") {
+                    pdfShareRetryID += 1
+                }
+                .labelStyle(.iconOnly)
+                .help("Retry Share")
+                .accessibilityLabel("Retry Share")
+            case .generating:
+                Button("Preparing Share", systemImage: "square.and.arrow.up") {}
+                    .labelStyle(.iconOnly)
+                    .help("Preparing PDF to share")
+                    .accessibilityLabel("Preparing PDF to share")
+                    .disabled(true)
+            case .unavailable:
+                Button("Share", systemImage: "square.and.arrow.up") {}
+                    .labelStyle(.iconOnly)
+                    .help("Share")
+                    .accessibilityLabel("Share")
+                    .disabled(true)
+            }
         }
         ToolbarItem(placement: .primaryAction) {
             Button {
@@ -221,6 +282,28 @@ struct NoteEditorPane: View {
 }
 
 private extension NoteEditorPane {
+    private var pdfShareSnapshot: NotePDFSnapshot? {
+        guard store.hasSelection,
+              let noteURL = store.selectedNoteURL,
+              let noteSummary = store.selectedNoteSummary
+        else {
+            return nil
+        }
+
+        return NotePDFSnapshot(
+            markdown: store.editorText,
+            noteURL: noteURL,
+            previewFontName: previewFontName,
+            previewUsesEditorTheme: previewUsesEditorTheme,
+            isDarkMode: colorScheme == .dark,
+            suggestedFilename: noteSummary.url.lastPathComponent
+        )
+    }
+
+    private var pdfShareTask: PDFShareTask {
+        PDFShareTask(snapshot: pdfShareSnapshot, retryID: pdfShareRetryID)
+    }
+
     private func undo() {
         undoRequest += 1
     }
@@ -488,6 +571,18 @@ private extension NoteEditorPane {
 private struct NoteTagFeedback: Identifiable, Equatable {
     let id = UUID()
     let message: String
+}
+
+private enum PDFShareState {
+    case unavailable
+    case generating
+    case ready(NotePDFShareItem)
+    case failed
+}
+
+private struct PDFShareTask: Equatable {
+    let snapshot: NotePDFSnapshot?
+    let retryID: Int
 }
 
 private struct TagFeedbackView: View {
