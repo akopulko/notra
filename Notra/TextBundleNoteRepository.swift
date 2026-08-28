@@ -584,7 +584,7 @@ private extension TextBundleNoteRepository {
     }
 
     static func preview(for markdown: String) -> NotePreview {
-        let lines = markdown.components(separatedBy: .newlines)
+        let lines = previewSourceLines(from: markdown)
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
 
@@ -603,6 +603,68 @@ private extension TextBundleNoteRepository {
             text: previewLines.map(\.text).joined(separator: "\n"),
             firstLineIsHeading: previewLines.first?.isHeading ?? false
         )
+    }
+
+    private static func previewSourceLines(from markdown: String) -> [String] {
+        let lines = markdown.components(separatedBy: .newlines)
+        var previewLines: [String] = []
+        var index = 0
+
+        while index < lines.count {
+            guard isTableHeader(lines[index]),
+                  index + 1 < lines.count,
+                  let columnCount = tableColumnCount(in: lines[index + 1]),
+                  tableCellCount(in: lines[index]) == columnCount
+            else {
+                previewLines.append(lines[index])
+                index += 1
+                continue
+            }
+
+            index += 2
+            while index < lines.count, isTableRow(lines[index]) {
+                index += 1
+            }
+        }
+
+        return previewLines
+    }
+
+    private static func isTableHeader(_ line: String) -> Bool {
+        line.contains("|") && !line.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    private static func isTableRow(_ line: String) -> Bool {
+        line.contains("|") && !line.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    private static func tableColumnCount(in delimiter: String) -> Int? {
+        let cells = tableCells(in: delimiter)
+        guard !cells.isEmpty,
+              cells.allSatisfy({
+                  $0.trimmingCharacters(in: .whitespaces)
+                      .range(of: #"^:?-{3,}:?$"#, options: .regularExpression) != nil
+              })
+        else {
+            return nil
+        }
+
+        return cells.count
+    }
+
+    private static func tableCellCount(in row: String) -> Int {
+        tableCells(in: row).count
+    }
+
+    private static func tableCells(in line: String) -> [Substring] {
+        var row = line[...]
+        if row.first == "|" {
+            row.removeFirst()
+        }
+        if row.last == "|" {
+            row.removeLast()
+        }
+        return row.split(separator: "|", omittingEmptySubsequences: false)
     }
 
     private static func plainText(fromMarkdownLine line: String) -> String {

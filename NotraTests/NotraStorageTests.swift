@@ -378,6 +378,82 @@ struct NotraStorageTests {
         #expect(summary.previewFirstLineIsHeading)
     }
 
+    @Test func skipsLeadingMarkdownTableWhenDerivingPreview() throws {
+        let repository = try makeRepository()
+        _ = try makeTextBundle(
+            named: "Table Preview Source",
+            markdown: """
+            | Name | Value |
+            | :--- | ---: |
+            | One | 1 |
+            | Two | 2 |
+
+            Readable title
+            Second line
+            Third line
+            """,
+            in: repository.rootURL
+        )
+
+        let summary = try #require(try repository.listNotes().first)
+
+        #expect(summary.previewText == "Readable title\nSecond line\nThird line")
+    }
+
+    @Test func keepsNonTablePipeTextInPreview() throws {
+        let repository = try makeRepository()
+        _ = try makeTextBundle(
+            named: "Pipe Preview Source",
+            markdown: "Text with | a pipe\nSecond line",
+            in: repository.rootURL
+        )
+
+        let summary = try #require(try repository.listNotes().first)
+
+        #expect(summary.previewText == "Text with | a pipe\nSecond line")
+    }
+
+    @Test func skipsEmbeddedMarkdownTableWhenDerivingPreview() throws {
+        let repository = try makeRepository()
+        _ = try makeTextBundle(
+            named: "Embedded Table Preview Source",
+            markdown: """
+            First line
+            | Name | Value |
+            | --- | --- |
+            | One | 1 |
+            Second line
+            Third line
+            """,
+            in: repository.rootURL
+        )
+
+        let summary = try #require(try repository.listNotes().first)
+
+        #expect(summary.previewText == "First line\nSecond line\nThird line")
+    }
+
+    @Test func skipsMarkdownTableAfterHeadingWhenDerivingPreview() throws {
+        let repository = try makeRepository()
+        _ = try makeTextBundle(
+            named: "Heading Table Preview Source",
+            markdown: """
+            # Readable title
+            | Name | Value |
+            | --- | --- |
+            | One | 1 |
+            Readable body
+            Another line
+            """,
+            in: repository.rootURL
+        )
+
+        let summary = try #require(try repository.listNotes().first)
+
+        #expect(summary.previewText == "Readable title\nReadable body\nAnother line")
+        #expect(summary.previewFirstLineIsHeading)
+    }
+
     @Test func emptyNotesUsePlaceholderPreview() throws {
         let repository = try makeRepository()
         _ = try makeTextBundle(named: "Empty", markdown: "\n \n", in: repository.rootURL)
