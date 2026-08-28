@@ -187,6 +187,16 @@ final class NotesStore {
         refreshAttachmentLinkStates()
         scheduleSave()
     }
+
+    func exportPayload(for summary: NoteSummary) async throws -> NoteExportPayload {
+        try await saveCurrentNoteIfNeeded()
+        let note = try repository.loadNote(at: summary.url)
+        return NoteExportPayload(
+            markdown: note.markdown,
+            noteURL: note.url,
+            suggestedFilename: summary.url.lastPathComponent
+        )
+    }
 }
 
 extension NotesStore {
