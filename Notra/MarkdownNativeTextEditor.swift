@@ -725,13 +725,7 @@ extension MarkdownNativeTextEditor {
 
             lastText = newText
             if let changedRange = cache.updateText(newText), let storage = textView.textStorage {
-                cache.applyColors(
-                    theme: parent.theme,
-                    font: currentFont,
-                    baseColor: .labelColor,
-                    to: storage,
-                    lines: changedRange
-                )
+                applyHighlight(to: storage, lines: changedRange)
             }
             parent.text = newText
             updateUndoRedoAvailability()
@@ -750,13 +744,7 @@ extension MarkdownNativeTextEditor {
             }
 
             let font = currentFont
-            cache.applyColors(
-                theme: parent.theme,
-                font: font,
-                baseColor: .labelColor,
-                to: storage,
-                lines: 0..<cache.count
-            )
+            applyHighlight(to: storage, lines: 0..<cache.count)
             lastFont = font
             lastTheme = parent.theme
         }
@@ -825,21 +813,35 @@ extension MarkdownNativeTextEditor {
             }
 
             let font = currentFont
-            cache.applyColors(
-                theme: parent.theme,
-                font: font,
-                baseColor: .labelColor,
-                to: storage,
-                lines: 0..<cache.count
-            )
+            applyHighlight(to: storage, lines: 0..<cache.count)
             lastFont = font
             lastTheme = parent.theme
+        }
+
+        private func applyHighlight(to storage: NSMutableAttributedString, lines: Range<Int>) {
+            let selection = selectionSnapshot(from: textView.selectedRange())
+            cache.applyColors(
+                theme: parent.theme,
+                font: currentFont,
+                baseColor: .labelColor,
+                to: storage,
+                lines: lines
+            )
+            if let selection {
+                restoreSelection(selection)
+            }
         }
 
         private func setSelection(_ selection: MarkdownEditorSelectionSnapshot) {
             let range = nativeRange(from: selection)
             textView.setSelectedRange(range)
             textView.scrollRangeToVisible(range)
+            recordSelection(range)
+        }
+
+        private func restoreSelection(_ selection: MarkdownEditorSelectionSnapshot) {
+            let range = nativeRange(from: selection)
+            textView.setSelectedRange(range)
             recordSelection(range)
         }
 
