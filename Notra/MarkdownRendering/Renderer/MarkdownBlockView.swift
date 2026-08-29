@@ -77,7 +77,12 @@ struct MarkdownBlockView: View {
                 inlines: inlines,
                 context: context,
                 mode: mode,
-                preloadedImages: preloadedImages
+                preloadedImages: preloadedImages,
+                selectionFont: .heading(
+                    level: level,
+                    fontName: style.previewFontName,
+                    scales: style.headingScales
+                )
             )
             .font(style.headingFont(level: level))
             .fontWeight(.semibold)
@@ -112,9 +117,17 @@ struct MarkdownBlockView: View {
     private var markerView: some View {
         switch marker {
         case let .some(.unordered(level)):
-            Text(unorderedMarker(for: level))
+            let markerText = unorderedMarker(for: level)
+            SelectablePreviewText(
+                attributedText: AttributedString(markerText),
+                selectionText: markerText
+            )
         case let .some(.ordered(value)):
-            Text("\(value).")
+            let markerText = "\(value)."
+            SelectablePreviewText(
+                attributedText: AttributedString(markerText),
+                selectionText: markerText
+            )
         case .some(.task(.checked)):
             Image(systemName: "checkmark.square")
         case .some(.task(.unchecked)):
@@ -164,16 +177,17 @@ private struct CodeBlockView: View {
     }
 
     private var codeText: some View {
-        Text(
-            MarkdownCodeSyntaxHighlighter().highlight(
+        SelectablePreviewText(
+            attributedText: MarkdownCodeSyntaxHighlighter().highlight(
                 code,
                 languageTag: language,
                 theme: style.codeSyntaxTheme,
                 baseColor: style.codeBlockBaseTextColor
-            )
+            ),
+            selectionText: code,
+            selectionFont: .code
         )
         .font(style.codeBlockFont)
-        .textSelection(.enabled)
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
     }

@@ -13,6 +13,7 @@ struct MarkdownInlineContentView: View {
     let context: MarkdownRenderContext
     let mode: MarkdownRenderMode
     let preloadedImages: [URL: CGImage]
+    var selectionFont: MarkdownPreviewSelectionFont = .body
 
     /// Chooses the live attributed-text path or the fragment path needed for PDF media placement.
     var body: some View {
@@ -26,6 +27,7 @@ struct MarkdownInlineContentView: View {
                     case let .text(text):
                         if !text.characters.isEmpty {
                             Text(text)
+                                .textSelection(.enabled)
                         }
                     case let .image(image):
                         let url = MarkdownImageView.resolvedURL(for: image.source, context: context)
@@ -39,11 +41,19 @@ struct MarkdownInlineContentView: View {
                 }
             }
         } else if renderData.imageReferences.isEmpty, renderData.attachmentReferences.isEmpty {
-            Text(renderData.attributedText)
+            SelectablePreviewText(
+                attributedText: renderData.attributedText,
+                selectionText: renderData.plainText,
+                selectionFont: selectionFont
+            )
         } else {
             VStack(alignment: .leading, spacing: 8) {
                 if !renderData.plainText.isEmpty {
-                    Text(renderData.attributedText)
+                    SelectablePreviewText(
+                        attributedText: renderData.attributedText,
+                        selectionText: renderData.plainText,
+                        selectionFont: selectionFont
+                    )
                 }
 
                 ForEach(renderData.imageReferences) { image in
@@ -402,9 +412,13 @@ private struct MarkdownAttachmentView: View {
             HStack(spacing: 8) {
                 Image(systemName: "doc")
                     .foregroundStyle(.secondary)
-                Text(displayFilename)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
+                SelectablePreviewText(
+                    attributedText: AttributedString(displayFilename),
+                    selectionText: displayFilename,
+                    selectionFont: .callout
+                )
+                .lineLimit(1)
+                .truncationMode(.middle)
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, 10)

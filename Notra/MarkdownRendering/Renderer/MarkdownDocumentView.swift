@@ -36,6 +36,7 @@ struct MarkdownDocumentView: View {
         }
         .font(style.bodyFont)
         .foregroundStyle(style.textColor)
+        // Native SwiftUI selection works across text leaves, not as one browser-style document surface.
         .textSelection(.enabled)
         .task(id: input) {
             guard eagerDocument == nil else {

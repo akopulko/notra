@@ -65,8 +65,13 @@ struct MarkdownImageView: View {
     private func placeholder(systemImage: String) -> some View {
         HStack(spacing: 8) {
             Image(systemName: systemImage)
-            Text(reference.alt.isEmpty ? "Image" : reference.alt)
-                .lineLimit(2)
+            let altText = reference.alt.isEmpty ? "Image" : reference.alt
+            SelectablePreviewText(
+                attributedText: AttributedString(altText),
+                selectionText: altText,
+                selectionFont: .callout
+            )
+            .lineLimit(2)
         }
         .font(.callout)
         .foregroundStyle(style.secondaryTextColor)
