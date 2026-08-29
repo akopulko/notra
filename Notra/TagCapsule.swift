@@ -30,13 +30,13 @@ struct TagCapsule: View {
                         .symbolRenderingMode(.hierarchical)
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.white)
                 .accessibilityLabel("Remove tag \(tag.displayName)")
             }
 
             Text(tag.prefixedDisplayName)
                 .font(font)
-                .foregroundStyle(foregroundStyle)
+                .foregroundStyle(.white)
                 .lineLimit(1)
                 .truncationMode(.middle)
         }
@@ -63,38 +63,30 @@ struct TagCapsule: View {
         }
     }
 
-    private var foregroundStyle: AnyShapeStyle {
-        switch style {
-        case .standard:
-            AnyShapeStyle(.primary)
-        case .previewOverlay:
-            AnyShapeStyle(.tint)
-        }
-    }
-
     private var backgroundStyle: AnyShapeStyle {
-        switch style {
-        case .standard:
-            AnyShapeStyle(.thinMaterial.opacity(0.82))
-        case .previewOverlay:
-            if colorScheme == .dark {
-                AnyShapeStyle(Color.black.opacity(0.58))
-            } else {
-                AnyShapeStyle(Color.white.opacity(0.72))
-            }
-        }
+        AnyShapeStyle(Color.accentColor.opacity(backgroundOpacity))
     }
 
     private var strokeStyle: Color {
         switch style {
         case .standard:
-            Color.secondary.opacity(0.18)
+            Color.white.opacity(0.24)
         case .previewOverlay:
             if colorScheme == .dark {
-                Color.white.opacity(0.18)
+                Color.white.opacity(0.24)
             } else {
-                Color.black.opacity(0.12)
+                Color.white.opacity(0.3)
             }
+        }
+    }
+
+    /// Preserves each tag presentation's existing transparency while changing the base colour.
+    private var backgroundOpacity: Double {
+        switch style {
+        case .standard:
+            0.82
+        case .previewOverlay:
+            colorScheme == .dark ? 0.58 : 0.72
         }
     }
 
