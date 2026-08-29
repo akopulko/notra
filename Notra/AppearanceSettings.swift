@@ -5,6 +5,7 @@ import AppKit
 import UIKit
 #endif
 
+/// Stable UserDefaults keys for appearance choices shared by the editor and preview.
 enum AppearanceSettingKey {
     static let editorFontName = "appearance.editorFontName"
     static let editorFontSize = "appearance.editorFontSize"
@@ -12,6 +13,7 @@ enum AppearanceSettingKey {
     static let previewUsesEditorTheme = "appearance.previewUsesEditorTheme"
 }
 
+/// Converts the persisted font preference into SwiftUI and platform-native font values.
 enum AppearanceFont {
     static let defaultName = ""
     static let defaultDisplayName = "System Default"

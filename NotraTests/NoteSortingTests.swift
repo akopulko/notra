@@ -2,6 +2,7 @@ import Foundation
 @testable import Notra
 import Testing
 
+/// Verifies deterministic note ordering and persistence of the sidebar sort preference.
 struct NoteSortingTests {
     @Test func defaultSortPreferenceUsesDateEditedLatestFirst() {
         #expect(NoteSortPreference.default == NoteSortPreference(field: .dateEdited, direction: .latestFirst))

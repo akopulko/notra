@@ -1,5 +1,6 @@
 import SwiftUI
 
+/// Offers the six Markdown heading levels from one toolbar menu.
 struct HeadingToolbarMenu: View {
     let action: (MarkdownHeadingLevel) -> Void
     let isEnabled: Bool
@@ -20,6 +21,7 @@ struct HeadingToolbarMenu: View {
     }
 }
 
+/// Renders one reusable formatting command with native help and accessibility text.
 struct FormatToolbarButton: View {
     let command: NoteFormattingCommand
     let isEnabled: Bool
@@ -34,6 +36,7 @@ struct FormatToolbarButton: View {
     }
 }
 
+/// Groups Markdown formatting controls in the order shared by the editor and app menus.
 struct MarkdownFormattingToolbar: ToolbarContent {
     let applyHeading: (MarkdownHeadingLevel) -> Void
     let applyFormatting: (NoteFormattingCommand) -> Void
@@ -68,6 +71,7 @@ struct MarkdownFormattingToolbar: ToolbarContent {
     }
 }
 
+/// Exposes native undo and redo actions while reflecting bridge availability.
 struct EditorUndoRedoToolbar: ToolbarContent {
     let availability: EditorUndoRedoAvailability
     let undo: () -> Void

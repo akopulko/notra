@@ -6,6 +6,7 @@
 
 import XCTest
 
+/// Provides the basic application launch and performance UI-test entry points.
 final class NotraUITests: XCTestCase {
 
     override func setUpWithError() throws {

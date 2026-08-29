@@ -1,6 +1,7 @@
 @testable import Notra
 import Testing
 
+/// Verifies debug filtering without asserting on OSLog's external output sink.
 struct AppLogTests {
     @Test func disabledDebugLogDoesNotEvaluateMessage() {
         #if DEBUG

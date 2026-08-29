@@ -1,5 +1,6 @@
 import SwiftUI
 
+/// Renders the platform-appropriate control for creating a new note.
 struct NewNoteButton: View {
     let action: () -> Void
 

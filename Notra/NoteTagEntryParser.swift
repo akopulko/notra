@@ -1,10 +1,12 @@
 import Foundation
 
+/// Describes a standalone hashtag line and the selection-preserving edit that removes it.
 struct NoteTagEntry: Equatable {
     let tag: NoteTag
     let result: MarkdownFormattingResult
 }
 
+/// Recognizes tags only where they are standalone Markdown-like entries, not prose or code.
 enum NoteTagEntryParser {
     static func entry(in text: String, selection: MarkdownEditorSelectionSnapshot) -> NoteTagEntry? {
         guard selection.isEmpty else {

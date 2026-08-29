@@ -1,11 +1,14 @@
 import Foundation
 
+/// Returns formatted Markdown together with the selection that should remain active afterward.
 struct MarkdownFormattingResult: Equatable {
     let text: String
     let selection: Range<String.Index>
 }
 
+/// Implements selection-aware Markdown transformations without depending on a text-view framework.
 enum MarkdownFormatting {
+    /// Applies a toolbar command and returns only text for callers that do not own selection state.
     static func apply(_ command: NoteFormattingCommand, to text: String, selection: Range<String.Index>?) -> String {
         let selectedRange = selection ?? text.endIndex..<text.endIndex
 
@@ -35,18 +38,22 @@ enum MarkdownFormatting {
         }
     }
 
+    /// Wraps the selection in strong-emphasis markers, or inserts an empty pair at the cursor.
     static func applyBoldResult(to text: String, selection: Range<String.Index>) -> MarkdownFormattingResult {
         applyWrappedResult(to: text, selection: selection, prefix: "**", suffix: "**")
     }
 
+    /// Wraps the selection in underscore emphasis markers while preserving the resulting selection.
     static func applyItalicResult(to text: String, selection: Range<String.Index>) -> MarkdownFormattingResult {
         applyWrappedResult(to: text, selection: selection, prefix: "_", suffix: "_")
     }
 
+    /// Wraps the selection in inline-code markers without changing text outside the selection.
     static func applyCodeResult(to text: String, selection: Range<String.Index>) -> MarkdownFormattingResult {
         applyWrappedResult(to: text, selection: selection, prefix: "`", suffix: "`")
     }
 
+    /// Inserts a Markdown link and places the cursor in the label or URL editing position.
     static func applyLinkResult(to text: String, selection: Range<String.Index>) -> MarkdownFormattingResult {
         let selectedText = String(text[selection])
         let replacement = "[\(selectedText)](https://)"
@@ -65,6 +72,7 @@ enum MarkdownFormatting {
         return MarkdownFormattingResult(text: result, selection: cursor..<cursor)
     }
 
+    /// Inserts the app's starter table at the cursor and keeps the cursor after the table.
     static func applyTableResult(to text: String, selection: Range<String.Index>) -> MarkdownFormattingResult {
         let insertionPoint = selection.lowerBound
         let suffix = text[insertionPoint...]
@@ -82,6 +90,7 @@ enum MarkdownFormatting {
         return MarkdownFormattingResult(text: result, selection: cursor..<cursor)
     }
 
+    /// Inserts an image link as a block when needed, preserving selected alt text.
     static func applyImageResult(
         to text: String,
         selection: Range<String.Index>,
@@ -105,6 +114,7 @@ enum MarkdownFormatting {
         return MarkdownFormattingResult(text: result, selection: cursor..<cursor)
     }
 
+    /// Inserts a local attachment link as a block while retaining its display label.
     static func applyAttachmentLinkResult(
         to text: String,
         selection: Range<String.Index>,
@@ -128,22 +138,27 @@ enum MarkdownFormatting {
         return MarkdownFormattingResult(text: result, selection: cursor..<cursor)
     }
 
+    /// Prefixes every selected line with an unordered-list marker.
     static func applyUnorderedListResult(to text: String, selection: Range<String.Index>) -> MarkdownFormattingResult {
         applyLinePrefixResult(to: text, selection: selection, prefix: "- ")
     }
 
+    /// Prefixes selected lines with sequential ordered-list markers.
     static func applyOrderedListResult(to text: String, selection: Range<String.Index>) -> MarkdownFormattingResult {
         applyOrderedLinePrefixResult(to: text, selection: selection)
     }
 
+    /// Prefixes selected lines with blockquote markers.
     static func applyQuoteResult(to text: String, selection: Range<String.Index>) -> MarkdownFormattingResult {
         applyLinePrefixResult(to: text, selection: selection, prefix: "> ")
     }
 
+    /// Prefixes selected lines with unchecked task-list markers.
     static func applyTodoResult(to text: String, selection: Range<String.Index>) -> MarkdownFormattingResult {
         applyLinePrefixResult(to: text, selection: selection, prefix: "- [ ] ")
     }
 
+    /// Replaces heading syntax on each selected line with the requested level.
     static func applyHeadingResult(
         level: MarkdownHeadingLevel,
         to text: String,
@@ -166,6 +181,7 @@ enum MarkdownFormatting {
         return MarkdownFormattingResult(text: result, selection: cursor..<cursor)
     }
 
+    /// Applies a symmetric wrapper and selects the inserted content rather than the markers.
     private static func applyWrappedResult(
         to text: String,
         selection: Range<String.Index>,
@@ -185,6 +201,7 @@ enum MarkdownFormatting {
         return MarkdownFormattingResult(text: result, selection: cursor..<cursor)
     }
 
+    /// Convenience heading API used when only the transformed text is needed.
     static func applyHeading(level: MarkdownHeadingLevel, to text: String, selection: Range<String.Index>?) -> String {
         let selectedRange = selection ?? text.endIndex..<text.endIndex
         return applyHeadingResult(level: level, to: text, selection: selectedRange).text
@@ -197,14 +214,17 @@ enum MarkdownFormatting {
     |  |  |
     """
 
+    /// Adds a prefix to a line range while returning offsets in the new string.
     private static func prefixLines(_ text: String, range: Range<String.Index>, prefix: String) -> String {
         applyLinePrefixResult(to: text, selection: range, prefix: prefix).text
     }
 
+    /// Adds numbered prefixes, restarting numbering at one for the selected range.
     private static func prefixOrderedLines(_ text: String, range: Range<String.Index>) -> String {
         applyOrderedLinePrefixResult(to: text, selection: range).text
     }
 
+    /// Builds a selection result for line-based replacements and accounts for inserted newlines.
     private static func applyLinePrefixResult(
         to text: String,
         selection: Range<String.Index>,
@@ -227,6 +247,7 @@ enum MarkdownFormatting {
         return resultReplacingLineRange(lineRange, in: text, with: replacement)
     }
 
+    /// Builds the ordered-list variant of the line-prefix result.
     private static func applyOrderedLinePrefixResult(
         to text: String,
         selection: Range<String.Index>
@@ -248,6 +269,7 @@ enum MarkdownFormatting {
         return resultReplacingLineRange(lineRange, in: text, with: replacement)
     }
 
+    /// Replaces a source line range and maps the cursor to the end of the replacement.
     private static func resultReplacingLineRange(
         _ lineRange: Range<String.Index>,
         in text: String,
@@ -261,6 +283,7 @@ enum MarkdownFormatting {
         return MarkdownFormattingResult(text: result, selection: cursor..<cursor)
     }
 
+    /// Prefixes the containing line when the cursor selection is empty.
     private static func resultPrefixingContainingLine(
         in text: String,
         cursor: String.Index,
@@ -283,6 +306,7 @@ enum MarkdownFormatting {
         return MarkdownFormattingResult(text: result, selection: adjustedCursor..<adjustedCursor)
     }
 
+    /// Expands a character selection to whole lines while avoiding an accidental extra blank line.
     private static func expandedSelectedLineRange(
         in text: String,
         for range: Range<String.Index>
@@ -294,6 +318,7 @@ enum MarkdownFormatting {
         return lower..<upper
     }
 
+    /// Keeps a trailing newline outside the editable line range when it is only a boundary.
     private static func trimmedTrailingLineBreakUpperBound(
         for range: Range<String.Index>,
         in text: String
@@ -312,12 +337,14 @@ enum MarkdownFormatting {
         return previousIndex
     }
 
+    /// Returns the full logical line containing a source index.
     private static func lineRange(in text: String, containing index: String.Index) -> Range<String.Index> {
         let lower = text[..<index].lastIndex(of: "\n").map { text.index(after: $0) } ?? text.startIndex
         let upper = text[index...].firstIndex(of: "\n") ?? text.endIndex
         return lower..<upper
     }
 
+    /// Determines whether a block insertion needs a separator before the current cursor.
     private static func needsLeadingLineBreak(in text: String, at index: String.Index) -> Bool {
         guard index > text.startIndex else {
             return false

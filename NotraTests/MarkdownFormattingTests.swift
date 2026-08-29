@@ -2,6 +2,7 @@
 import Foundation
 import Testing
 
+/// Exercises selection-preserving Markdown transformations for editor commands.
 struct MarkdownFormattingTests {
     @Test func appliesEveryHeadingLevel() {
         for level in MarkdownHeadingLevel.allCases {

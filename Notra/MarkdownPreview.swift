@@ -1,5 +1,6 @@
 import SwiftUI
 
+/// Renders parsed Markdown and overlays the selected note's tags when preview mode allows it.
 struct MarkdownPreview: View {
     @Environment(\.colorScheme) private var colorScheme
     @AppStorage(AppearanceSettingKey.previewFontName) private var previewFontName = AppearanceFont.defaultName
@@ -41,6 +42,7 @@ struct MarkdownPreview: View {
     }
 }
 
+/// Displays note tags in the preview without changing the Markdown document itself.
 private struct PreviewTagsOverlay: View {
     let tags: [NoteTag]
 

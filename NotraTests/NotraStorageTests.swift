@@ -4,6 +4,7 @@ import ImageIO
 import Testing
 
 @MainActor
+/// Verifies TextBundle creation, metadata, assets, previews, and repository round trips.
 struct NotraStorageTests {
     @Test func createsSpecTextBundle() throws {
         let repository = try makeRepository()

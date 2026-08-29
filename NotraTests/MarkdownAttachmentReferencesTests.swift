@@ -3,6 +3,7 @@ import Foundation
 import Testing
 
 @MainActor
+/// Protects attachment-link resolution and removal across Markdown edge cases.
 struct MarkdownAttachmentReferencesTests {
     @Test func findsOnlyLocalAssetReferences() {
         let assetBaseURL = URL(fileURLWithPath: "/tmp/example.textbundle/assets", isDirectory: true)

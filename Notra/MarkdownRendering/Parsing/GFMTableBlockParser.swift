@@ -1,6 +1,7 @@
 import Foundation
 import Markdown
 
+/// Converts GFM pipe-table blocks into the app's normalized table representation.
 struct GFMTableBlockParser: Sendable {
     private enum Segment {
         case markdown(String)

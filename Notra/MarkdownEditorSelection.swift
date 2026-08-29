@@ -1,5 +1,6 @@
 import Foundation
 
+/// Stores the editor selection as UTF-16 offsets so UIKit and AppKit can share it.
 struct MarkdownEditorSelectionSnapshot: Equatable {
     var lowerOffset = 0
     var upperOffset = 0
@@ -16,6 +17,7 @@ struct MarkdownEditorSelectionSnapshot: Equatable {
     }
 }
 
+/// Retains the current and last useful non-empty selection across native editor callbacks.
 final class MarkdownEditorSelectionStore {
     var snapshot = MarkdownEditorSelectionSnapshot()
     var lastNonEmptySnapshot: MarkdownEditorSelectionSnapshot?

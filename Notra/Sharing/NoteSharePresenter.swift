@@ -6,6 +6,7 @@ import UIKit
 import AppKit
 #endif
 
+/// Provides platform-specific presentation hooks for sharing an already-generated file.
 @MainActor
 enum NoteSharePresenter {
     static func present(fileURL: URL) {

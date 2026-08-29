@@ -1,5 +1,6 @@
 import SwiftUI
 
+/// Lays out normalized Markdown table rows with measured columns and alignment rules.
 struct MarkdownTableView: View {
     @Environment(\.markdownStyle) private var style
 
@@ -8,6 +9,7 @@ struct MarkdownTableView: View {
     var mode: MarkdownRenderMode = .preview
     var preloadedImages: [URL: CGImage] = [:]
 
+    /// Uses an eager grid for PDF and a horizontally scrollable grid for interactive preview.
     var body: some View {
         if columnCount > 0 {
             Group {
@@ -23,6 +25,7 @@ struct MarkdownTableView: View {
         }
     }
 
+    /// Builds the shared header/body grid with one measured width per column.
     private var tableGrid: some View {
         Grid(horizontalSpacing: 0, verticalSpacing: 0) {
             headerRow
@@ -66,10 +69,12 @@ struct MarkdownTableView: View {
         }
     }
 
+    /// Pads short rows to the table's maximum column count before layout.
     private var columnCount: Int {
         max(table.header.count, table.rows.map { $0.cells.count }.max() ?? 0)
     }
 
+    /// Renders one cell with header styling, source-order content, and column alignment.
     private func cellView(
         inlines: [MarkdownInline],
         column: Int,
@@ -112,6 +117,7 @@ struct MarkdownTableView: View {
         return BackgroundFill.clear.view
     }
 
+    /// Converts the parsed alignment declaration into SwiftUI's grid alignment.
     private func alignment(for column: Int) -> Alignment {
         guard column < table.columnAlignments.count else {
             return .leading

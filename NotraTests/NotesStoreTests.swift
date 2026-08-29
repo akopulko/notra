@@ -3,6 +3,7 @@ import Foundation
 import Testing
 
 @MainActor
+/// Exercises store selection, saving, deletion, import, and search synchronization behavior.
 struct NotesStoreTests {
     @Test func deletingSelectedNoteSelectsPreviousNote() async throws {
         let harness = try makeHarness()

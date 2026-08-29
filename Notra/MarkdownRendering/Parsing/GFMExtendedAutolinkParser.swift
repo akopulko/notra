@@ -1,5 +1,6 @@
 import Foundation
 
+/// Adds GitHub-Flavored Markdown extended autolinks that the base parser leaves as text.
 struct GFMExtendedAutolinkParser: Sendable {
     private let urlRegex: NSRegularExpression
     private let wwwRegex: NSRegularExpression

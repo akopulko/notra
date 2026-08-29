@@ -1,6 +1,7 @@
 import Foundation
 import Markdown
 
+/// Finds and removes Markdown links that resolve to files in a TextBundle's assets directory.
 enum MarkdownAttachmentReferences {
     struct Reference: Equatable {
         let source: String?

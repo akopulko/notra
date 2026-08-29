@@ -3,6 +3,7 @@ import ImageIO
 import Markdown
 import UniformTypeIdentifiers
 
+/// Storage failures that can be translated into user-facing note-operation errors.
 enum NoteRepositoryError: Equatable, LocalizedError {
     case invalidBundle(URL)
     case noteNotFound
@@ -38,14 +39,18 @@ enum NoteRepositoryError: Equatable, LocalizedError {
     }
 }
 
+/// Reads and writes notes as specification-compatible TextBundles on local or iCloud storage.
 struct TextBundleNoteRepository {
+    /// TextBundle layout constants shared by storage, import, preview, and export code.
     nonisolated static let bundleExtension = "textbundle"
     nonisolated static let textFilename = "text.markdown"
     nonisolated static let infoFilename = "info.json"
     nonisolated static let assetsFolder = "assets"
     nonisolated static let appMetadataKey = "app.notra.Notra"
 
+    /// Root directory containing note bundles; iCloud and local roots use the same layout below it.
     let rootURL: URL
+    /// Records whether the root is backed by iCloud so the UI can describe the storage location.
     let isUsingICloud: Bool
 
     init(rootURL: URL, isUsingICloud: Bool = false) {
@@ -53,6 +58,7 @@ struct TextBundleNoteRepository {
         self.isUsingICloud = isUsingICloud
     }
 
+    /// Chooses iCloud when configured and available, otherwise prepares the platform's local directory.
     static func production(fileManager: FileManager = .default) -> TextBundleNoteRepository {
         let iCloudURL = iCloudContainerIdentifier.flatMap(fileManager.url(forUbiquityContainerIdentifier:))
         if let iCloudURL {
@@ -105,10 +111,12 @@ struct TextBundleNoteRepository {
         #endif
     }
 
+    /// Creates the repository root before any directory enumeration or bundle creation.
     func prepareStorage() throws {
         try FileManager.default.createDirectory(at: rootURL, withIntermediateDirectories: true)
     }
 
+    /// Human-readable storage label used by logging and settings.
     var storageDescription: String {
         if isUsingICloud {
             return "iCloud Drive / Notra"
@@ -121,6 +129,7 @@ struct TextBundleNoteRepository {
         #endif
     }
 
+    /// Short location label shown in the selected-note inspector.
     var noteLocationDescription: String {
         if isUsingICloud {
             return "iCloud/Notra"
@@ -133,6 +142,7 @@ struct TextBundleNoteRepository {
         #endif
     }
 
+    /// Enumerates valid TextBundles and derives lightweight previews without loading editor bodies.
     func listNotes() throws -> [NoteSummary] {
         try prepareStorage()
 
@@ -161,6 +171,7 @@ struct TextBundleNoteRepository {
             }
     }
 
+    /// Loads Markdown and Notra metadata from one TextBundle into an editable note value.
     func loadNote(at url: URL) throws -> Note {
         guard FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) else {
             throw NoteRepositoryError.noteNotFound
@@ -182,6 +193,7 @@ struct TextBundleNoteRepository {
         )
     }
 
+    /// Creates a unique empty TextBundle with spec metadata and an assets directory.
     func createNote() throws -> Note {
         try prepareStorage()
 
@@ -201,6 +213,7 @@ struct TextBundleNoteRepository {
         return try loadNote(at: bundleURL)
     }
 
+    /// Writes only the Markdown body for an existing note, leaving metadata untouched.
     func save(_ note: Note) throws {
         guard FileManager.default.fileExists(atPath: note.url.path(percentEncoded: false)) else {
             throw NoteRepositoryError.noteNotFound
@@ -214,6 +227,7 @@ struct TextBundleNoteRepository {
         )
     }
 
+    /// Reads Notra tags from metadata, treating missing metadata as an empty tag set.
     func noteMetadata(at noteURL: URL) throws -> NoteMetadata {
         let infoURL = noteURL.appendingPathComponent(Self.infoFilename)
         guard FileManager.default.fileExists(atPath: infoURL.path(percentEncoded: false)) else {
@@ -225,6 +239,7 @@ struct TextBundleNoteRepository {
         return NoteMetadata(tags: info.notra.tags)
     }
 
+    /// Merges normalized Notra metadata into existing JSON so unknown keys survive updates.
     func updateNoteMetadata(_ metadata: NoteMetadata, for noteURL: URL) throws {
         guard FileManager.default.fileExists(atPath: noteURL.path(percentEncoded: false)) else {
             throw NoteRepositoryError.noteNotFound
@@ -245,6 +260,7 @@ struct TextBundleNoteRepository {
         try data.write(to: infoURL, options: .atomic)
     }
 
+    /// Copies a file into `assets`, routing images through the canonical JPEG encoder.
     func importAttachment(
         from sourceURL: URL,
         into noteURL: URL,
@@ -287,6 +303,7 @@ struct TextBundleNoteRepository {
         )
     }
 
+    /// Decodes arbitrary image data and stores a uniquely named JPEG asset in the bundle.
     func importImage(
         data: Data,
         originalFilename: String = "image",
@@ -347,6 +364,7 @@ struct TextBundleNoteRepository {
         )
     }
 
+    /// Returns visible regular files in the bundle's assets directory in stable filename order.
     func assetURLs(in noteURL: URL) throws -> [URL] {
         let assetsURL = noteURL.appendingPathComponent(Self.assetsFolder, isDirectory: true)
         guard FileManager.default.fileExists(atPath: assetsURL.path(percentEncoded: false)) else {
@@ -368,6 +386,7 @@ struct TextBundleNoteRepository {
             .sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
     }
 
+    /// Sums regular-file sizes recursively for the inspector's bundle-size statistic.
     func totalBundleSize(at bundleURL: URL) -> Int64 {
         guard let enumerator = FileManager.default.enumerator(
             at: bundleURL,
@@ -389,12 +408,14 @@ struct TextBundleNoteRepository {
         return totalSize
     }
 
+    /// Validates that the URL is a direct asset of this bundle before deleting it.
     func deleteAttachment(_ attachmentURL: URL, from noteURL: URL) throws {
         let validatedURL = try validatedAttachmentURL(attachmentURL, in: noteURL)
         try FileManager.default.removeItem(at: validatedURL)
         AppLog.info("Deleted attachment; name=\(validatedURL.lastPathComponent)")
     }
 
+    /// Removes one whole TextBundle after verifying that it still exists.
     func delete(_ summary: NoteSummary) throws {
         guard FileManager.default.fileExists(atPath: summary.url.path(percentEncoded: false)) else {
             throw NoteRepositoryError.noteNotFound
@@ -404,6 +425,7 @@ struct TextBundleNoteRepository {
 }
 
 private extension TextBundleNoteRepository {
+    /// Summarizes only linked assets so unused files do not produce row-level attachment indicators.
     private func attachmentSummary(for noteURL: URL, markdown: String) throws -> NoteAttachmentSummary {
         let assetBaseURL = noteURL.appendingPathComponent(Self.assetsFolder, isDirectory: true)
         let linkedURLs = MarkdownAttachmentReferences.linkedURLs(in: markdown, assetBaseURL: assetBaseURL)
@@ -441,6 +463,7 @@ private extension TextBundleNoteRepository {
         )
     }
 
+    /// Decodes existing metadata as a dictionary to preserve fields Notra does not own.
     private func metadataJSONObject(at infoURL: URL) throws -> [String: Any] {
         guard FileManager.default.fileExists(atPath: infoURL.path(percentEncoded: false)) else {
             return [:]
@@ -453,6 +476,7 @@ private extension TextBundleNoteRepository {
         return object
     }
 
+    /// Uses the Markdown file timestamp first, falling back to the bundle timestamp for old bundles.
     private func modifiedDate(of bundleURL: URL) throws -> Date {
         let textURL = bundleURL.appendingPathComponent(Self.textFilename)
         let textValues = try textURL.resourceValues(forKeys: [.contentModificationDateKey])
@@ -463,11 +487,13 @@ private extension TextBundleNoteRepository {
         return bundleValues.contentModificationDate ?? .distantPast
     }
 
+    /// Reads the required UTF-8 Markdown member of a TextBundle.
     private func markdownContent(in bundleURL: URL) throws -> String {
         let textURL = bundleURL.appendingPathComponent(Self.textFilename)
         return try String(contentsOf: textURL, encoding: .utf8)
     }
 
+    /// Generates a collision-free UUID bundle name, bounded to avoid an infinite filesystem loop.
     private func uniqueBundleURL() throws -> URL {
         for _ in 0..<10 {
             let bundleURL = rootURL
@@ -481,12 +507,14 @@ private extension TextBundleNoteRepository {
         throw NoteRepositoryError.storageUnavailable
     }
 
+    /// Ensures the assets directory exists before an import writes into it.
     private func preparedAssetsURL(in noteURL: URL) throws -> URL {
         let assetsURL = noteURL.appendingPathComponent(Self.assetsFolder, isDirectory: true)
         try FileManager.default.createDirectory(at: assetsURL, withIntermediateDirectories: true)
         return assetsURL
     }
 
+    /// Reads a source file size using resource values with an attributes fallback.
     private func fileSize(at url: URL) throws -> Int64 {
         if let fileSize = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize {
             return Int64(fileSize)
@@ -499,6 +527,7 @@ private extension TextBundleNoteRepository {
         return size.int64Value
     }
 
+    /// Rejects imports before copying or decoding when they exceed the user's configured limit.
     private func validateAttachmentSize(
         filename: String,
         byteCount: Int64,
@@ -519,6 +548,7 @@ private extension TextBundleNoteRepository {
         }
     }
 
+    /// Sanitizes an imported name and appends a numeric suffix on case-insensitive collisions.
     private func uniqueAssetFilename(preferredName: String, in assetsURL: URL) throws -> String {
         let sanitizedName = sanitizedFilename(preferredName)
         let existingNames = try Set(FileManager.default.contentsOfDirectory(atPath: assetsURL.path(percentEncoded: false))
@@ -547,6 +577,7 @@ private extension TextBundleNoteRepository {
         throw NoteRepositoryError.storageUnavailable
     }
 
+    /// Removes path separators while retaining a readable attachment filename.
     private func sanitizedFilename(_ filename: String) -> String {
         let trimmedFilename = filename.trimmingCharacters(in: .whitespacesAndNewlines)
         let fallback = trimmedFilename.isEmpty ? "attachment" : trimmedFilename
@@ -556,6 +587,7 @@ private extension TextBundleNoteRepository {
         return sanitized == "." || sanitized == ".." ? "attachment" : sanitized
     }
 
+    /// Replaces the source extension so image imports advertise their canonical JPEG format.
     private func jpegFilename(for originalFilename: String) -> String {
         let fileURL = URL(fileURLWithPath: originalFilename)
         let baseName = fileURL.deletingPathExtension().lastPathComponent
@@ -563,6 +595,7 @@ private extension TextBundleNoteRepository {
         return "\(baseName.isEmpty ? "image" : baseName).jpg"
     }
 
+    /// Prevents deletion outside the selected bundle's direct assets directory.
     private func validatedAttachmentURL(_ attachmentURL: URL, in noteURL: URL) throws -> URL {
         let assetsURL = noteURL
             .appendingPathComponent(Self.assetsFolder, isDirectory: true)
@@ -579,10 +612,12 @@ private extension TextBundleNoteRepository {
         return resolvedAttachmentURL
     }
 
+    /// Compatibility accessor for callers that only need the rendered preview text.
     static func previewText(for markdown: String) -> String {
         preview(for: markdown).text
     }
 
+    /// Builds a short plain-text preview while skipping table structure and Markdown markers.
     static func preview(for markdown: String) -> NotePreview {
         let lines = previewSourceLines(from: markdown)
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -605,6 +640,7 @@ private extension TextBundleNoteRepository {
         )
     }
 
+    /// Removes complete GFM table blocks before choosing the first preview lines.
     private static func previewSourceLines(from markdown: String) -> [String] {
         let lines = markdown.components(separatedBy: .newlines)
         var previewLines: [String] = []
@@ -725,6 +761,7 @@ private extension TextBundleNoteRepository {
     }
 }
 
+/// The parsed first-line and attachment summary used to build a sidebar note summary.
 struct NotePreview: Equatable {
     struct Line: Equatable {
         let text: String

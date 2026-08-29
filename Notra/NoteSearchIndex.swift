@@ -2,6 +2,7 @@ import Foundation
 import OSLog
 import SQLite3
 
+/// One ranked search hit returned by the SQLite full-text index.
 struct NoteSearchResult: Equatable, Identifiable, Sendable {
     let noteID: URL
     let rank: Double
@@ -11,11 +12,13 @@ struct NoteSearchResult: Equatable, Identifiable, Sendable {
     }
 }
 
+/// A page of search results plus the count needed to decide whether to load more.
 struct NoteSearchPage: Equatable, Sendable {
     let results: [NoteSearchResult]
     let hasMore: Bool
 }
 
+/// Describes index readiness and synchronization progress shown by the sidebar.
 enum NoteSearchStatus: Equatable, Sendable {
     case notReady
     case indexing
@@ -23,6 +26,7 @@ enum NoteSearchStatus: Equatable, Sendable {
     case unavailable
 }
 
+/// Errors that can be surfaced when the local search index cannot be used.
 enum NoteSearchIndexError: LocalizedError, Equatable, Sendable {
     case database(String)
     case notReady
@@ -40,7 +44,9 @@ enum NoteSearchIndexError: LocalizedError, Equatable, Sendable {
     }
 }
 
+/// Owns the SQLite full-text index so database access stays serialized off the main actor.
 actor SQLiteNoteSearchIndex {
+    /// Cache location is deliberately separate from note storage; the index can always be rebuilt.
     private nonisolated static let databaseDirectoryName = "Notra"
     private nonisolated static let databaseFilename = "NoteSearch.sqlite"
     private nonisolated static let schemaVersion = 2
@@ -50,13 +56,16 @@ actor SQLiteNoteSearchIndex {
     )
 
     private let databaseURL: URL
+    /// SQLite handle owned exclusively by this actor.
     private var database: OpaquePointer?
+    /// Prevents queries from running before schema setup and initial synchronization finish.
     private var isReady = false
 
     init(databaseURL: URL) {
         self.databaseURL = databaseURL
     }
 
+    /// Places the rebuildable database in the platform cache directory.
     static func production(fileManager: FileManager = .default) -> SQLiteNoteSearchIndex {
         let cachesURL = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first
             ?? fileManager.temporaryDirectory
@@ -66,6 +75,7 @@ actor SQLiteNoteSearchIndex {
         )
     }
 
+    /// Upserts changed notes and removes database rows for bundles no longer present on disk.
     func synchronize(noteIDs: [URL]) async throws {
         log("Synchronizing index; noteCount=\(noteIDs.count)")
         try ensureDatabase()
@@ -114,6 +124,7 @@ actor SQLiteNoteSearchIndex {
         )
     }
 
+    /// Drops all database files before rebuilding from the current note list.
     func rebuild(noteIDs: [URL]) async throws {
         log("Rebuilding index; noteCount=\(noteIDs.count)")
         closeDatabase()
@@ -122,6 +133,7 @@ actor SQLiteNoteSearchIndex {
         try await synchronize(noteIDs: noteIDs)
     }
 
+    /// Upserts one changed note immediately after an editor or metadata mutation.
     func index(noteID: URL, markdown: String, tags: [NoteTag]) async throws {
         log("Indexing changed note; note=\(noteID.lastPathComponent); markdownBytes=\(markdown.utf8.count)")
         try ensureDatabase()
@@ -135,6 +147,7 @@ actor SQLiteNoteSearchIndex {
         log("Changed note indexed; note=\(noteID.lastPathComponent)")
     }
 
+    /// Removes a deleted note without touching the source TextBundle.
     func remove(noteID: URL) async throws {
         log("Removing note from index; note=\(noteID.lastPathComponent)")
         try ensureDatabase()
@@ -145,6 +158,7 @@ actor SQLiteNoteSearchIndex {
         }
     }
 
+    /// Executes a ranked FTS query and returns a bounded page for sidebar pagination.
     func search(_ query: String, limit: Int, offset: Int) async throws -> NoteSearchPage {
         guard isReady else {
             logError("Search rejected because index is not ready; queryLength=\(query.count)")
@@ -217,6 +231,7 @@ private extension SQLiteNoteSearchIndex {
         let tagHash: String
     }
 
+    /// Opens the handle, creates the schema, and applies any supported schema migration.
     func ensureDatabase() throws {
         if database != nil {
             return
@@ -293,6 +308,7 @@ private extension SQLiteNoteSearchIndex {
         }
     }
 
+    /// Removes SQLite sidecar files as well as the primary database during a rebuild.
     func removeDatabaseFiles() throws {
         let fileManager = FileManager.default
         for suffix in ["", "-shm", "-wal"] {
@@ -307,6 +323,7 @@ private extension SQLiteNoteSearchIndex {
         }
     }
 
+    /// Finalizes the actor-owned SQLite handle before deleting or reopening database files.
     func closeDatabase() {
         if let database {
             sqlite3_close_v2(database)
@@ -314,6 +331,7 @@ private extension SQLiteNoteSearchIndex {
         }
     }
 
+    /// Executes schema or transaction SQL and converts SQLite failures into app errors.
     func execute(_ sql: String) throws {
         guard let database else {
             throw NoteSearchIndexError.invalidDatabaseLocation
@@ -334,6 +352,7 @@ private extension SQLiteNoteSearchIndex {
         return sqlite3_column_int(statement, 0)
     }
 
+    /// Advances the user-version marker while retaining indexed data where possible.
     func migrateSchemaIfNeeded() throws {
         let version = try userVersion()
         guard version != 0, version != Self.schemaVersion else {
@@ -376,6 +395,7 @@ private extension SQLiteNoteSearchIndex {
         }
     }
 
+    /// Groups related SQLite writes so a partial index update cannot become visible.
     func withTransaction<T>(_ body: () throws -> T) throws -> T {
         try execute("BEGIN IMMEDIATE")
         do {
@@ -388,6 +408,7 @@ private extension SQLiteNoteSearchIndex {
         }
     }
 
+    /// Reads IDs tracked by the metadata table to detect stale notes during synchronization.
     func metadataIDs() throws -> Set<String> {
         let statement = try prepare("SELECT note_id FROM note_search_metadata")
         defer { sqlite3_finalize(statement) }
@@ -407,6 +428,7 @@ private extension SQLiteNoteSearchIndex {
         }
     }
 
+    /// Avoids re-reading a note when its file metadata is unchanged since the last index pass.
     func metadataMatches(noteID: String, metadata: SearchMetadata) throws -> Bool {
         let statement = try prepare(
             "SELECT modified_at, byte_count, tag_hash FROM note_search_metadata WHERE note_id = ?"
@@ -426,6 +448,7 @@ private extension SQLiteNoteSearchIndex {
             && tagHash == metadata.tagHash
     }
 
+    /// Writes searchable Markdown/tags and the source metadata used for incremental sync.
     func upsert(noteID: String, markdown: String, tags: [NoteTag], metadata: SearchMetadata) throws {
         try delete(noteID: noteID)
         let searchableContent = ([markdown] + tags.map(\.name)).joined(separator: "\n")
@@ -464,6 +487,7 @@ private extension SQLiteNoteSearchIndex {
         }
     }
 
+    /// Deletes both the metadata row and its corresponding FTS row.
     func delete(noteID: String) throws {
         let deleteSearch = try prepare("DELETE FROM note_search WHERE note_id = ?")
         defer { sqlite3_finalize(deleteSearch) }

@@ -3,6 +3,7 @@ import SwiftUI
 import Testing
 
 @MainActor
+/// Protects syntax-role detection for Markdown constructs and fenced code languages.
 struct MarkdownSyntaxHighlightingTests {
     @Test func plainTextHasNoHighlightSpans() {
         let spans = MarkdownSyntaxHighlighter().spans(in: "plain text")

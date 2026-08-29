@@ -1,5 +1,6 @@
 import SwiftUI
 
+/// Semantic roles used to color tokens inside fenced code blocks.
 enum MarkdownCodeHighlightRole: Equatable {
     case comment
     case keyword
@@ -12,11 +13,13 @@ enum MarkdownCodeHighlightRole: Equatable {
     case attribute
 }
 
+/// Associates one code-token role with its original range in the source string.
 struct MarkdownCodeHighlightSpan: Equatable {
     let role: MarkdownCodeHighlightRole
     let range: Range<String.Index>
 }
 
+/// The supported fence languages and the comment/token rules they imply.
 enum MarkdownCodeLanguage: Equatable {
     case swift
     case python
@@ -94,6 +97,7 @@ enum MarkdownCodeLanguage: Equatable {
     ]
 }
 
+/// Applies lightweight, language-aware token highlighting to fenced code content.
 struct MarkdownCodeSyntaxHighlighter {
     func highlight(
         _ code: String,

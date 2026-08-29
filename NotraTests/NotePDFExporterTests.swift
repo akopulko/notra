@@ -7,6 +7,7 @@ import Testing
 import UniformTypeIdentifiers
 
 @MainActor
+/// Verifies PDF page geometry, extractable text, formatting, images, and pagination.
 struct NotePDFExporterTests {
     @Test
     func `exports valid empty PDF with A 4 media box`() throws {
@@ -301,6 +302,7 @@ struct NotePDFExporterTests {
     }
 }
 
+/// Creates isolated temporary export inputs and removes generated files after each test.
 private struct Fixture {
     let bundleURL: URL
     let assetsURL: URL

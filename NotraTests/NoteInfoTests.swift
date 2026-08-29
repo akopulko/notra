@@ -2,6 +2,7 @@ import Foundation
 @testable import Notra
 import Testing
 
+/// Verifies note statistics, metadata projection, and human-readable byte formatting.
 struct NoteInfoTests {
     @Test func emptyMarkdownHasZeroStatistics() {
         let statistics = NoteStatistics(markdown: "")

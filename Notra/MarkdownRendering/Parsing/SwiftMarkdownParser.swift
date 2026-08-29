@@ -1,6 +1,7 @@
 import Foundation
 import Markdown
 
+/// Converts swift-markdown's AST into Notra's smaller, renderer-focused document model.
 struct SwiftMarkdownParser {
     private let extendedAutolinkParser: GFMExtendedAutolinkParser
     private let tableParser: GFMTableBlockParser
@@ -13,6 +14,7 @@ struct SwiftMarkdownParser {
         self.tableParser = tableParser
     }
 
+    /// Produces a renderer-owned document, using the table path before the general AST path.
     nonisolated func parse(_ markdown: String) -> NotraMarkdownDocument {
         if let document = tableParser.parse(markdown, swiftParser: self) {
             return document
@@ -21,6 +23,7 @@ struct SwiftMarkdownParser {
         return parseSwiftMarkdown(markdown, path: "document")
     }
 
+    /// Converts swift-markdown nodes recursively while retaining deterministic IDs from `path`.
     nonisolated func parseSwiftMarkdown(_ markdown: String, path: String) -> NotraMarkdownDocument {
         let document = Document(parsing: markdown)
         return NotraMarkdownDocument(

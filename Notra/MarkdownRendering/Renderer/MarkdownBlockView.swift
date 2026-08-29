@@ -1,5 +1,6 @@
 import SwiftUI
 
+/// Selects the appropriate SwiftUI layout for one parsed Markdown block.
 struct MarkdownBlockView: View {
     @Environment(\.markdownStyle) private var style
 
@@ -135,6 +136,7 @@ struct MarkdownBlockView: View {
     }
 }
 
+/// Renders fenced code with the same syntax colors used by the editor.
 private struct CodeBlockView: View {
     @Environment(\.markdownStyle) private var style
     @Environment(\.secondaryBackgroundFill) private var secondaryBackgroundFill

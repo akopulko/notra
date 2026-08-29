@@ -1,5 +1,6 @@
 import SwiftUI
 
+/// Displays one removable note tag with the same compact styling in both platforms.
 struct TagCapsule: View {
     enum Size {
         case compact
@@ -147,6 +148,7 @@ struct TagCapsule: View {
     }
 }
 
+/// Wraps tag capsules into rows while reporting the height needed by its parent.
 struct TagFlowLayout: Layout {
     var horizontalSpacing: CGFloat = 8
     var verticalSpacing: CGFloat = 8

@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 import PhotosUI
 #endif
 
+/// Uses a changing request ID to tell the editor to select an imported local attachment.
 struct MarkdownAttachmentSelectionRequest: Equatable {
     static let empty = MarkdownAttachmentSelectionRequest(id: 0, url: nil)
 
@@ -13,6 +14,7 @@ struct MarkdownAttachmentSelectionRequest: Equatable {
 }
 
 #if os(iOS)
+/// Presents iOS PhotosPicker and forwards its selected item to shared import logic.
 struct ImagePickerPresentationModifier: ViewModifier {
     @Binding var isPresented: Bool
     @Binding var selection: PhotosPickerItem?
@@ -32,6 +34,7 @@ struct ImagePickerPresentationModifier: ViewModifier {
 #endif
 
 #if os(iOS) || os(macOS)
+/// Presents the platform file importer for non-Photos attachments and reports failures.
 struct AttachmentFileImporterModifier: ViewModifier {
     @Binding var isPresented: Bool
     let onSelection: (URL) -> Void

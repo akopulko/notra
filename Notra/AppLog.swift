@@ -1,6 +1,7 @@
 import Foundation
 import OSLog
 
+/// Centralizes the app's unified logging policy, including level filtering and debug overrides.
 enum AppLog {
     enum Level: Int {
         case debug

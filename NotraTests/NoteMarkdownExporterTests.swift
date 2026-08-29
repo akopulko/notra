@@ -2,6 +2,7 @@ import Foundation
 @testable import Notra
 import Testing
 
+/// Verifies raw Markdown export and safe filename generation without mutating the source note.
 struct NoteMarkdownExporterTests {
     @Test
     func `exports raw markdown to a markdown file`() throws {

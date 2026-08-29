@@ -4,6 +4,7 @@ import SwiftUI
 import Testing
 
 @MainActor
+/// Checks parsing, styling, and native Markdown rendering inputs used by preview and PDF export.
 struct MarkdownRenderingTests {
     @Test func previewCodeSyntaxThemeFollowsThePreviewThemeOption() {
         let themedPreview = MarkdownStyle.notra(

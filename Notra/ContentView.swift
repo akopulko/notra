@@ -1,13 +1,22 @@
 import SwiftUI
 
+/// Owns the app's split-view shell and connects note-store state to its sidebar and editor.
 struct ContentView: View {
+    /// Shared store bound into both columns of the split view.
     @Bindable var store: NotesStore
+    /// Controls whether the sidebar/detail columns are visible on compact layouts.
     @State private var columnVisibility: NavigationSplitViewVisibility = .automatic
+    /// Chooses which split-view column receives compact-width navigation.
     @State private var preferredCompactColumn: NavigationSplitViewColumn = .sidebar
+    /// Search query owned by the sidebar, cleared after a new note is created.
     @State private var searchText = ""
+    /// Toggles the editor/preview mode on the detail column.
     @State private var isEditing = false
+    /// Monotonic request that moves focus into a newly created note.
     @State private var editorFocusRequest = 0
+    /// Monotonic request carrying a selected imported attachment into the editor.
     @State private var attachmentSelectionRequest = MarkdownAttachmentSelectionRequest.empty
+    /// Presentation state for the shared attachment file importer.
     @State private var isAttachmentFileImporterPresented = false
 
     var body: some View {
@@ -50,6 +59,7 @@ struct ContentView: View {
         .modifier(attachmentFileImporter)
     }
 
+    /// Adapts the store's optional error into the Boolean binding expected by `alert`.
     private var errorBinding: Binding<Bool> {
         Binding {
             store.errorMessage != nil
@@ -60,6 +70,7 @@ struct ContentView: View {
         }
     }
 
+    /// Creates a note and moves compact layouts into focused editing when selection changes.
     private func createNote() {
         Task {
             let previousSelectionID = store.selectedNoteID
@@ -75,6 +86,7 @@ struct ContentView: View {
         }
     }
 
+    /// Builds the importer modifier while keeping imported URLs in the root content state.
     private var attachmentFileImporter: AttachmentFileImporterModifier {
         AttachmentFileImporterModifier(isPresented: $isAttachmentFileImporterPresented) { url in
             attachmentSelectionRequest = MarkdownAttachmentSelectionRequest(
@@ -86,6 +98,7 @@ struct ContentView: View {
         }
     }
 
+    /// Requests platform file selection for an attachment link.
     private func presentAttachmentFileImporter() {
         AppLog.info("Presenting attachment file importer from root content")
         isAttachmentFileImporterPresented = true

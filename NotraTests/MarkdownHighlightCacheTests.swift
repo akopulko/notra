@@ -3,6 +3,7 @@ import Foundation
 import Testing
 
 @MainActor
+/// Verifies that incremental syntax highlighting remains equivalent to a full parse.
 struct MarkdownHighlightCacheTests {
     private let sampleMarkdown = """
     # Heading

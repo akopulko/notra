@@ -7,6 +7,7 @@ import UIKit
 #endif
 
 #if os(iOS)
+/// Wraps UITextView and keeps SwiftUI text, selection, highlighting, and undo state synchronized.
 struct MarkdownNativeTextEditor: UIViewRepresentable {
     @Binding var text: String
     let fontName: String
@@ -15,15 +16,18 @@ struct MarkdownNativeTextEditor: UIViewRepresentable {
     let bridge: MarkdownTextEditorBridge
     let selectionStore: MarkdownEditorSelectionStore
 
+    /// Creates the delegate object that owns native text-view configuration and callbacks.
     func makeCoordinator() -> Coordinator {
         Coordinator(parent: self)
     }
 
+    /// Returns the configured text view reused across SwiftUI body updates.
     func makeUIView(context: Context) -> UITextView {
         context.coordinator.parent = self
         return context.coordinator.textView
     }
 
+    /// Pushes SwiftUI state changes into UIKit without replacing the user's native selection.
     func updateUIView(_ textView: UITextView, context: Context) {
         context.coordinator.parent = self
         context.coordinator.update(textView: textView)
@@ -31,6 +35,7 @@ struct MarkdownNativeTextEditor: UIViewRepresentable {
 }
 
 extension MarkdownNativeTextEditor {
+    /// Hosts the horizontally scrolling iOS formatting controls above the keyboard.
     final class AccessoryContainerView: UIView {
         static let barHeight: CGFloat = 44
         private static let horizontalMargin: CGFloat = 8
@@ -109,6 +114,7 @@ extension MarkdownNativeTextEditor {
             ])
         }
 
+        /// Uses the same command ordering as the editor menu and SwiftUI toolbar.
         private var formattingCommands: [NoteFormattingCommand] {
             NoteFormattingCommand.editorMenuCommands
         }
@@ -144,6 +150,7 @@ extension MarkdownNativeTextEditor {
         }
     }
 
+    /// Bridges UITextView delegate events to the shared SwiftUI editor bridge.
     final class Coordinator: NSObject, UITextViewDelegate {
         var parent: MarkdownNativeTextEditor
         let textView = UITextView()
@@ -161,6 +168,7 @@ extension MarkdownNativeTextEditor {
             wireBridge()
         }
 
+        /// Applies pending text, font, theme, selection, and undo-state changes to UIKit.
         func update(textView: UITextView) {
             let font = currentFont
 
@@ -184,10 +192,12 @@ extension MarkdownNativeTextEditor {
             }
         }
 
+        /// Sends user edits through incremental highlighting before publishing the binding change.
         func textViewDidChange(_: UITextView) {
             handleTextChanged()
         }
 
+        /// Records native selection movement for selection-aware formatting commands.
         func textViewDidChangeSelection(_ textView: UITextView) {
             recordSelection(textView.selectedRange)
         }
@@ -329,6 +339,7 @@ extension MarkdownNativeTextEditor {
             NoteFormattingCommand.editorMenuCommands
         }
 
+        /// Applies only changed highlight lines and publishes the new editor text.
         private func handleTextChanged() {
             let newText = textView.text ?? ""
             guard newText != lastText else {
@@ -349,6 +360,7 @@ extension MarkdownNativeTextEditor {
             updateUndoRedoAvailability()
         }
 
+        /// Replaces native text during external selection changes without echoing a stale callback.
         private func replaceText(_ newText: String) {
             guard newText != lastText else {
                 return
@@ -490,6 +502,7 @@ extension MarkdownNativeTextEditor {
     }
 }
 #elseif os(macOS)
+/// Wraps NSTextView with the same editor contract used by the iOS implementation.
 struct MarkdownNativeTextEditor: NSViewRepresentable {
     @Binding var text: String
     let fontName: String
@@ -498,15 +511,18 @@ struct MarkdownNativeTextEditor: NSViewRepresentable {
     let bridge: MarkdownTextEditorBridge
     let selectionStore: MarkdownEditorSelectionStore
 
+    /// Creates the delegate object that owns native text-view configuration and callbacks.
     func makeCoordinator() -> Coordinator {
         Coordinator(parent: self)
     }
 
+    /// Returns the scroll view containing the configured AppKit text view.
     func makeNSView(context: Context) -> NSScrollView {
         context.coordinator.parent = self
         return context.coordinator.scrollView
     }
 
+    /// Pushes SwiftUI state changes into AppKit without discarding native selection state.
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         context.coordinator.parent = self
         context.coordinator.update(scrollView: scrollView)
@@ -514,6 +530,7 @@ struct MarkdownNativeTextEditor: NSViewRepresentable {
 }
 
 extension MarkdownNativeTextEditor {
+    /// Bridges NSTextView delegate events to the shared SwiftUI editor bridge.
     final class Coordinator: NSObject, NSTextViewDelegate {
         var parent: MarkdownNativeTextEditor
         let scrollView = NSScrollView()
@@ -532,6 +549,7 @@ extension MarkdownNativeTextEditor {
             wireBridge()
         }
 
+        /// Applies pending text, font, theme, selection, and undo-state changes to AppKit.
         func update(scrollView _: NSScrollView) {
             let font = currentFont
 
@@ -555,10 +573,12 @@ extension MarkdownNativeTextEditor {
             }
         }
 
+        /// Sends user edits through incremental highlighting before publishing the binding change.
         func textDidChange(_: Notification) {
             handleTextChanged()
         }
 
+        /// Records native selection movement for selection-aware formatting commands.
         func textViewDidChangeSelection(_: Notification) {
             recordSelection(textView.selectedRange())
         }
@@ -697,6 +717,7 @@ extension MarkdownNativeTextEditor {
             NoteFormattingCommand.editorMenuCommands
         }
 
+        /// Applies only changed highlight lines and publishes the new editor text.
         private func handleTextChanged() {
             let newText = textView.string
             guard newText != lastText else {
@@ -711,6 +732,7 @@ extension MarkdownNativeTextEditor {
             updateUndoRedoAvailability()
         }
 
+        /// Replaces native text during external selection changes without echoing a stale callback.
         private func replaceText(_ newText: String) {
             guard newText != lastText else {
                 return

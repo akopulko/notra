@@ -1,5 +1,6 @@
 import Foundation
 
+/// Stores the parsed block tree consumed by the native Markdown renderer.
 struct NotraMarkdownDocument: Equatable, Sendable {
     let blocks: [MarkdownBlock]
     let compactParagraphIDs: Set<String>
@@ -22,6 +23,7 @@ struct NotraMarkdownDocument: Equatable, Sendable {
     }
 }
 
+/// The block-level Markdown forms that the renderer lays out vertically.
 enum MarkdownBlock: Equatable, Identifiable, Sendable {
     case paragraph(id: String, [MarkdownInline])
     case heading(id: String, level: Int, [MarkdownInline])
@@ -47,6 +49,7 @@ enum MarkdownBlock: Equatable, Identifiable, Sendable {
     }
 }
 
+/// Inline Markdown content preserved inside paragraphs, headings, table cells, and list items.
 enum MarkdownInline: Equatable, Sendable {
     case text(String)
     case strong([MarkdownInline])
@@ -59,39 +62,46 @@ enum MarkdownInline: Equatable, Sendable {
     case lineBreak
 }
 
+/// A list item with its inline content and any nested list blocks.
 struct MarkdownListItem: Equatable, Identifiable, Sendable {
     let id: String
     let taskState: MarkdownTaskState?
     let blocks: [MarkdownBlock]
 }
 
+/// The checked state of a GitHub-style task-list item.
 enum MarkdownTaskState: Equatable, Sendable {
     case checked
     case unchecked
 }
 
+/// A normalized table with alignment metadata and renderable rows.
 struct MarkdownTable: Equatable, Sendable {
     let columnAlignments: [MarkdownTableAlignment]
     let header: [MarkdownTableCell]
     let rows: [MarkdownTableRow]
 }
 
+/// One table row, including a stable ID for SwiftUI's repeated row views.
 struct MarkdownTableRow: Equatable, Identifiable, Sendable {
     let id: String
     let cells: [MarkdownTableCell]
 }
 
+/// One table cell's inline content and stable render identity.
 struct MarkdownTableCell: Equatable, Identifiable, Sendable {
     let id: String
     let inlines: [MarkdownInline]
 }
 
+/// Describes whether a list row is unordered, ordered, or a task marker.
 enum MarkdownListMarker: Equatable, Sendable {
     case unordered(Int)
     case ordered(Int)
     case task(MarkdownTaskState)
 }
 
+/// Flattens nested list content into the indented rows used by the renderer.
 struct MarkdownRenderRow: Equatable, Identifiable, Sendable {
     let id: String
     let block: MarkdownBlock
@@ -265,6 +275,7 @@ private enum MarkdownRenderRowBuilder {
     }
 }
 
+/// The optional left, center, or right alignment declared by a GFM table separator.
 enum MarkdownTableAlignment: Equatable, Sendable {
     case leading
     case center

@@ -3,6 +3,7 @@ import Foundation
 import Testing
 
 @MainActor
+/// Exercises full-text indexing, prefix/phrase search, updates, deletion, and pagination.
 struct NoteSearchIndexTests {
     @Test func indexesMarkdownAndSupportsPrefixAndPhraseSearch() async throws {
         let repository = try makeRepository()
