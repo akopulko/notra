@@ -24,7 +24,6 @@ struct NotesSidebar: View {
 
     var body: some View {
         notesList
-            .navigationTitle("Notes")
             .toolbar {
                 ToolbarItemGroup(placement: .primaryAction) {
                     NewNoteButton(action: createNote)
