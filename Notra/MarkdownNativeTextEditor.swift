@@ -602,24 +602,11 @@ extension MarkdownNativeTextEditor {
 
         func textView(
             _: NSTextView,
-            menu: NSMenu,
+            menu _: NSMenu,
             for _: NSEvent,
-            at _: Int
+            at characterIndex: Int
         ) -> NSMenu? {
-            menu.addItem(.separator())
-            appendHeadingMenu(to: menu)
-            for command in formattingCommands {
-                let item = NSMenuItem(
-                    title: command.title,
-                    action: #selector(applyFormattingFromMenu(_:)),
-                    keyEquivalent: ""
-                )
-                item.image = NSImage(systemSymbolName: command.systemImage, accessibilityDescription: command.title)
-                item.target = self
-                item.representedObject = command
-                menu.addItem(item)
-            }
-            return menu
+            buildContextMenu(at: characterIndex)
         }
 
         private func configureTextView() {
@@ -879,6 +866,117 @@ extension MarkdownNativeTextEditor {
         private var currentFont: NSFont {
             AppearanceFont.nativeEditorFont(named: parent.fontName, size: parent.fontSize)
         }
+    }
+}
+
+extension MarkdownNativeTextEditor.Coordinator {
+    /// Replaces AppKit's text-services menu so editor context actions stay app-owned.
+    private func buildContextMenu(at characterIndex: Int) -> NSMenu {
+        let menu = NSMenu()
+        appendEditMenuItems(to: menu, at: characterIndex)
+        menu.addItem(.separator())
+        appendHeadingMenu(to: menu)
+        for command in formattingCommands {
+            appendMenuItem(
+                to: menu,
+                title: command.title,
+                systemImage: command.systemImage,
+                action: #selector(applyFormattingFromMenu(_:)),
+                target: self,
+                representedObject: command
+            )
+        }
+        return menu
+    }
+
+    private func appendEditMenuItems(to menu: NSMenu, at characterIndex: Int) {
+        appendMenuItem(
+            to: menu,
+            title: "Select",
+            systemImage: "selection.pin.in.out",
+            action: #selector(selectWordFromMenu(_:)),
+            target: self,
+            representedObject: characterIndex,
+            isEnabled: canSelectWord(at: characterIndex)
+        )
+        appendMenuItem(
+            to: menu,
+            title: "Select All",
+            systemImage: "selection.pin.in.out",
+            action: #selector(NSText.selectAll(_:)),
+            target: textView,
+            isEnabled: !textView.string.isEmpty
+        )
+        appendMenuItem(
+            to: menu,
+            title: "Cut",
+            systemImage: "scissors",
+            action: #selector(NSText.cut(_:)),
+            target: textView,
+            isEnabled: textView.selectedRange().length > 0
+        )
+        appendMenuItem(
+            to: menu,
+            title: "Copy",
+            systemImage: "doc.on.doc",
+            action: #selector(NSText.copy(_:)),
+            target: textView,
+            isEnabled: textView.selectedRange().length > 0
+        )
+        appendMenuItem(
+            to: menu,
+            title: "Paste",
+            systemImage: "doc.on.clipboard",
+            action: #selector(NSText.paste(_:)),
+            target: textView,
+            isEnabled: canPasteText
+        )
+    }
+
+    private func appendMenuItem(
+        to menu: NSMenu,
+        title: String,
+        systemImage: String?,
+        action: Selector,
+        target: AnyObject?,
+        representedObject: Any? = nil,
+        isEnabled: Bool = true
+    ) {
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+        if let systemImage {
+            item.image = NSImage(systemSymbolName: systemImage, accessibilityDescription: title)
+        }
+        item.target = target
+        item.representedObject = representedObject
+        item.isEnabled = isEnabled
+        menu.addItem(item)
+    }
+
+    private func canSelectWord(at characterIndex: Int) -> Bool {
+        characterIndex >= 0 && characterIndex < textView.string.utf16.count
+    }
+
+    private var canPasteText: Bool {
+        NSPasteboard.general.canReadObject(forClasses: [NSString.self], options: nil)
+    }
+
+    @objc
+    private func selectWordFromMenu(_ sender: NSMenuItem) {
+        guard let characterIndex = sender.representedObject as? Int,
+              canSelectWord(at: characterIndex)
+        else {
+            return
+        }
+
+        let proposedRange = NSRange(location: characterIndex, length: 0)
+        let selectionRange = textView.selectionRange(
+            forProposedRange: proposedRange,
+            granularity: .selectByWord
+        )
+        guard selectionRange.location != NSNotFound, selectionRange.length > 0 else {
+            return
+        }
+        textView.setSelectedRange(selectionRange)
     }
 }
 #endif
