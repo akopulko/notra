@@ -235,6 +235,7 @@ extension MarkdownNativeTextEditor {
             textView.textContainerInset = UIEdgeInsets(top: 6, left: 8, bottom: 6, right: 8)
             textView.textContainer.lineFragmentPadding = 0
             textView.layoutManager.allowsNonContiguousLayout = true
+            // Keep the editor canvas owned by SwiftUI/system chrome; themes only change text colours.
             textView.backgroundColor = .clear
             textView.autocapitalizationType = .sentences
             textView.autocorrectionType = .default
@@ -626,12 +627,15 @@ extension MarkdownNativeTextEditor {
             textView.importsGraphics = false
             textView.usesFindBar = false
             textView.usesAdaptiveColorMappingForDarkAppearance = false
+            // Keep the text view canvas transparent so AppKit does not draw a darker editor plate.
+            textView.drawsBackground = false
         }
 
         private func configureScrollView() {
             scrollView.documentView = textView
             scrollView.hasVerticalScroller = true
             scrollView.hasHorizontalScroller = false
+            // Keep the macOS editor background transparent so syntax themes cannot tint the canvas.
             scrollView.drawsBackground = false
         }
 
