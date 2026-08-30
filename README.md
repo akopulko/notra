@@ -12,23 +12,29 @@ Notra is a SwiftUI notes app for iOS, iPadOS, and macOS. Notes are stored as Tex
 Run validation builds before opening a pull request:
 
 ```sh
-Scripts/build_iOS.sh
-Scripts/build_macOS.sh
+make build
 ```
 
-The build scripts run SwiftFormat and SwiftLint in lint mode before compiling.
+This builds iOS first, then macOS. To run one platform at a time:
+
+```sh
+make build-ios
+make build-macos
+```
+
+The build targets run SwiftFormat and SwiftLint in lint mode before compiling.
 
 ## Run
 
 The run scripts build a Debug app, launch it, and stream logs:
 
 ```sh
-Scripts/run_iOS.sh phone
-Scripts/run_iOS.sh ipad
-Scripts/run_macOS.sh
+make run-ios
+make run-ios-ipad
+make run-macos
 ```
 
-The iOS run script targets simulators. For a physical iPhone or iPad, open `Notra.xcodeproj` in Xcode and run the `Notra` scheme on the device.
+`make run-ios` uses the phone simulator. The iOS run targets use simulators. For a physical iPhone or iPad, open `Notra.xcodeproj` in Xcode and run the `Notra` scheme on the device.
 
 ## Local Signing and iCloud
 
