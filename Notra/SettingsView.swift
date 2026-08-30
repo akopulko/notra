@@ -3,15 +3,21 @@ import SwiftUI
 import AppKit
 #endif
 
+/// Hosts the settings navigation shell and platform-specific appearance controls.
 struct SettingsView: View {
     #if os(iOS)
     @Environment(\.dismiss) private var dismiss
     #endif
 
+    /// Persisted editor font family passed to both native editor bridges.
     @AppStorage(AppearanceSettingKey.editorFontName) private var editorFontName = AppearanceFont.defaultName
+    /// Persisted editor point size.
     @AppStorage(AppearanceSettingKey.editorFontSize) private var editorFontSize = AppearanceFont.defaultSize
+    /// Persisted preview font family.
     @AppStorage(AppearanceSettingKey.previewFontName) private var previewFontName = AppearanceFont.defaultName
+    /// Whether preview code follows the editor's selected syntax theme.
     @AppStorage(AppearanceSettingKey.previewUsesEditorTheme) private var previewUsesEditorTheme = true
+    /// Maximum attachment size enforced before an import reaches storage.
     @AppStorage(AttachmentSettingKey.maximumSizeMB) private var maximumAttachmentSizeMB =
         AttachmentSettings.defaultMaximumSizeMB
 
@@ -147,6 +153,7 @@ struct SettingsView: View {
     }
 }
 
+/// The categories displayed in the settings sidebar or top-level iOS tabs.
 private enum SettingsCategory: String, CaseIterable, Identifiable, Hashable {
     case general
     case appearance
@@ -191,6 +198,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable, Hashable {
 }
 
 #if os(iOS)
+/// Renders one settings category with consistent icon and selection treatment.
 private struct SettingsCategoryRow: View {
     let category: SettingsCategory
 
@@ -206,6 +214,7 @@ private struct SettingsCategoryRow: View {
 }
 #endif
 
+/// Provides the macOS settings header used above the category list.
 private struct SettingsHeaderView: View {
     let category: SettingsCategory
 
@@ -236,6 +245,7 @@ private struct SettingsHeaderView: View {
     }
 }
 
+/// Contains general storage, attachment, and behavior preferences.
 private struct GeneralSettingsDetailView: View {
     @Binding var maximumAttachmentSizeMB: Int
     let showsHeader: Bool
@@ -276,6 +286,7 @@ private struct GeneralSettingsDetailView: View {
     }
 }
 
+/// Contains editor, preview, theme, and font appearance preferences.
 private struct AppearanceSettingsDetailView: View {
     @Binding var editorFontName: String
     @Binding var editorFontSize: Double
@@ -330,6 +341,7 @@ private struct AppearanceSettingsDetailView: View {
     }
 }
 
+/// Displays one font preference and routes selection to the native picker where available.
 private struct SettingsFontRow: View {
     let title: String
     let fontName: String
@@ -376,6 +388,7 @@ private struct SettingsFontRow: View {
     }
 }
 
+/// Displays app identity, version, and open-source attribution information.
 private struct AboutSettingsDetailView: View {
     let info: AppAboutInfo
     let showsHeader: Bool
@@ -400,6 +413,7 @@ private struct AboutSettingsDetailView: View {
     }
 }
 
+/// Collects bundle metadata once so the About view can render missing values safely.
 private struct AppAboutInfo {
     let displayName: String
     let version: String
@@ -489,12 +503,13 @@ private struct SettingsWindowCenteringView: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: NSView, context: Context) {
-        DispatchQueue.main.async {
-            guard let window = nsView.window else {
+        let coordinator = context.coordinator
+        Task { @MainActor [weak nsView, coordinator] in
+            guard let window = nsView?.window else {
                 return
             }
 
-            context.coordinator.center(window)
+            coordinator.center(window)
         }
     }
 

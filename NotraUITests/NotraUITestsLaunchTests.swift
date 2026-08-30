@@ -6,6 +6,7 @@
 
 import XCTest
 
+/// Captures the launch screen under every configured UI-test environment.
 final class NotraUITestsLaunchTests: XCTestCase {
 
     override class var runsForEachTargetApplicationUIConfiguration: Bool {

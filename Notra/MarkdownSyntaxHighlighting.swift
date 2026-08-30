@@ -25,6 +25,7 @@ extension MarkdownPlatformColor {
     }
 }
 
+/// Semantic Markdown roles used to apply editor syntax colors.
 enum MarkdownHighlightRole: Equatable {
     case headingMarker
     case headingText
@@ -53,11 +54,13 @@ enum MarkdownHighlightRole: Equatable {
     case codeAttribute
 }
 
+/// Associates a syntax role with a UTF-16 range in the Markdown source.
 struct MarkdownHighlightSpan: Equatable {
     let role: MarkdownHighlightRole
     let range: Range<String.Index>
 }
 
+/// Stores light and dark colors for one syntax role.
 struct MarkdownSyntaxColor: Equatable {
     let hex: String
 
@@ -100,6 +103,7 @@ struct MarkdownSyntaxColor: Equatable {
     }
 }
 
+/// Bundles syntax colors and provides the theme selected by the current color scheme.
 struct MarkdownHighlightTheme: Equatable {
     let marker: MarkdownSyntaxColor
     let heading: MarkdownSyntaxColor
@@ -156,6 +160,7 @@ struct MarkdownHighlightTheme: Equatable {
         codeAttribute: MarkdownSyntaxColor(hex: "#B45309")
     )
 
+    /// Selects the dark or light palette without making the editor own theme state.
     static func preferred(for colorScheme: ColorScheme) -> MarkdownHighlightTheme {
         switch colorScheme {
         case .dark:
@@ -165,6 +170,7 @@ struct MarkdownHighlightTheme: Equatable {
         }
     }
 
+    /// Maps a Markdown role to its palette color, delegating fenced-code roles to `codeColor`.
     func color(for role: MarkdownHighlightRole) -> MarkdownSyntaxColor {
         if let codeRole = role.codeRole {
             return codeColor(for: codeRole)
@@ -196,6 +202,7 @@ struct MarkdownHighlightTheme: Equatable {
         }
     }
 
+    /// Maps language-token roles to the dedicated code palette entries.
     func codeColor(for role: MarkdownCodeHighlightRole) -> MarkdownSyntaxColor {
         switch role {
         case .comment: codeComment
@@ -211,7 +218,9 @@ struct MarkdownHighlightTheme: Equatable {
     }
 }
 
+/// Parses Markdown line-by-line into stable spans suitable for native text views.
 struct MarkdownSyntaxHighlighter {
+    /// Converts syntax spans into an attributed string for SwiftUI preview or native text views.
     func highlight(_ markdown: String, theme: MarkdownHighlightTheme) -> AttributedString {
         var attributed = AttributedString(markdown)
 
@@ -228,6 +237,7 @@ struct MarkdownSyntaxHighlighter {
         return attributed
     }
 
+    /// Parses the full document while carrying fence state from line to line.
     func spans(in markdown: String) -> [MarkdownHighlightSpan] {
         var spans: [MarkdownHighlightSpan] = []
         var lineStart = markdown.startIndex
@@ -256,6 +266,7 @@ struct MarkdownSyntaxHighlighter {
         return spans
     }
 
+    /// Test-friendly line parser that accepts the fence state as a simple Boolean.
     func parseLine(_ line: String, isInFence: Bool, nextLine: String? = nil) -> MarkdownLineParseResult {
         parseLine(
             line,
@@ -264,6 +275,7 @@ struct MarkdownSyntaxHighlighter {
         )
     }
 
+    /// Parses one line and returns both spans and the state needed by the following line.
     func parseLine(
         _ line: String,
         fenceState initialFenceState: MarkdownCodeFenceState,
@@ -430,6 +442,7 @@ struct MarkdownSyntaxHighlighter {
 }
 
 extension MarkdownSyntaxHighlighter {
+    /// Walks inline syntax left-to-right so overlapping markers are consumed only once.
     private func parseInlineMarkdown(
         in markdown: String,
         range: Range<String.Index>,
@@ -452,6 +465,7 @@ extension MarkdownSyntaxHighlighter {
         }
     }
 
+    /// Recognizes a closed backtick pair and marks the complete inline-code range.
     private func parseInlineCode(
         in markdown: String,
         at index: String.Index,
@@ -472,6 +486,7 @@ extension MarkdownSyntaxHighlighter {
         return end
     }
 
+    /// Splits a Markdown link into marker, label, and destination spans.
     private func parseLink(
         in markdown: String,
         at index: String.Index,
@@ -506,6 +521,7 @@ extension MarkdownSyntaxHighlighter {
         return end
     }
 
+    /// Recognizes double-marker emphasis before the single-marker parser runs.
     private func parseStrong(
         in markdown: String,
         at index: String.Index,
@@ -528,6 +544,7 @@ extension MarkdownSyntaxHighlighter {
         return end
     }
 
+    /// Recognizes simple single-marker emphasis without attempting full Markdown nesting.
     private func parseEmphasis(
         in markdown: String,
         at index: String.Index,
@@ -893,6 +910,7 @@ extension MarkdownSyntaxHighlighter {
     }
 }
 
+/// Holds the spans and fence transition produced while parsing one Markdown line.
 struct MarkdownLineParseResult {
     let spans: [MarkdownHighlightSpan]
     let fenceStateAfter: MarkdownCodeFenceState
@@ -902,6 +920,7 @@ struct MarkdownLineParseResult {
     }
 }
 
+/// Tracks whether incremental Markdown parsing is currently inside a code fence.
 struct MarkdownCodeFenceState: Equatable {
     let isInFence: Bool
     let language: MarkdownCodeLanguage?
@@ -914,12 +933,14 @@ struct MarkdownCodeFenceState: Equatable {
     }
 }
 
+/// Stores a syntax span using the offset unit expected by UITextView and NSTextView.
 struct MarkdownUTF16Span: Equatable {
     let role: MarkdownHighlightRole
     let lower: Int
     let upper: Int
 }
 
+/// Caches the parsed result for one line so edits can reparse only affected regions.
 struct MarkdownLineHighlight {
     let range: Range<Int>
     let spans: [MarkdownUTF16Span]
@@ -935,6 +956,7 @@ struct MarkdownLineHighlight {
     }
 }
 
+/// Maintains incremental syntax-highlight state as the editor text changes.
 struct MarkdownHighlightCache {
     private(set) var text = ""
     private(set) var lines: [MarkdownLineHighlight] = []
@@ -947,11 +969,13 @@ struct MarkdownHighlightCache {
         lines.isEmpty
     }
 
+    /// Rebuilds every cached line; used for initial load and full-refresh fallback paths.
     mutating func setText(_ newText: String) {
         text = newText
         lines = Self.buildLines(for: newText)
     }
 
+    /// Reparses the smallest affected line region while carrying fence state from its prefix.
     @discardableResult
     mutating func updateText(_ newText: String) -> Range<Int>? {
         guard newText != text else {

@@ -7,6 +7,7 @@ import UIKit
 import AppKit
 #endif
 
+/// Renders one sidebar note row, including preview text, dates, tags, and attachment state.
 struct NoteRow: View {
     let note: NoteSummary
     let sortField: NoteSortField
@@ -69,6 +70,7 @@ struct NoteRow: View {
     }
 }
 
+/// Loads the first linked image for a note row without blocking list rendering.
 private struct NoteRowThumbnail: View {
     let url: URL
 
@@ -111,6 +113,7 @@ private struct NoteRowThumbnail: View {
     }
 }
 
+/// Serializes and caches small note-row thumbnail reads.
 private actor NoteRowThumbnailLoader {
     static let shared = NoteRowThumbnailLoader()
 

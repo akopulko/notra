@@ -6,27 +6,8 @@ import AppKit
 import UIKit
 #endif
 
-final class MarkdownTextEditorBridge {
-    var applyProgrammaticEdit: ((String, MarkdownEditorSelectionSnapshot) -> Void)?
-    var focusEditor: (() -> Void)?
-    var refreshHighlight: (() -> Void)?
-    var performUndo: (() -> Void)?
-    var performRedo: (() -> Void)?
-    var refreshUndoRedoAvailability: (() -> Void)?
-    var reportUndoRedoAvailability: ((EditorUndoRedoAvailability) -> Void)?
-    var applyFormattingCommand: ((NoteFormattingCommand) -> Void)?
-    var applyHeading: ((MarkdownHeadingLevel) -> Void)?
-    var commitTagEntry: ((MarkdownEditorSelectionSnapshot) -> Bool)?
-}
-
-struct EditorUndoRedoAvailability: Equatable {
-    var canUndo = false
-    var canRedo = false
-
-    static let disabled = EditorUndoRedoAvailability()
-}
-
 #if os(iOS)
+/// Wraps UITextView and keeps SwiftUI text, selection, highlighting, and undo state synchronized.
 struct MarkdownNativeTextEditor: UIViewRepresentable {
     @Binding var text: String
     let fontName: String
@@ -35,15 +16,18 @@ struct MarkdownNativeTextEditor: UIViewRepresentable {
     let bridge: MarkdownTextEditorBridge
     let selectionStore: MarkdownEditorSelectionStore
 
+    /// Creates the delegate object that owns native text-view configuration and callbacks.
     func makeCoordinator() -> Coordinator {
         Coordinator(parent: self)
     }
 
+    /// Returns the configured text view reused across SwiftUI body updates.
     func makeUIView(context: Context) -> UITextView {
         context.coordinator.parent = self
         return context.coordinator.textView
     }
 
+    /// Pushes SwiftUI state changes into UIKit without replacing the user's native selection.
     func updateUIView(_ textView: UITextView, context: Context) {
         context.coordinator.parent = self
         context.coordinator.update(textView: textView)
@@ -51,6 +35,7 @@ struct MarkdownNativeTextEditor: UIViewRepresentable {
 }
 
 extension MarkdownNativeTextEditor {
+    /// Hosts the horizontally scrolling iOS formatting controls above the keyboard.
     final class AccessoryContainerView: UIView {
         static let barHeight: CGFloat = 44
         private static let horizontalMargin: CGFloat = 8
@@ -129,6 +114,7 @@ extension MarkdownNativeTextEditor {
             ])
         }
 
+        /// Uses the same command ordering as the editor menu and SwiftUI toolbar.
         private var formattingCommands: [NoteFormattingCommand] {
             NoteFormattingCommand.editorMenuCommands
         }
@@ -164,6 +150,7 @@ extension MarkdownNativeTextEditor {
         }
     }
 
+    /// Bridges UITextView delegate events to the shared SwiftUI editor bridge.
     final class Coordinator: NSObject, UITextViewDelegate {
         var parent: MarkdownNativeTextEditor
         let textView = UITextView()
@@ -181,6 +168,7 @@ extension MarkdownNativeTextEditor {
             wireBridge()
         }
 
+        /// Applies pending text, font, theme, selection, and undo-state changes to UIKit.
         func update(textView: UITextView) {
             let font = currentFont
 
@@ -204,10 +192,12 @@ extension MarkdownNativeTextEditor {
             }
         }
 
+        /// Sends user edits through incremental highlighting before publishing the binding change.
         func textViewDidChange(_: UITextView) {
             handleTextChanged()
         }
 
+        /// Records native selection movement for selection-aware formatting commands.
         func textViewDidChangeSelection(_ textView: UITextView) {
             recordSelection(textView.selectedRange)
         }
@@ -245,6 +235,7 @@ extension MarkdownNativeTextEditor {
             textView.textContainerInset = UIEdgeInsets(top: 6, left: 8, bottom: 6, right: 8)
             textView.textContainer.lineFragmentPadding = 0
             textView.layoutManager.allowsNonContiguousLayout = true
+            // Keep the editor canvas owned by SwiftUI/system chrome; themes only change text colours.
             textView.backgroundColor = .clear
             textView.autocapitalizationType = .sentences
             textView.autocorrectionType = .default
@@ -349,6 +340,7 @@ extension MarkdownNativeTextEditor {
             NoteFormattingCommand.editorMenuCommands
         }
 
+        /// Applies only changed highlight lines and publishes the new editor text.
         private func handleTextChanged() {
             let newText = textView.text ?? ""
             guard newText != lastText else {
@@ -369,6 +361,7 @@ extension MarkdownNativeTextEditor {
             updateUndoRedoAvailability()
         }
 
+        /// Replaces native text during external selection changes without echoing a stale callback.
         private func replaceText(_ newText: String) {
             guard newText != lastText else {
                 return
@@ -510,6 +503,7 @@ extension MarkdownNativeTextEditor {
     }
 }
 #elseif os(macOS)
+/// Wraps NSTextView with the same editor contract used by the iOS implementation.
 struct MarkdownNativeTextEditor: NSViewRepresentable {
     @Binding var text: String
     let fontName: String
@@ -518,15 +512,18 @@ struct MarkdownNativeTextEditor: NSViewRepresentable {
     let bridge: MarkdownTextEditorBridge
     let selectionStore: MarkdownEditorSelectionStore
 
+    /// Creates the delegate object that owns native text-view configuration and callbacks.
     func makeCoordinator() -> Coordinator {
         Coordinator(parent: self)
     }
 
+    /// Returns the scroll view containing the configured AppKit text view.
     func makeNSView(context: Context) -> NSScrollView {
         context.coordinator.parent = self
         return context.coordinator.scrollView
     }
 
+    /// Pushes SwiftUI state changes into AppKit without discarding native selection state.
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         context.coordinator.parent = self
         context.coordinator.update(scrollView: scrollView)
@@ -534,6 +531,7 @@ struct MarkdownNativeTextEditor: NSViewRepresentable {
 }
 
 extension MarkdownNativeTextEditor {
+    /// Bridges NSTextView delegate events to the shared SwiftUI editor bridge.
     final class Coordinator: NSObject, NSTextViewDelegate {
         var parent: MarkdownNativeTextEditor
         let scrollView = NSScrollView()
@@ -552,6 +550,7 @@ extension MarkdownNativeTextEditor {
             wireBridge()
         }
 
+        /// Applies pending text, font, theme, selection, and undo-state changes to AppKit.
         func update(scrollView _: NSScrollView) {
             let font = currentFont
 
@@ -575,10 +574,12 @@ extension MarkdownNativeTextEditor {
             }
         }
 
+        /// Sends user edits through incremental highlighting before publishing the binding change.
         func textDidChange(_: Notification) {
             handleTextChanged()
         }
 
+        /// Records native selection movement for selection-aware formatting commands.
         func textViewDidChangeSelection(_: Notification) {
             recordSelection(textView.selectedRange())
         }
@@ -602,24 +603,11 @@ extension MarkdownNativeTextEditor {
 
         func textView(
             _: NSTextView,
-            menu: NSMenu,
+            menu _: NSMenu,
             for _: NSEvent,
-            at _: Int
+            at characterIndex: Int
         ) -> NSMenu? {
-            menu.addItem(.separator())
-            appendHeadingMenu(to: menu)
-            for command in formattingCommands {
-                let item = NSMenuItem(
-                    title: command.title,
-                    action: #selector(applyFormattingFromMenu(_:)),
-                    keyEquivalent: ""
-                )
-                item.image = NSImage(systemSymbolName: command.systemImage, accessibilityDescription: command.title)
-                item.target = self
-                item.representedObject = command
-                menu.addItem(item)
-            }
-            return menu
+            buildContextMenu(at: characterIndex)
         }
 
         private func configureTextView() {
@@ -639,12 +627,15 @@ extension MarkdownNativeTextEditor {
             textView.importsGraphics = false
             textView.usesFindBar = false
             textView.usesAdaptiveColorMappingForDarkAppearance = false
+            // Keep the text view canvas transparent so AppKit does not draw a darker editor plate.
+            textView.drawsBackground = false
         }
 
         private func configureScrollView() {
             scrollView.documentView = textView
             scrollView.hasVerticalScroller = true
             scrollView.hasHorizontalScroller = false
+            // Keep the macOS editor background transparent so syntax themes cannot tint the canvas.
             scrollView.drawsBackground = false
         }
 
@@ -717,6 +708,7 @@ extension MarkdownNativeTextEditor {
             NoteFormattingCommand.editorMenuCommands
         }
 
+        /// Applies only changed highlight lines and publishes the new editor text.
         private func handleTextChanged() {
             let newText = textView.string
             guard newText != lastText else {
@@ -731,6 +723,7 @@ extension MarkdownNativeTextEditor {
             updateUndoRedoAvailability()
         }
 
+        /// Replaces native text during external selection changes without echoing a stale callback.
         private func replaceText(_ newText: String) {
             guard newText != lastText else {
                 return
@@ -877,6 +870,117 @@ extension MarkdownNativeTextEditor {
         private var currentFont: NSFont {
             AppearanceFont.nativeEditorFont(named: parent.fontName, size: parent.fontSize)
         }
+    }
+}
+
+extension MarkdownNativeTextEditor.Coordinator {
+    /// Replaces AppKit's text-services menu so editor context actions stay app-owned.
+    private func buildContextMenu(at characterIndex: Int) -> NSMenu {
+        let menu = NSMenu()
+        appendEditMenuItems(to: menu, at: characterIndex)
+        menu.addItem(.separator())
+        appendHeadingMenu(to: menu)
+        for command in formattingCommands {
+            appendMenuItem(
+                to: menu,
+                title: command.title,
+                systemImage: command.systemImage,
+                action: #selector(applyFormattingFromMenu(_:)),
+                target: self,
+                representedObject: command
+            )
+        }
+        return menu
+    }
+
+    private func appendEditMenuItems(to menu: NSMenu, at characterIndex: Int) {
+        appendMenuItem(
+            to: menu,
+            title: "Select",
+            systemImage: "selection.pin.in.out",
+            action: #selector(selectWordFromMenu(_:)),
+            target: self,
+            representedObject: characterIndex,
+            isEnabled: canSelectWord(at: characterIndex)
+        )
+        appendMenuItem(
+            to: menu,
+            title: "Select All",
+            systemImage: "selection.pin.in.out",
+            action: #selector(NSText.selectAll(_:)),
+            target: textView,
+            isEnabled: !textView.string.isEmpty
+        )
+        appendMenuItem(
+            to: menu,
+            title: "Cut",
+            systemImage: "scissors",
+            action: #selector(NSText.cut(_:)),
+            target: textView,
+            isEnabled: textView.selectedRange().length > 0
+        )
+        appendMenuItem(
+            to: menu,
+            title: "Copy",
+            systemImage: "doc.on.doc",
+            action: #selector(NSText.copy(_:)),
+            target: textView,
+            isEnabled: textView.selectedRange().length > 0
+        )
+        appendMenuItem(
+            to: menu,
+            title: "Paste",
+            systemImage: "doc.on.clipboard",
+            action: #selector(NSText.paste(_:)),
+            target: textView,
+            isEnabled: canPasteText
+        )
+    }
+
+    private func appendMenuItem(
+        to menu: NSMenu,
+        title: String,
+        systemImage: String?,
+        action: Selector,
+        target: AnyObject?,
+        representedObject: Any? = nil,
+        isEnabled: Bool = true
+    ) {
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+        if let systemImage {
+            item.image = NSImage(systemSymbolName: systemImage, accessibilityDescription: title)
+        }
+        item.target = target
+        item.representedObject = representedObject
+        item.isEnabled = isEnabled
+        menu.addItem(item)
+    }
+
+    private func canSelectWord(at characterIndex: Int) -> Bool {
+        characterIndex >= 0 && characterIndex < textView.string.utf16.count
+    }
+
+    private var canPasteText: Bool {
+        NSPasteboard.general.canReadObject(forClasses: [NSString.self], options: nil)
+    }
+
+    @objc
+    private func selectWordFromMenu(_ sender: NSMenuItem) {
+        guard let characterIndex = sender.representedObject as? Int,
+              canSelectWord(at: characterIndex)
+        else {
+            return
+        }
+
+        let proposedRange = NSRange(location: characterIndex, length: 0)
+        let selectionRange = textView.selectionRange(
+            forProposedRange: proposedRange,
+            granularity: .selectByWord
+        )
+        guard selectionRange.location != NSNotFound, selectionRange.length > 0 else {
+            return
+        }
+        textView.setSelectedRange(selectionRange)
     }
 }
 #endif

@@ -4,6 +4,7 @@ import ImageIO
 import SwiftUI
 import UniformTypeIdentifiers
 
+/// Captures the unsaved note content and render options used for one PDF export.
 struct NotePDFSnapshot: Equatable, Sendable {
     let markdown: String
     let noteURL: URL
@@ -13,11 +14,13 @@ struct NotePDFSnapshot: Equatable, Sendable {
     let suggestedFilename: String
 }
 
+/// Failure cases for temporary PDF rendering and file creation.
 enum NotePDFExporterError: Error {
     case unableToCreatePDF
     case unableToRenderPDF
 }
 
+/// Renders a paginated A4 PDF from the same Markdown view used by preview.
 @MainActor
 struct NotePDFExporter {
     static let pageSize = CGSize(width: 595.2756, height: 841.8898)

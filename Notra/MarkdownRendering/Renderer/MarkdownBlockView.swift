@@ -1,5 +1,6 @@
 import SwiftUI
 
+/// Selects the appropriate SwiftUI layout for one parsed Markdown block.
 struct MarkdownBlockView: View {
     @Environment(\.markdownStyle) private var style
 
@@ -76,7 +77,12 @@ struct MarkdownBlockView: View {
                 inlines: inlines,
                 context: context,
                 mode: mode,
-                preloadedImages: preloadedImages
+                preloadedImages: preloadedImages,
+                selectionFont: .heading(
+                    level: level,
+                    fontName: style.previewFontName,
+                    scales: style.headingScales
+                )
             )
             .font(style.headingFont(level: level))
             .fontWeight(.semibold)
@@ -111,9 +117,17 @@ struct MarkdownBlockView: View {
     private var markerView: some View {
         switch marker {
         case let .some(.unordered(level)):
-            Text(unorderedMarker(for: level))
+            let markerText = unorderedMarker(for: level)
+            SelectablePreviewText(
+                attributedText: AttributedString(markerText),
+                selectionText: markerText
+            )
         case let .some(.ordered(value)):
-            Text("\(value).")
+            let markerText = "\(value)."
+            SelectablePreviewText(
+                attributedText: AttributedString(markerText),
+                selectionText: markerText
+            )
         case .some(.task(.checked)):
             Image(systemName: "checkmark.square")
         case .some(.task(.unchecked)):
@@ -135,6 +149,7 @@ struct MarkdownBlockView: View {
     }
 }
 
+/// Renders fenced code with the same syntax colors used by the editor.
 private struct CodeBlockView: View {
     @Environment(\.markdownStyle) private var style
     @Environment(\.secondaryBackgroundFill) private var secondaryBackgroundFill
@@ -162,16 +177,17 @@ private struct CodeBlockView: View {
     }
 
     private var codeText: some View {
-        Text(
-            MarkdownCodeSyntaxHighlighter().highlight(
+        SelectablePreviewText(
+            attributedText: MarkdownCodeSyntaxHighlighter().highlight(
                 code,
                 languageTag: language,
                 theme: style.codeSyntaxTheme,
                 baseColor: style.codeBlockBaseTextColor
-            )
+            ),
+            selectionText: code,
+            selectionFont: .code
         )
         .font(style.codeBlockFont)
-        .textSelection(.enabled)
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
     }

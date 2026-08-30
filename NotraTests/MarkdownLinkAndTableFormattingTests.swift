@@ -2,6 +2,7 @@ import Foundation
 @testable import Notra
 import Testing
 
+/// Covers link cursor placement and table formatting around selections and Unicode text.
 struct MarkdownLinkAndTableFormattingTests {
     @Test func linkWithoutSelectionInEmptyDocumentPlacesCursorInsideLabel() {
         let text = ""

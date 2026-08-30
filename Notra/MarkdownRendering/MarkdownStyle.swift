@@ -1,5 +1,6 @@
 import SwiftUI
 
+/// Defines typography, colors, spacing, and code-theme choices for Markdown output.
 struct MarkdownStyle: Equatable {
     let bodyFont: Font
     let previewFontName: String
@@ -82,6 +83,7 @@ extension EnvironmentValues {
     @Entry var secondaryBackgroundFill: BackgroundFill = .regular
 }
 
+/// Represents the background fill used by Markdown views and export surfaces.
 enum BackgroundFill {
     case regular
     case thin

@@ -1,6 +1,7 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+/// Owns the searchable, sortable note list and its context-menu export actions.
 struct NotesSidebar: View {
     @Environment(\.colorScheme) private var colorScheme
     @Bindable var store: NotesStore
@@ -23,7 +24,6 @@ struct NotesSidebar: View {
 
     var body: some View {
         notesList
-            .navigationTitle("Notes")
             .toolbar {
                 ToolbarItemGroup(placement: .primaryAction) {
                     NewNoteButton(action: createNote)
@@ -357,11 +357,13 @@ struct NotesSidebar: View {
     }
 }
 
+/// The file formats offered by the note-list export submenu.
 private enum NoteExportFormat {
     case pdf
     case markdown
 }
 
+/// Identifies whether export is presented as a share sheet or a save panel.
 private enum NoteExportDestination {
     case share
     case save

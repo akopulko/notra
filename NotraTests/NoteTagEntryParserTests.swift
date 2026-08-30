@@ -2,6 +2,7 @@ import Foundation
 @testable import Notra
 import Testing
 
+/// Protects standalone tag recognition from headings, prose, links, and fenced code.
 struct NoteTagEntryParserTests {
     @Test func commitsStandaloneTagLine() throws {
         let text = "Before\n#SwiftUI\nAfter"

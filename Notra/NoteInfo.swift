@@ -1,11 +1,17 @@
 import Foundation
 
+/// Derives display statistics from note text without retaining another copy of the document.
 struct NoteStatistics: Equatable, Sendable {
+    /// Reading-speed baseline used to round estimates up to whole minutes.
     static let wordsPerMinute = 200
 
+    /// Number of words found in the Markdown body.
     let wordCount: Int
+    /// Number of Swift characters in the Markdown body.
     let characterCount: Int
+    /// Number of non-empty logical lines.
     let lineCount: Int
+    /// Rounded-up reading estimate derived from `wordCount`.
     let readingTimeMinutes: Int
 
     init(markdown: String) {
@@ -33,12 +39,19 @@ struct NoteStatistics: Equatable, Sendable {
     }
 }
 
+/// Combines note metadata, content statistics, storage location, and bundle size for the inspector.
 struct NoteInfo: Equatable, Sendable {
+    /// Derived content statistics for the selected note.
     let statistics: NoteStatistics
+    /// Creation time read from the note bundle.
     let createdAt: Date
+    /// Last modification time read from the note bundle.
     let modifiedAt: Date
+    /// Human-readable local or iCloud location label.
     let location: String
+    /// TextBundle filename shown in the inspector.
     let filename: String
+    /// Total bytes occupied by the bundle and its assets.
     let byteCount: Int64
 
     init(summary: NoteSummary, markdown: String, location: String, byteCount: Int64) {

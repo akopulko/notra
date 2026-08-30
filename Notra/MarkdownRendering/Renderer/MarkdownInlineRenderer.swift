@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 import AppKit
 #endif
 
+/// Builds a horizontal inline view while preserving text styling and attachment ordering.
 struct MarkdownInlineContentView: View {
     @Environment(\.markdownStyle) private var style
 
@@ -12,7 +13,9 @@ struct MarkdownInlineContentView: View {
     let context: MarkdownRenderContext
     let mode: MarkdownRenderMode
     let preloadedImages: [URL: CGImage]
+    var selectionFont: MarkdownPreviewSelectionFont = .body
 
+    /// Chooses the live attributed-text path or the fragment path needed for PDF media placement.
     var body: some View {
         let renderData = MarkdownAttributedStringBuilder(style: style, context: context)
             .renderData(for: inlines)
@@ -24,6 +27,7 @@ struct MarkdownInlineContentView: View {
                     case let .text(text):
                         if !text.characters.isEmpty {
                             Text(text)
+                                .textSelection(.enabled)
                         }
                     case let .image(image):
                         let url = MarkdownImageView.resolvedURL(for: image.source, context: context)
@@ -37,11 +41,19 @@ struct MarkdownInlineContentView: View {
                 }
             }
         } else if renderData.imageReferences.isEmpty, renderData.attachmentReferences.isEmpty {
-            Text(renderData.attributedText)
+            SelectablePreviewText(
+                attributedText: renderData.attributedText,
+                selectionText: renderData.plainText,
+                selectionFont: selectionFont
+            )
         } else {
             VStack(alignment: .leading, spacing: 8) {
                 if !renderData.plainText.isEmpty {
-                    Text(renderData.attributedText)
+                    SelectablePreviewText(
+                        attributedText: renderData.attributedText,
+                        selectionText: renderData.plainText,
+                        selectionFont: selectionFont
+                    )
                 }
 
                 ForEach(renderData.imageReferences) { image in
@@ -56,6 +68,7 @@ struct MarkdownInlineContentView: View {
     }
 }
 
+/// Identifies an inline image URL and the alt text displayed when it cannot load.
 struct MarkdownImageReference: Equatable, Identifiable {
     let id: String
     let source: String?
@@ -63,12 +76,14 @@ struct MarkdownImageReference: Equatable, Identifiable {
     let alt: String
 }
 
+/// Identifies a local TextBundle asset referenced by an inline Markdown link.
 struct MarkdownAttachmentReference: Equatable, Identifiable {
     let id: String
     let url: URL
     let filename: String
 }
 
+/// Separates inline source order from the fragments that SwiftUI will render.
 struct MarkdownInlineRenderData {
     var attributedText: AttributedString
     var pdfText: AttributedString
@@ -78,6 +93,7 @@ struct MarkdownInlineRenderData {
     var attachmentReferences: [MarkdownAttachmentReference]
 }
 
+/// Represents one PDF-safe inline fragment with a stable identity across layout passes.
 struct MarkdownPDFInlineFragment: Identifiable {
     enum Content {
         case text(AttributedString)
@@ -87,6 +103,7 @@ struct MarkdownPDFInlineFragment: Identifiable {
     let id: Int
     let content: Content
 
+    /// Combines adjacent text fragments while keeping image and attachment boundaries intact.
     static func coalesced(_ fragments: [MarkdownPDFInlineFragment]) -> [MarkdownPDFInlineFragment] {
         var result: [MarkdownPDFInlineFragment] = []
 
@@ -108,10 +125,12 @@ struct MarkdownPDFInlineFragment: Identifiable {
     }
 }
 
+/// Converts parsed inline nodes into styled attributed text and media fragments.
 struct MarkdownAttributedStringBuilder {
     let style: MarkdownStyle
     let context: MarkdownRenderContext
 
+    /// Converts inline nodes into text plus ordered media references for both render targets.
     func renderData(for inlines: [MarkdownInline]) -> MarkdownInlineRenderData {
         var result = MarkdownInlineRenderData(
             attributedText: AttributedString(),
@@ -252,6 +271,7 @@ struct MarkdownAttributedStringBuilder {
         return result
     }
 
+    /// Treats local image links as media and all other links as styled, accessible text.
     private func renderLink(destination: String, children: [MarkdownInline]) -> MarkdownInlineRenderData {
         if let attachmentReference = attachmentReference(for: destination) {
             return MarkdownInlineRenderData(
@@ -311,6 +331,7 @@ struct MarkdownAttributedStringBuilder {
         return attributed
     }
 
+    /// Resolves a destination against the current TextBundle asset base URL when appropriate.
     private func resolvedURL(for destination: String) -> URL? {
         if let absoluteURL = URL(string: destination), absoluteURL.scheme != nil {
             return absoluteURL
@@ -327,6 +348,7 @@ struct MarkdownAttributedStringBuilder {
         return URL(string: destination, relativeTo: noteURL)?.absoluteURL
     }
 
+    /// Produces an attachment reference only for safe, bundle-relative asset paths.
     private func attachmentReference(for destination: String) -> MarkdownAttachmentReference? {
         guard let resolvedURL = MarkdownAttachmentReferences.resolve(
             destination,
@@ -353,6 +375,7 @@ struct MarkdownAttributedStringBuilder {
         )
     }
 
+    /// Detects image assets so they can use the image loader rather than a file-link row.
     private func isImageAssetLink(_ destination: String) -> Bool {
         guard let resolvedURL = MarkdownAttachmentReferences.resolve(
             destination,
@@ -372,6 +395,7 @@ struct MarkdownAttributedStringBuilder {
     }
 }
 
+/// Displays a local attachment link with its file icon and accessible label.
 private struct MarkdownAttachmentView: View {
     @Environment(\.secondaryBackgroundFill) private var secondaryBackgroundFill
     #if os(iOS)
@@ -380,6 +404,7 @@ private struct MarkdownAttachmentView: View {
 
     let reference: MarkdownAttachmentReference
 
+    /// Opens a local attachment through the platform preview/share path when tapped.
     var body: some View {
         Button {
             openAttachment()
@@ -387,9 +412,13 @@ private struct MarkdownAttachmentView: View {
             HStack(spacing: 8) {
                 Image(systemName: "doc")
                     .foregroundStyle(.secondary)
-                Text(displayFilename)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
+                SelectablePreviewText(
+                    attributedText: AttributedString(displayFilename),
+                    selectionText: displayFilename,
+                    selectionFont: .callout
+                )
+                .lineLimit(1)
+                .truncationMode(.middle)
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, 10)
@@ -420,6 +449,7 @@ private struct MarkdownAttachmentView: View {
         return "\(prefix)...\(fileExtension)"
     }
 
+    /// Delegates opening to the system workspace without making the renderer own a document viewer.
     private func openAttachment() {
         #if os(macOS)
         NSWorkspace.shared.open(reference.url)

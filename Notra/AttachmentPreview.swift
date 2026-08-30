@@ -2,6 +2,7 @@
 import QuickLook
 import SwiftUI
 
+/// Identifies the local file currently handed to Quick Look for preview.
 struct AttachmentPreviewItem: Identifiable {
     let url: URL
 
@@ -10,6 +11,7 @@ struct AttachmentPreviewItem: Identifiable {
     }
 }
 
+/// Bridges Quick Look's preview controller into the iOS SwiftUI attachment flow.
 struct AttachmentPreviewController: UIViewControllerRepresentable {
     let item: AttachmentPreviewItem
 

@@ -2,6 +2,7 @@ import CoreTransferable
 import Foundation
 import UniformTypeIdentifiers
 
+/// A shareable Markdown file backed by a temporary exported URL.
 struct NoteMarkdownShareItem: Equatable, Sendable, Transferable {
     let fileURL: URL
     let suggestedFilename: String
@@ -13,6 +14,7 @@ struct NoteMarkdownShareItem: Equatable, Sendable, Transferable {
     }
 }
 
+/// Writes the current note snapshot as UTF-8 Markdown without modifying the source TextBundle.
 struct NoteMarkdownExporter {
     func export(payload: NoteExportPayload) throws -> NoteMarkdownShareItem {
         let directoryURL = FileManager.default.temporaryDirectory

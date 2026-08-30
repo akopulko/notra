@@ -3,6 +3,7 @@ import SwiftUI
 #if os(iOS)
 import UIKit
 
+/// Presents the system font panel and returns the selected font name to SwiftUI settings.
 struct NativeFontPicker: UIViewControllerRepresentable {
     @Binding var fontName: String
     let fontSize: Double?
@@ -57,6 +58,7 @@ struct NativeFontPicker: UIViewControllerRepresentable {
 #elseif os(macOS)
 import AppKit
 
+/// Keeps the macOS font panel alive and forwards native font changes to the settings binding.
 @MainActor
 final class NativeFontPanelController: NSObject, NSFontChanging {
     static let shared = NativeFontPanelController()

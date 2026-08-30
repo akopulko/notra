@@ -1,5 +1,6 @@
 import SwiftUI
 
+/// Provides the compact edit/done control used when the editor overlays its content.
 struct FloatingEditModeButton: View {
     let isEditing: Bool
     let action: () -> Void

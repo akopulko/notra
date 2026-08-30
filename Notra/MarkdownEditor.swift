@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 
+/// Hosts the native text editor and translates toolbar requests into editor mutations.
 struct MarkdownEditor: View {
     @Environment(\.colorScheme) private var colorScheme
     @AppStorage(AppearanceSettingKey.editorFontName) private var editorFontName = AppearanceFont.defaultName
@@ -364,21 +365,25 @@ private extension MarkdownEditor {
     }
 }
 
+/// Identifies a requested heading-level formatting operation.
 struct MarkdownHeadingFormattingRequest: Equatable {
     let id: Int
     let level: MarkdownHeadingLevel
 }
 
+/// Identifies a list or quote operation that prefixes the selected lines.
 struct MarkdownLinePrefixFormattingRequest: Equatable {
     let id: Int
     let command: NoteFormattingCommand
 }
 
+/// Carries the source for an image link insertion request.
 struct MarkdownImageFormattingRequest: Equatable {
     let id: Int
     let source: String
 }
 
+/// Carries the source and label for an attachment link insertion request.
 struct MarkdownAttachmentFormattingRequest: Equatable {
     let id: Int
     let source: String

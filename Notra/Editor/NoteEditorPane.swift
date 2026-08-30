@@ -4,19 +4,32 @@ import SwiftUI
 import PhotosUI
 #endif
 
+/// Coordinates the editor, live preview, formatting actions, attachments, tags, and note sharing.
 struct NoteEditorPane: View {
+    /// Keeps animated feedback respectful of the user's accessibility preference.
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Drives syntax colors and Markdown preview palette selection.
     @Environment(\.colorScheme) private var colorScheme
+    /// Main-actor store supplying the selected note and editor text.
     @Bindable var store: NotesStore
+    /// Parent-owned edit/preview mode shared with the sidebar and floating button.
     @Binding var isEditing: Bool
+    /// Monotonic focus request emitted after creating a note.
     let editorFocusRequest: Int
+    /// Parent callback used by the empty-selection create button.
     let createNote: () -> Void
+    /// Monotonic request for inserting a newly imported local asset.
     let attachmentSelectionRequest: MarkdownAttachmentSelectionRequest
+    /// Parent callback that presents the platform attachment picker.
     let requestAttachmentSelection: () -> Void
+    /// Maximum accepted attachment size, shared with the Settings screen.
     @AppStorage(AttachmentSettingKey.maximumSizeMB) private var maximumAttachmentSizeMB =
         AttachmentSettings.defaultMaximumSizeMB
+    /// Persisted preview font family.
     @AppStorage(AppearanceSettingKey.previewFontName) private var previewFontName = AppearanceFont.defaultName
+    /// Whether preview code should use the editor's selected syntax theme.
     @AppStorage(AppearanceSettingKey.previewUsesEditorTheme) private var previewUsesEditorTheme = true
+    /// Request counters let the native editor react to repeated identical commands.
     @State private var headingFormattingRequest = MarkdownHeadingFormattingRequest(id: 0, level: .h1)
     @State private var boldFormattingRequest = 0
     @State private var italicFormattingRequest = 0
@@ -568,11 +581,13 @@ private extension NoteEditorPane {
     }
 }
 
+/// Describes the short-lived result message shown after a tag mutation.
 private struct NoteTagFeedback: Identifiable, Equatable {
     let id = UUID()
     let message: String
 }
 
+/// Tracks whether PDF sharing is unavailable, preparing, or ready for presentation.
 private enum PDFShareState {
     case unavailable
     case generating
@@ -580,11 +595,13 @@ private enum PDFShareState {
     case failed
 }
 
+/// Carries the generated PDF and its presentation identity across SwiftUI updates.
 private struct PDFShareTask: Equatable {
     let snapshot: NotePDFSnapshot?
     let retryID: Int
 }
 
+/// Presents tag mutation feedback without coupling the editor to alert presentation.
 private struct TagFeedbackView: View {
     let feedback: NoteTagFeedback
 

@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 
+/// Parses preview text off the view update path and rejects stale asynchronous results.
 @MainActor
 @Observable
 final class MarkdownPreviewModel {
@@ -9,14 +10,19 @@ final class MarkdownPreviewModel {
         case parsed(NotraMarkdownDocument)
     }
 
-    private let parser: any MarkdownParsing
+    /// Latest input accepted by the model; newer generations invalidate older parse tasks.
+    private let parser: @Sendable (String) -> NotraMarkdownDocument
     private var parsedMarkdown: String?
     private var parseGeneration = 0
     @ObservationIgnored private var parseTask: Task<Void, Never>?
 
     var state: State = .idle
 
-    init(parser: any MarkdownParsing = SwiftMarkdownParser()) {
+    init(
+        parser: @escaping @Sendable (String) -> NotraMarkdownDocument = { markdown in
+            SwiftMarkdownParser().parse(markdown)
+        }
+    ) {
         self.parser = parser
     }
 
@@ -24,6 +30,7 @@ final class MarkdownPreviewModel {
         parseTask?.cancel()
     }
 
+    /// Starts a detached parse and publishes it only if no newer text superseded the request.
     func update(markdown: String) {
         guard markdown != parsedMarkdown else {
             return
@@ -37,7 +44,7 @@ final class MarkdownPreviewModel {
         parseTask?.cancel()
         parseTask = Task { [parser] in
             let document = await Task.detached(priority: .userInitiated) {
-                parser.parse(markdown)
+                parser(markdown)
             }.value
 
             let durationMilliseconds = Int(Date.now.timeIntervalSince(startedAt) * 1000)

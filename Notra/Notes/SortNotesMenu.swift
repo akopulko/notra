@@ -1,5 +1,6 @@
 import SwiftUI
 
+/// Presents the persisted field and direction choices used by the notes sidebar.
 struct SortNotesMenu: View {
     let preference: NoteSortPreference
     let setField: (NoteSortField) -> Void

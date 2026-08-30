@@ -1,5 +1,6 @@
 import SwiftUI
 
+/// Displays the derived note statistics and storage details in the attachment inspector.
 struct NoteInfoView: View {
     let info: NoteInfo
 

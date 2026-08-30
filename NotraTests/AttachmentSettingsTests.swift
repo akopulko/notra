@@ -1,6 +1,7 @@
 @testable import Notra
 import Testing
 
+/// Covers the public attachment-size bounds and byte conversion contract.
 struct AttachmentSettingsTests {
     @Test func defaultMaximumAttachmentSizeIsOneHundredMegabytes() {
         #expect(AttachmentSettings.defaultMaximumSizeMB == 100)

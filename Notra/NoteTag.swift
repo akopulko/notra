@@ -1,24 +1,31 @@
 import Foundation
 
+/// A validated, normalized tag value used in note metadata and search queries.
 nonisolated struct NoteTag: Equatable, Hashable, Identifiable, Sendable, Codable {
+    /// User-entered spelling retained for display and serialization.
     let name: String
 
+    /// Stable identity that ignores case and diacritics for SwiftUI and duplicate checks.
     var id: String {
         normalizedKey
     }
 
+    /// Display label without the Markdown hashtag prefix.
     var displayName: String {
         name
     }
 
+    /// Display label formatted for the editor's hashtag syntax.
     var prefixedDisplayName: String {
         "#\(name)"
     }
 
+    /// Comparison key shared by metadata normalization, selection, and search indexing.
     var normalizedKey: String {
         Self.normalizedKey(for: name)
     }
 
+    /// Trims and validates input, rejecting punctuation and empty tags.
     init?(_ rawValue: String) {
         let trimmedValue = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
         guard Self.isValidName(trimmedValue) else {
@@ -44,12 +51,14 @@ nonisolated struct NoteTag: Equatable, Hashable, Identifiable, Sendable, Codable
         try container.encode(name)
     }
 
+    /// Folds case and diacritics so visually equivalent tags compare as one value.
     static func normalizedKey(for value: String) -> String {
         value
             .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
             .lowercased()
     }
 
+    /// Accepts only letters, numbers, hyphens, and underscores in a tag name.
     static func isValidName(_ value: String) -> Bool {
         guard !value.isEmpty else {
             return false
@@ -60,6 +69,7 @@ nonisolated struct NoteTag: Equatable, Hashable, Identifiable, Sendable, Codable
         }
     }
 
+    /// Appends a tag only when its normalized key is not already present.
     static func appending(_ tag: NoteTag, to tags: [NoteTag]) -> (tags: [NoteTag], inserted: Bool) {
         guard !tags.contains(where: { $0.normalizedKey == tag.normalizedKey }) else {
             return (tags, false)
@@ -68,19 +78,23 @@ nonisolated struct NoteTag: Equatable, Hashable, Identifiable, Sendable, Codable
     }
 }
 
+/// Note-owned metadata kept separate from the Markdown document body.
 nonisolated struct NoteMetadata: Equatable, Sendable {
+    /// Tags in first-seen order after duplicate normalization.
     var tags: [NoteTag]
 
     init(tags: [NoteTag] = []) {
         self.tags = Self.unique(tags)
     }
 
+    /// Adds a tag and reports whether it changed the metadata.
     mutating func add(_ tag: NoteTag) -> Bool {
         let result = NoteTag.appending(tag, to: tags)
         tags = result.tags
         return result.inserted
     }
 
+    /// Removes every spelling of a tag with the same normalized key.
     mutating func remove(_ tag: NoteTag) {
         tags.removeAll { $0.normalizedKey == tag.normalizedKey }
     }
@@ -93,6 +107,7 @@ nonisolated struct NoteMetadata: Equatable, Sendable {
     }
 }
 
+/// Result used by the editor to distinguish a new tag from a duplicate.
 nonisolated enum NoteTagMutationResult: Equatable, Sendable {
     case added(NoteTag)
     case duplicate(NoteTag)

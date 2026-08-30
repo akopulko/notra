@@ -2,36 +2,54 @@ import Foundation
 import Observation
 import UniformTypeIdentifiers
 
+/// Main-actor store that coordinates note persistence, selection, search indexing, and editor saves.
+@MainActor
 @Observable
 final class NotesStore {
+    /// The repository is the single source of truth for note and TextBundle mutations.
     @ObservationIgnored
     private let repository: TextBundleNoteRepository
+    /// Search is actor-isolated because SQLite access must not run on the main actor.
     @ObservationIgnored
-    private let searchIndex: any NoteSearchIndex
+    private let searchIndex: SQLiteNoteSearchIndex
+    /// Persists the user's sidebar ordering independently from note storage.
     @ObservationIgnored
     private var sortPreferenceStorage: NoteSortPreferenceStorage
 
+    /// Lightweight rows kept in sidebar order; full note bodies are loaded only for selection.
     var notes: [NoteSummary] = []
+    /// Assets belonging to the selected TextBundle, including whether each is linked in the body.
     var attachments: [TextBundleAsset] = []
+    /// File size of the selected bundle, used by the attachment inspector.
     var selectedNoteBundleSize: Int64 = 0
+    /// Stable URL identity of the note selected by the split view.
     var selectedNoteID: URL?
+    /// Current editor text, which may be newer than the last persisted note on disk.
     var editorText = ""
+    /// Drives the initial loading indicator while the repository is being read.
     var isLoading = false
+    /// Most recent user-facing storage or indexing error.
     var errorMessage: String?
+    /// Search-index lifecycle state used to gate sidebar queries.
     var searchStatus = NoteSearchStatus.notReady
+    /// Current field and direction used to order `notes`.
     var sortPreference: NoteSortPreference
+    /// Normalized tags from the selected note, kept separate for tag controls.
     var selectedNoteTags: [NoteTag] = []
 
+    /// Editable in-memory note; this is intentionally separate from the lightweight summary list.
     private var selectedNote: Note?
+    /// Debounced save task cancelled whenever selection or an immediate save takes precedence.
     @ObservationIgnored
     private var saveTask: Task<Void, Never>?
+    /// Cancellable background synchronization for the SQLite search index.
     @ObservationIgnored
     private var searchIndexTask: Task<Void, Never>?
 
     init(
         repository: TextBundleNoteRepository = .production(),
         sortPreferenceStorage: NoteSortPreferenceStorage = .standard,
-        searchIndex: (any NoteSearchIndex)? = nil
+        searchIndex: SQLiteNoteSearchIndex? = nil
     ) {
         self.repository = repository
         self.searchIndex = searchIndex ?? SQLiteNoteSearchIndex.production()
@@ -40,6 +58,7 @@ final class NotesStore {
         AppLog.info("Initialized notes store with \(repository.storageDescription)")
     }
 
+    /// Finds the list row corresponding to the selected URL after sorting or refreshes.
     var selectedNoteSummary: NoteSummary? {
         guard let selectedNoteID else {
             return nil
@@ -48,10 +67,12 @@ final class NotesStore {
         return notes.first { $0.id == selectedNoteID }
     }
 
+    /// Exposes the selected bundle URL without leaking the full editable note.
     var selectedNoteURL: URL? {
         selectedNote?.url
     }
 
+    /// Convenience flag used to enable editor and attachment actions.
     var hasSelection: Bool {
         selectedNote != nil
     }
@@ -68,6 +89,7 @@ final class NotesStore {
         repository.rootURL.path
     }
 
+    /// Projects current unsaved editor text into the inspector's derived statistics.
     var selectedNoteInfo: NoteInfo? {
         guard let summary = selectedNoteSummary else {
             return nil
@@ -81,6 +103,7 @@ final class NotesStore {
         )
     }
 
+    /// Loads sidebar summaries, restores platform-appropriate selection, and starts index sync.
     func loadNotes() async {
         AppLog.info("Loading notes from \(repository.storageDescription)")
         isLoading = true
@@ -104,6 +127,7 @@ final class NotesStore {
         }
     }
 
+    /// Creates, selects, and immediately indexes a new empty TextBundle.
     func createNote() async {
         AppLog.info("Creating note")
         do {
@@ -118,6 +142,7 @@ final class NotesStore {
         }
     }
 
+    /// Deletes the selected row through the same multi-note path used by context menus.
     func deleteSelectedNote() async {
         guard let selectedNoteID,
               let summary = notes.first(where: { $0.id == selectedNoteID })
@@ -128,11 +153,13 @@ final class NotesStore {
         await deleteNotes([summary])
     }
 
+    /// Converts list offsets to stable summaries before the list can change during deletion.
     func deleteNotes(at offsets: IndexSet) async {
         let summaries = offsets.map { notes[$0] }
         await deleteNotes(summaries)
     }
 
+    /// Deletes summaries, repairs selection, and removes their search entries.
     func deleteNotes(_ summaries: [NoteSummary]) async {
         guard !summaries.isEmpty else {
             AppLog.debug("Ignoring empty delete request")
@@ -164,6 +191,7 @@ final class NotesStore {
         }
     }
 
+    /// Saves the previous note before loading the newly selected note from storage.
     func selectionChanged() async {
         guard let selectedNoteID else {
             AppLog.info("Clearing note selection")
@@ -181,6 +209,7 @@ final class NotesStore {
         }
     }
 
+    /// Updates the in-memory note, attachment link badges, and deferred persistence state.
     func updateEditorText(_ newText: String) {
         editorText = newText
         selectedNote?.markdown = newText
@@ -188,6 +217,7 @@ final class NotesStore {
         scheduleSave()
     }
 
+    /// Flushes pending edits before creating an immutable snapshot for an exporter.
     func exportPayload(for summary: NoteSummary) async throws -> NoteExportPayload {
         try await saveCurrentNoteIfNeeded()
         let note = try repository.loadNote(at: summary.url)
@@ -200,6 +230,7 @@ final class NotesStore {
 }
 
 extension NotesStore {
+    /// Persists a normalized tag and updates the selected note's index entry.
     func addTag(_ tag: NoteTag) -> NoteTagMutationResult? {
         guard var selectedNote else {
             AppLog.debug("Ignoring tag add because no note is selected")
@@ -226,6 +257,7 @@ extension NotesStore {
         }
     }
 
+    /// Removes a matching tag from metadata, storage, the inspector, and search index.
     func removeTag(_ tag: NoteTag) async {
         guard var selectedNote else {
             AppLog.debug("Ignoring tag removal because no note is selected")
@@ -252,6 +284,7 @@ extension NotesStore {
         }
     }
 
+    /// Encodes image data as a TextBundle asset after enforcing the configured byte limit.
     func importImage(
         data: Data,
         originalFilename: String = "image",
@@ -286,6 +319,7 @@ extension NotesStore {
         return importedAsset
     }
 
+    /// Copies an external file into the selected bundle after enforcing its byte limit.
     func importAttachment(
         from url: URL,
         maximumByteCount: Int64
@@ -311,6 +345,7 @@ extension NotesStore {
         return importedAsset
     }
 
+    /// Removes an asset and, when linked, removes its Markdown references first.
     func deleteAttachment(_ attachment: TextBundleAsset) async {
         guard let selectedNote else {
             AppLog.debug("Ignoring attachment delete because no note is selected")
@@ -359,11 +394,13 @@ extension NotesStore {
         }
     }
 
+    /// Applies a toolbar command to the current editor text and schedules persistence.
     func applyFormatting(_ command: NoteFormattingCommand) {
         AppLog.info("Applying formatting command: \(command)")
         updateEditorText(MarkdownFormatting.apply(command, to: editorText, selection: nil))
     }
 
+    /// Applies a specific heading level while preserving the editor's current text contract.
     func applyHeading(level: MarkdownHeadingLevel) {
         AppLog.info("Applying heading level: H\(level.rawValue)")
         updateEditorText(
@@ -371,6 +408,7 @@ extension NotesStore {
         )
     }
 
+    /// Persists and reorders notes when the sidebar field changes.
     func setSortField(_ field: NoteSortField) {
         guard sortPreference.field != field else {
             return
@@ -382,6 +420,7 @@ extension NotesStore {
         AppLog.info("Changed sort field to \(field)")
     }
 
+    /// Persists and reorders notes when the sidebar direction changes.
     func setSortDirection(_ direction: NoteSortDirection) {
         guard sortPreference.direction != direction else {
             return
@@ -393,6 +432,7 @@ extension NotesStore {
         AppLog.info("Changed sort direction to \(direction)")
     }
 
+    /// Cancels a deferred save and writes the current note before an explicit lifecycle boundary.
     func saveNow() async {
         AppLog.info("Saving current note immediately")
         saveTask?.cancel()
@@ -413,6 +453,7 @@ extension NotesStore {
         }
     }
 
+    /// Queries the ready search index and marks it unavailable when the actor reports failure.
     func searchNotes(query: String, limit: Int, offset: Int) async -> NoteSearchPage? {
         guard searchStatus == .ready else {
             AppLog.debug(
@@ -436,18 +477,21 @@ extension NotesStore {
         }
     }
 
+    /// Rebuilds the search index from all current summaries after a user-requested retry.
     func retrySearchIndex() {
         startSearchIndexSynchronization(rebuild: true)
     }
 }
 
 private extension NotesStore {
+    /// Loads a note by stable URL, then refreshes all selected-note projections.
     private func selectNote(id: URL) throws {
         let note = try repository.loadNote(at: id)
         try select(note)
         AppLog.info("Selected note: \(logName(for: note.url))")
     }
 
+    /// Copies note content into the editor-facing state and refreshes its attachment list.
     private func select(_ note: Note) throws {
         selectedNoteID = note.id
         selectedNote = note
@@ -456,6 +500,7 @@ private extension NotesStore {
         try refreshAttachments()
     }
 
+    /// Clears every selected-note projection so stale editor or attachment state cannot remain visible.
     private func clearSelection() {
         selectedNote = nil
         editorText = ""
@@ -464,14 +509,17 @@ private extension NotesStore {
         selectedNoteBundleSize = 0
     }
 
+    /// Rebuilds sidebar summaries from storage and applies the current sort preference.
     private func refreshNotes() throws {
         notes = try sortedNotes()
     }
 
+    /// Applies the current order to an already-loaded summary collection.
     private func applySortedNotes(_ summaries: [NoteSummary]) {
         notes = sortPreference.sorted(summaries)
     }
 
+    /// Reconciles on-disk assets with links in the current, possibly unsaved editor text.
     private func refreshAttachments() throws {
         guard let selectedNote else {
             attachments = []
@@ -500,6 +548,7 @@ private extension NotesStore {
         selectedNoteBundleSize = repository.totalBundleSize(at: selectedNote.url)
     }
 
+    /// Recomputes only attachment link badges after an editor text change.
     private func refreshAttachmentLinkStates() {
         guard let selectedNote, !attachments.isEmpty else {
             return
@@ -522,10 +571,12 @@ private extension NotesStore {
         }
     }
 
+    /// Cancels work whose result would be stale after selection or deletion changes.
     private func cancelDeferredWork() {
         saveTask?.cancel()
     }
 
+    /// Starts one cancellable index operation and reports completion back on the main actor.
     private func startSearchIndexSynchronization(rebuild: Bool = false) {
         searchIndexTask?.cancel()
         searchStatus = .indexing
@@ -535,49 +586,41 @@ private extension NotesStore {
                 + "noteCount=\(noteIDs.count)"
         )
         let index = searchIndex
-        if rebuild {
-            searchIndexTask = Task { [weak self, index] in
-                do {
+        searchIndexTask = Task { [weak self, index] in
+            do {
+                if rebuild {
                     try await index.rebuild(noteIDs: noteIDs)
-                    guard !Task.isCancelled else {
-                        return
-                    }
-                    self?.markSearchIndexReady()
-                } catch is CancellationError {
-                    return
-                } catch {
-                    AppLog.error("Failed to rebuild note search index: \(error.localizedDescription)")
-                    self?.markSearchIndexUnavailable()
-                }
-            }
-        } else {
-            searchIndexTask = Task { [weak self, index] in
-                do {
+                } else {
                     try await index.synchronize(noteIDs: noteIDs)
-                    guard !Task.isCancelled else {
-                        return
-                    }
-                    self?.markSearchIndexReady()
-                } catch is CancellationError {
-                    return
-                } catch {
-                    AppLog.error("Failed to synchronize note search index: \(error.localizedDescription)")
-                    self?.markSearchIndexUnavailable()
                 }
+
+                guard !Task.isCancelled else {
+                    return
+                }
+                self?.markSearchIndexReady()
+            } catch is CancellationError {
+                return
+            } catch {
+                let operation = rebuild ? "rebuild" : "synchronize"
+                AppLog.error("Failed to \(operation) note search index: \(error.localizedDescription)")
+                self?.markSearchIndexUnavailable()
             }
         }
     }
 
+    /// Publishes the state that allows the sidebar to send search requests.
     private func markSearchIndexReady() {
         searchStatus = .ready
         AppLog.info("Note search index is ready")
     }
 
+    /// Publishes the state that prevents failed index requests from repeating indefinitely.
     private func markSearchIndexUnavailable() {
         searchStatus = .unavailable
         AppLog.error("Note search index is unavailable")
     }
 
+    /// Upserts one note's Markdown and tags into the actor-owned full-text index.
     private func indexNote(_ note: Note) async {
         do {
             try await searchIndex.index(noteID: note.url, markdown: note.markdown, tags: note.metadata.tags)
@@ -588,6 +631,7 @@ private extension NotesStore {
         }
     }
 
+    /// Removes one note from the actor-owned index without affecting its TextBundle.
     private func removeFromSearchIndex(noteID: URL) async {
         do {
             try await searchIndex.remove(noteID: noteID)
@@ -655,16 +699,12 @@ private extension NotesStore {
                 )
                 let bundleSize = repository.totalBundleSize(at: selectedNote.url)
                 let reloadedNotes = try repository.listNotes()
-                await MainActor.run {
-                    self.applySortedNotes(reloadedNotes)
-                    self.selectedNoteBundleSize = bundleSize
-                }
+                self.applySortedNotes(reloadedNotes)
+                self.selectedNoteBundleSize = bundleSize
                 AppLog.debug("Autosaved note: \(noteName)")
             } catch {
                 AppLog.error("Autosave failed: \(error.localizedDescription)")
-                await MainActor.run {
-                    self.errorMessage = error.localizedDescription
-                }
+                self.errorMessage = error.localizedDescription
             }
         }
     }

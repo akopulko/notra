@@ -1,12 +1,19 @@
 import Foundation
 
+/// Models the JSON metadata required by the TextBundle specification and Notra extensions.
 nonisolated struct TextBundleInfo: Codable, Equatable {
+    /// Current TextBundle metadata schema version written by Notra.
     static let markdownType = "net.daringfireball.markdown"
 
+    /// TextBundle specification version.
     let version: Int
+    /// UTI-like content type identifying Markdown bundles.
     let type: String
+    /// Whether the bundle is transient rather than a saved note.
     let transient: Bool
+    /// Application identifier recorded as the bundle creator.
     let creatorIdentifier: String
+    /// Notra-owned metadata nested under the app's namespaced JSON key.
     let notra: NotraMetadata
 
     init(
@@ -23,6 +30,7 @@ nonisolated struct TextBundleInfo: Codable, Equatable {
         self.notra = notra
     }
 
+    /// Maps the namespaced Notra property to its on-disk JSON key.
     enum CodingKeys: String, CodingKey {
         case version
         case type
@@ -41,8 +49,11 @@ nonisolated struct TextBundleInfo: Codable, Equatable {
     }
 }
 
+/// Stores Notra's versioned tag metadata nested inside the TextBundle info document.
 nonisolated struct NotraMetadata: Codable, Equatable {
+    /// Version for the Notra metadata payload, independent of the outer TextBundle version.
     let version: Int
+    /// Normalized tags attached to the note.
     let tags: [NoteTag]
 
     init(version: Int = 1, tags: [NoteTag] = []) {
@@ -50,6 +61,7 @@ nonisolated struct NotraMetadata: Codable, Equatable {
         self.tags = NoteMetadata(tags: tags).tags
     }
 
+    /// Coding keys kept explicit so metadata remains compatible with existing bundles.
     enum CodingKeys: String, CodingKey {
         case version
         case tags

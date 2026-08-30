@@ -1,12 +1,14 @@
 import Foundation
 import UniformTypeIdentifiers
 
+/// Immutable snapshot passed from the store to Markdown and PDF exporters.
 struct NoteExportPayload: Equatable, Sendable {
     let markdown: String
     let noteURL: URL
     let suggestedFilename: String
 }
 
+/// Produces safe, user-facing filenames while preserving the source note's title.
 enum NoteExportFilename {
     static func sanitizedFilename(_ filename: String, fileExtension: String) -> String {
         let baseName = URL(fileURLWithPath: filename)

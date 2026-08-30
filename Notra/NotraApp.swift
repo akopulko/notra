@@ -1,6 +1,7 @@
 import AppIntents
 import SwiftUI
 
+/// The application entry point, including the main window and platform settings scene.
 @main
 struct NotraApp: App {
     @State private var store = NotesStore()

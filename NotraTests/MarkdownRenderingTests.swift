@@ -4,6 +4,7 @@ import SwiftUI
 import Testing
 
 @MainActor
+/// Checks parsing, styling, and native Markdown rendering inputs used by preview and PDF export.
 struct MarkdownRenderingTests {
     @Test func previewCodeSyntaxThemeFollowsThePreviewThemeOption() {
         let themedPreview = MarkdownStyle.notra(
@@ -434,7 +435,7 @@ struct MarkdownRenderingTests {
 
     @Test
     func `preview model keeps most recent parse result`() async throws {
-        let model = MarkdownPreviewModel(parser: DelayedMarkdownParser())
+        let model = MarkdownPreviewModel(parser: Self.delayedMarkdownParser)
 
         model.update(markdown: "slow")
         try await Task.sleep(for: .milliseconds(20))
@@ -457,8 +458,7 @@ struct MarkdownRenderingTests {
         let label: String
     }
 
-    private struct DelayedMarkdownParser: MarkdownParsing {
-        nonisolated func parse(_ markdown: String) -> NotraMarkdownDocument {
+    private nonisolated static func delayedMarkdownParser(_ markdown: String) -> NotraMarkdownDocument {
             if markdown == "slow" {
                 Thread.sleep(forTimeInterval: 0.2)
             }
@@ -468,7 +468,6 @@ struct MarkdownRenderingTests {
                     .paragraph(id: markdown, [.text(markdown)])
                 ]
             )
-        }
     }
 
     private func parsedParagraphText(in state: MarkdownPreviewModel.State) -> String? {

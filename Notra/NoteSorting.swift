@@ -1,5 +1,6 @@
 import Foundation
 
+/// The note property used to order the sidebar.
 enum NoteSortField: String, CaseIterable {
     case dateEdited
     case dateCreated
@@ -14,6 +15,7 @@ enum NoteSortField: String, CaseIterable {
     }
 }
 
+/// Whether sorted notes place newer or older values first.
 enum NoteSortDirection: String, CaseIterable {
     case latestFirst
     case oldestFirst
@@ -28,12 +30,17 @@ enum NoteSortDirection: String, CaseIterable {
     }
 }
 
+/// A serializable sort choice that can order summaries without touching storage.
 struct NoteSortPreference: Equatable {
+    /// Default ordering keeps recently edited notes at the top of the sidebar.
     static let `default` = NoteSortPreference(field: .dateEdited, direction: .latestFirst)
 
+    /// Property whose values are compared when ordering summaries.
     var field: NoteSortField
+    /// Direction applied to the selected field.
     var direction: NoteSortDirection
 
+    /// Returns a deterministic order, using preview text and URL as tie breakers.
     func sorted(_ notes: [NoteSummary]) -> [NoteSummary] {
         notes.sorted { lhs, rhs in
             let result: Bool? = switch field {
@@ -74,6 +81,7 @@ struct NoteSortPreference: Equatable {
     }
 }
 
+/// Reads and writes the sidebar sort choice using a dedicated UserDefaults suite/key pair.
 struct NoteSortPreferenceStorage {
     private enum Key {
         static let field = "notes.sort.field"
@@ -82,12 +90,14 @@ struct NoteSortPreferenceStorage {
 
     static let standard = NoteSortPreferenceStorage(userDefaults: .standard)
 
+    /// UserDefaults store supplied by the app or an isolated test suite.
     private let userDefaults: UserDefaults
 
     init(userDefaults: UserDefaults) {
         self.userDefaults = userDefaults
     }
 
+    /// Reads a tolerant preference and writes both raw enum values as one logical choice.
     var preference: NoteSortPreference {
         get {
             NoteSortPreference(

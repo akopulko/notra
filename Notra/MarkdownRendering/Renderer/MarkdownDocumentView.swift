@@ -1,6 +1,7 @@
 import CoreGraphics
 import SwiftUI
 
+/// Renders the document block tree while preserving stable identities for async content.
 struct MarkdownDocumentView: View {
     @Environment(\.markdownStyle) private var style
     @State private var model = MarkdownPreviewModel()
@@ -19,6 +20,7 @@ struct MarkdownDocumentView: View {
         self.preloadedImages = preloadedImages
     }
 
+    /// Uses an eager document for export and the cancellable model for interactive preview.
     var body: some View {
         Group {
             if let eagerDocument {
@@ -34,6 +36,7 @@ struct MarkdownDocumentView: View {
         }
         .font(style.bodyFont)
         .foregroundStyle(style.textColor)
+        // Native SwiftUI selection works across text leaves, not as one browser-style document surface.
         .textSelection(.enabled)
         .task(id: input) {
             guard eagerDocument == nil else {
@@ -43,6 +46,7 @@ struct MarkdownDocumentView: View {
         }
     }
 
+    /// Applies the input context to the shared block-content renderer.
     private func documentContent(_ document: NotraMarkdownDocument) -> some View {
         MarkdownDocumentContentView(
             document: document,
@@ -53,6 +57,7 @@ struct MarkdownDocumentView: View {
     }
 }
 
+/// Hosts the document's blocks and keeps PDF pagination decisions local to export rendering.
 private struct MarkdownDocumentContentView: View {
     @Environment(\.markdownStyle) private var style
 
@@ -61,6 +66,7 @@ private struct MarkdownDocumentContentView: View {
     let mode: MarkdownRenderMode
     let preloadedImages: [URL: CGImage]
 
+    /// Switches from lazy interactive rows to eager PDF rows so pagination sees every block.
     var body: some View {
         Group {
             if mode == .pdf {
@@ -76,6 +82,7 @@ private struct MarkdownDocumentContentView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    /// Passes flattened row metadata to each block so indentation and spacing stay deterministic.
     private var rows: some View {
         ForEach(document.renderRows) { row in
             MarkdownBlockView(

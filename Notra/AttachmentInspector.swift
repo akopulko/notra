@@ -5,6 +5,7 @@ import SwiftUI
 import AppKit
 #endif
 
+/// Shows note metadata, tags, and attached files while keeping selection actions platform-aware.
 struct AttachmentInspectorView: View {
     let store: NotesStore
     let isEditing: Bool
@@ -245,6 +246,7 @@ struct AttachmentInspectorView: View {
     }
 }
 
+/// Renders one attachment with its type-specific icon, preview action, and deletion affordance.
 private struct AttachmentRow: View {
     let attachment: TextBundleAsset
 
@@ -278,6 +280,7 @@ private struct AttachmentRow: View {
     }
 }
 
+/// Chooses a familiar file icon for attachments that are not rendered as image thumbnails.
 private struct AttachmentFileIconView: View {
     var body: some View {
         Image(systemName: "doc")
@@ -290,6 +293,7 @@ private struct AttachmentFileIconView: View {
     }
 }
 
+/// Loads and displays an attachment thumbnail without making the inspector wait on disk I/O.
 private struct AttachmentThumbnailView: View {
     @State private var image: Image?
 

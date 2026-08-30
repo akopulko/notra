@@ -1,6 +1,7 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+/// Adapts exported Markdown or PDF bytes to SwiftUI's file-exporter API.
 struct NoteFileExportDocument: FileDocument {
     static var readableContentTypes: [UTType] {
         [.pdf, .notraMarkdown]
@@ -21,6 +22,7 @@ struct NoteFileExportDocument: FileDocument {
     }
 }
 
+/// Holds a generated export until the platform save flow is ready to present it.
 struct PendingNoteFileExport: Identifiable {
     let id = UUID()
     let document: NoteFileExportDocument

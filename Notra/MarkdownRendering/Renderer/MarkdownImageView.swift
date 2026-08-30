@@ -7,6 +7,7 @@ import UIKit
 import AppKit
 #endif
 
+/// Loads a Markdown image or TextBundle asset and renders loading, failure, and success states.
 struct MarkdownImageView: View {
     @Environment(\.markdownStyle) private var style
     @Environment(\.secondaryBackgroundFill) private var secondaryBackgroundFill
@@ -17,6 +18,7 @@ struct MarkdownImageView: View {
     var mode: MarkdownRenderMode = .preview
     var preloadedImage: CGImage?
 
+    /// Uses preloaded images for PDF output and asynchronous placeholders for live preview.
     var body: some View {
         Group {
             if mode == .pdf {
@@ -55,6 +57,7 @@ struct MarkdownImageView: View {
         Self.resolvedURL(for: reference.source, context: context)
     }
 
+    /// Resolves remote URLs and bundle-relative asset paths against the render context.
     static func resolvedURL(for source: String?, context: MarkdownRenderContext) -> URL? {
         MarkdownAttachmentReferences.resolve(source, assetBaseURL: context.assetBaseURL)
     }
@@ -62,8 +65,13 @@ struct MarkdownImageView: View {
     private func placeholder(systemImage: String) -> some View {
         HStack(spacing: 8) {
             Image(systemName: systemImage)
-            Text(reference.alt.isEmpty ? "Image" : reference.alt)
-                .lineLimit(2)
+            let altText = reference.alt.isEmpty ? "Image" : reference.alt
+            SelectablePreviewText(
+                attributedText: AttributedString(altText),
+                selectionText: altText,
+                selectionFont: .callout
+            )
+            .lineLimit(2)
         }
         .font(.callout)
         .foregroundStyle(style.secondaryTextColor)
@@ -72,6 +80,7 @@ struct MarkdownImageView: View {
         .clipShape(.rect(cornerRadius: 6))
     }
 
+    /// Loads remote data or downsamples local files, then publishes a platform-neutral Image state.
     private func loadImage() async {
         guard let resolvedURL else {
             state = .failed
@@ -101,6 +110,7 @@ struct MarkdownImageView: View {
         }
     }
 
+    /// Opens a local image lazily so large source files do not occupy the view's memory footprint.
     private nonisolated static func downsampledImage(from url: URL) -> CGImage? {
         let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
         guard let source = CGImageSourceCreateWithURL(url as CFURL, sourceOptions) else {
@@ -110,6 +120,7 @@ struct MarkdownImageView: View {
         return downsampledImage(from: source)
     }
 
+    /// Decodes downloaded bytes through the same bounded thumbnail path as local files.
     fileprivate nonisolated static func downsampledImage(from data: Data) -> CGImage? {
         let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
         guard let source = CGImageSourceCreateWithData(data as CFData, sourceOptions) else {
@@ -119,6 +130,7 @@ struct MarkdownImageView: View {
         return downsampledImage(from: source)
     }
 
+    /// Creates a transformed thumbnail capped at 2048 pixels on its longest side.
     private nonisolated static func downsampledImage(from source: CGImageSource) -> CGImage? {
         let options = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
@@ -141,6 +153,7 @@ struct MarkdownImageView: View {
     }
 }
 
+/// The observable states of one asynchronous image load.
 private enum LoadingState {
     case idle
     case loading
@@ -148,12 +161,14 @@ private enum LoadingState {
     case failed
 }
 
+/// Serializes image reads and caches decoded data for repeated preview and export requests.
 private actor MarkdownImageLoader {
     static let shared = MarkdownImageLoader()
 
     private var cache: [URL: Data] = [:]
     private var tasks: [URL: Task<Data, Error>] = [:]
 
+    /// Returns a decoded thumbnail after sharing cached/downloaded bytes among callers.
     func thumbnail(for url: URL) async throws -> CGImage? {
         let data = try await data(for: url)
         return await Task.detached(priority: .utility) {
@@ -161,6 +176,7 @@ private actor MarkdownImageLoader {
         }.value
     }
 
+    /// De-duplicates in-flight downloads and retains successful remote bytes by URL.
     func data(for url: URL) async throws -> Data {
         if let cached = cache[url] {
             return cached

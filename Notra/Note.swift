@@ -4,19 +4,25 @@ import Foundation
 import Darwin
 #endif
 
+/// Summarizes attachment visibility without loading all attachment metadata into a row.
 struct NoteAttachmentSummary: Equatable, Sendable {
+    /// Empty summary used when the note has no links to assets.
     static let empty = NoteAttachmentSummary(
         firstLinkedImageURL: nil,
         hasLinkedNonImageAttachment: false
     )
 
+    /// First linked image, if one exists, used for the compact note-row thumbnail.
     let firstLinkedImageURL: URL?
+    /// True when at least one linked asset is not an image and needs a paperclip indicator.
     let hasLinkedNonImageAttachment: Bool
 
+    /// Whether the note row should show any attachment affordance.
     var showsPaperclip: Bool {
         firstLinkedImageURL != nil || hasLinkedNonImageAttachment
     }
 
+    /// Accessibility text that distinguishes image content from other attachments.
     var accessibilityDescription: String {
         if firstLinkedImageURL != nil {
             return "Contains image"
@@ -28,15 +34,24 @@ struct NoteAttachmentSummary: Equatable, Sendable {
     }
 }
 
+/// The lightweight note value used by lists, selection, sorting, and search results.
 struct NoteSummary: Identifiable, Equatable {
+    /// Shared placeholder used when a note contains no non-empty preview lines.
     static let emptyPreviewText = "<Empty Note>"
 
+    /// Canonical file URL used as the stable SwiftUI and search identity.
     let id: URL
+    /// Location of the TextBundle on disk.
     let url: URL
+    /// Plain-text preview shown in the sidebar.
     let previewText: String
+    /// Preserves heading styling for the first preview line.
     let previewFirstLineIsHeading: Bool
+    /// Linked-asset summary used by row icons and thumbnails.
     let attachmentSummary: NoteAttachmentSummary
+    /// Bundle creation timestamp used by the date sort.
     let createdAt: Date
+    /// Markdown modification timestamp used by the default sort.
     let modifiedAt: Date
 
     init(
@@ -58,12 +73,19 @@ struct NoteSummary: Identifiable, Equatable {
     }
 }
 
+/// The editable note loaded from a TextBundle, including Markdown and metadata.
 struct Note: Identifiable, Equatable {
+    /// Canonical file URL used as the stable note identity.
     let id: URL
+    /// Location of the persisted TextBundle.
     let url: URL
+    /// Editable Markdown body, including links to local assets.
     var markdown: String
+    /// Normalized Notra metadata such as tags.
     var metadata: NoteMetadata
+    /// Original bundle creation timestamp.
     var createdAt: Date
+    /// Last Markdown modification timestamp observed on disk.
     var modifiedAt: Date
 
     init(
@@ -83,6 +105,7 @@ struct Note: Identifiable, Equatable {
     }
 }
 
+/// The formatting operations exposed by the editor toolbar and menu commands.
 enum NoteFormattingCommand: CaseIterable, Hashable {
     case bold
     case italic
@@ -97,7 +120,9 @@ enum NoteFormattingCommand: CaseIterable, Hashable {
     case image
 }
 
+/// The Markdown heading levels supported by the formatting menu.
 enum MarkdownHeadingLevel: Int, CaseIterable, Hashable {
+    /// The number of `#` markers emitted before heading text.
     case h1 = 1
     case h2
     case h3
