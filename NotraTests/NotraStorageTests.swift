@@ -43,6 +43,13 @@ struct NotraStorageTests {
         #expect(note.createdAt != .distantPast)
     }
 
+    @Test func createsMarkdownBodyFromInitialContent() throws {
+        let repository = try makeRepository()
+        let note = try repository.createNote(initialMarkdown: "# ")
+
+        #expect(note.markdown == "# ")
+    }
+
     @Test func importsJPEGAssetWithSpecReferenceAndPreservesMetadata() throws {
         let repository = try makeRepository()
         let note = try repository.createNote()
@@ -263,6 +270,17 @@ struct NotraStorageTests {
         let loadedMetadata = try repository.noteMetadata(at: note.url)
 
         #expect(loadedMetadata.tags.map(\.name) == ["Swift", "work"])
+    }
+
+    @Test func noteSummariesIncludeTagsFromMetadata() throws {
+        let repository = try makeRepository()
+        let note = try repository.createNote()
+        let metadata = NoteMetadata(tags: [try #require(NoteTag("Swift")), try #require(NoteTag("work"))])
+
+        try repository.updateNoteMetadata(metadata, for: note.url)
+
+        let summary = try #require(try repository.listNotes().first)
+        #expect(summary.tags.map(\.name) == ["Swift", "work"])
     }
 
     @Test func metadataPreventsDuplicateTagsCaseInsensitively() throws {

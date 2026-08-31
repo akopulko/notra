@@ -103,6 +103,25 @@ struct MarkdownSyntaxColor: Equatable {
     }
 }
 
+/// Theme-derived colours for tag UI, keeping tag styling tied to the syntax palette.
+struct MarkdownTagColors: Equatable {
+    let background: MarkdownSyntaxColor
+    let foreground: MarkdownSyntaxColor
+
+    static let neutral = MarkdownTagColors(
+        background: MarkdownSyntaxColor(hex: "#6B7280"),
+        foreground: MarkdownSyntaxColor(hex: "#D1D5DB")
+    )
+
+    var backgroundColor: Color {
+        background.color
+    }
+
+    var foregroundColor: Color {
+        foreground.color
+    }
+}
+
 /// Bundles syntax colors and provides the theme selected by the current color scheme.
 struct MarkdownHighlightTheme: Equatable {
     let marker: MarkdownSyntaxColor
@@ -168,6 +187,23 @@ struct MarkdownHighlightTheme: Equatable {
         default:
             light
         }
+    }
+
+    func tagColors(for colorScheme: ColorScheme) -> MarkdownTagColors {
+        MarkdownTagColors(
+            background: code,
+            foreground: colorScheme == .dark
+                ? MarkdownSyntaxColor(hex: "#293F1A")
+                : MarkdownSyntaxColor(hex: "#FFFFFF")
+        )
+    }
+
+    var noteListTitleColor: Color {
+        noteListTitleSyntaxColor.color
+    }
+
+    var noteListTitleSyntaxColor: MarkdownSyntaxColor {
+        heading
     }
 
     /// Maps a Markdown role to its palette color, delegating fenced-code roles to `codeColor`.
@@ -940,6 +976,12 @@ struct MarkdownUTF16Span: Equatable {
     let upper: Int
 }
 
+/// Describes the native text replacement that produced the newest editor string.
+struct MarkdownTextEdit {
+    let range: NSRange
+    let replacementUTF16Length: Int
+}
+
 /// Caches the parsed result for one line so edits can reparse only affected regions.
 struct MarkdownLineHighlight {
     let range: Range<Int>
@@ -977,9 +1019,13 @@ struct MarkdownHighlightCache {
 
     /// Reparses the smallest affected line region while carrying fence state from its prefix.
     @discardableResult
-    mutating func updateText(_ newText: String) -> Range<Int>? {
+    mutating func updateText(_ newText: String, edit: MarkdownTextEdit? = nil) -> Range<Int>? {
         guard newText != text else {
             return nil
+        }
+
+        if let edit, let changedRange = updateText(newText, using: edit) {
+            return changedRange
         }
 
         let oldText = text
@@ -1153,6 +1199,144 @@ struct MarkdownHighlightCache {
         fenceState = parsed.fenceStateAfter
     }
 
+    /// Uses native edit metadata to avoid scanning matching prefixes and suffixes in large notes.
+    private mutating func updateText(_ newText: String, using edit: MarkdownTextEdit) -> Range<Int>? {
+        guard edit.range.location != NSNotFound,
+              edit.range.location >= 0,
+              edit.range.length >= 0,
+              edit.range.location + edit.range.length <= text.utf16.count,
+              edit.replacementUTF16Length >= 0,
+              newText.utf16.count == text.utf16.count - edit.range.length + edit.replacementUTF16Length
+        else {
+            return nil
+        }
+
+        let oldText = text
+        let oldCache = lines
+        let newEntries = Self.lineEntries(for: newText)
+        let editedOldUpper = edit.range.location + edit.range.length
+        let editedNewUpper = edit.range.location + edit.replacementUTF16Length
+
+        guard let oldEndLine = Self.lineIndex(in: oldCache, containingOrPreceding: max(edit.range.location, editedOldUpper)),
+              let newStartLine = Self.lineIndex(in: newEntries, containingOrPreceding: edit.range.location),
+              let newEndLine = Self.lineIndex(in: newEntries, containingOrPreceding: max(edit.range.location, editedNewUpper))
+        else {
+            return nil
+        }
+
+        let parseStart = shouldReparsePreviousLine(
+            oldText: oldText,
+            oldEntries: oldCache,
+            newEntries: newEntries,
+            at: newStartLine
+        ) ? max(newStartLine - 1, 0) : newStartLine
+        text = newText
+        let oldSuffixStart = min(oldEndLine + 1, oldCache.count)
+        let newChangedEnd = min(newEndLine + 1, newEntries.count)
+
+        var fenceState = MarkdownCodeFenceState.closed
+        for line in oldCache.prefix(parseStart) {
+            fenceState = line.fenceStateAfter
+        }
+
+        var updatedLines = Array(oldCache.prefix(parseStart))
+        var changedRange = parseStart..<newChangedEnd
+        let highlighter = MarkdownSyntaxHighlighter()
+
+        for entryIndex in parseStart..<newChangedEnd {
+            Self.appendParsedLine(
+                entry: newEntries[entryIndex],
+                highlighter: highlighter,
+                fenceState: &fenceState,
+                nextLine: newEntries.count > entryIndex + 1 ? newEntries[entryIndex + 1].content : nil,
+                into: &updatedLines
+            )
+        }
+
+        var oldSuffixIndex = oldSuffixStart
+        var newSuffixIndex = newChangedEnd
+        while shouldRehighlightSuffixLine(
+            oldCache: oldCache,
+            oldIndex: oldSuffixIndex,
+            newEntries: newEntries,
+            newIndex: newSuffixIndex,
+            fenceState: fenceState
+        ) {
+            Self.appendParsedLine(
+                entry: newEntries[newSuffixIndex],
+                highlighter: highlighter,
+                fenceState: &fenceState,
+                nextLine: newEntries.count > newSuffixIndex + 1 ? newEntries[newSuffixIndex + 1].content : nil,
+                into: &updatedLines
+            )
+            oldSuffixIndex += 1
+            newSuffixIndex += 1
+            changedRange = changedRange.lowerBound..<newSuffixIndex
+        }
+
+        for newLineIndex in newSuffixIndex..<newEntries.count {
+            guard oldSuffixIndex < oldCache.count else {
+                return nil
+            }
+
+            let oldLine = oldCache[oldSuffixIndex]
+            let offsetDelta = newEntries[newLineIndex].range.lowerBound - oldLine.range.lowerBound
+            updatedLines.append(
+                MarkdownLineHighlight(
+                    range: newEntries[newLineIndex].range,
+                    spans: oldLine.spans.map { span in
+                        MarkdownUTF16Span(
+                            role: span.role,
+                            lower: span.lower + offsetDelta,
+                            upper: span.upper + offsetDelta
+                        )
+                    },
+                    fenceStateBefore: oldLine.fenceStateBefore,
+                    fenceStateAfter: oldLine.fenceStateAfter
+                )
+            )
+            oldSuffixIndex += 1
+        }
+
+        guard updatedLines.count == newEntries.count else {
+            return nil
+        }
+
+        lines = updatedLines
+        return changedRange
+    }
+
+    private func shouldReparsePreviousLine(
+        oldText: String,
+        oldEntries: [MarkdownLineHighlight],
+        newEntries: [(range: Range<Int>, content: String)],
+        at index: Int
+    ) -> Bool {
+        guard index > 0 else {
+            return false
+        }
+
+        let oldCurrentIsDelimiter = index < oldEntries.count
+            && MarkdownSyntaxHighlighter.isTableDelimiterRow(
+                Self.lineContent(for: oldEntries[index], in: oldText)
+            )
+        let newCurrentIsDelimiter = index < newEntries.count
+            && MarkdownSyntaxHighlighter.isTableDelimiterRow(newEntries[index].content)
+        return oldCurrentIsDelimiter || newCurrentIsDelimiter
+    }
+
+    private func shouldRehighlightSuffixLine(
+        oldCache: [MarkdownLineHighlight],
+        oldIndex: Int,
+        newEntries: [(range: Range<Int>, content: String)],
+        newIndex: Int,
+        fenceState: MarkdownCodeFenceState
+    ) -> Bool {
+        oldIndex < oldCache.count
+            && newIndex < newEntries.count
+            && fenceState != oldCache[oldIndex].fenceStateBefore
+    }
+
     private static func lineEntries(for text: String) -> [(range: Range<Int>, content: String)] {
         var entries: [(range: Range<Int>, content: String)] = []
         var lineStart = text.startIndex
@@ -1201,5 +1385,50 @@ struct MarkdownHighlightCache {
         }
 
         return lines
+    }
+}
+
+private extension MarkdownHighlightCache {
+    static func lineIndex(
+        in entries: [MarkdownLineHighlight],
+        containingOrPreceding offset: Int
+    ) -> Int? {
+        lineIndex(count: entries.count, rangeAt: { entries[$0].range }, containingOrPreceding: offset)
+    }
+
+    static func lineIndex(
+        in entries: [(range: Range<Int>, content: String)],
+        containingOrPreceding offset: Int
+    ) -> Int? {
+        lineIndex(count: entries.count, rangeAt: { entries[$0].range }, containingOrPreceding: offset)
+    }
+
+    static func lineIndex(
+        count: Int,
+        rangeAt: (Int) -> Range<Int>,
+        containingOrPreceding offset: Int
+    ) -> Int? {
+        guard count > 0 else {
+            return nil
+        }
+
+        var lowerBound = 0
+        var upperBound = count
+        while lowerBound < upperBound {
+            let middle = (lowerBound + upperBound) / 2
+            if rangeAt(middle).lowerBound <= offset {
+                lowerBound = middle + 1
+            } else {
+                upperBound = middle
+            }
+        }
+
+        return max(lowerBound - 1, 0)
+    }
+
+    static func lineContent(for line: MarkdownLineHighlight, in text: String) -> String {
+        (text as NSString).substring(
+            with: NSRange(location: line.range.lowerBound, length: line.range.count)
+        )
     }
 }

@@ -159,11 +159,13 @@ struct TextBundleNoteRepository {
                     .creationDate ?? .distantPast
                 let markdown = try markdownContent(in: url)
                 let preview = Self.preview(for: markdown)
+                let metadata = (try? noteMetadata(at: url)) ?? NoteMetadata()
                 let attachmentSummary = try attachmentSummary(for: url, markdown: markdown)
                 return try NoteSummary(
                     url: url,
                     previewText: preview.text,
                     previewFirstLineIsHeading: preview.firstLineIsHeading,
+                    tags: metadata.tags,
                     attachmentSummary: attachmentSummary,
                     createdAt: createdAt,
                     modifiedAt: modifiedDate(of: url)
@@ -193,8 +195,8 @@ struct TextBundleNoteRepository {
         )
     }
 
-    /// Creates a unique empty TextBundle with spec metadata and an assets directory.
-    func createNote() throws -> Note {
+    /// Creates a unique TextBundle with spec metadata, initial Markdown, and an assets directory.
+    func createNote(initialMarkdown: String = "") throws -> Note {
         try prepareStorage()
 
         let bundleURL = try uniqueBundleURL()
@@ -208,8 +210,12 @@ struct TextBundleNoteRepository {
         let infoData = try JSONEncoder.notra.encode(TextBundleInfo())
         try infoData.write(to: bundleURL.appendingPathComponent(Self.infoFilename), options: .atomic)
 
-        let markdown = ""
-        try markdown.write(to: bundleURL.appendingPathComponent(Self.textFilename), atomically: true, encoding: .utf8)
+        _ = Document(parsing: initialMarkdown)
+        try initialMarkdown.write(
+            to: bundleURL.appendingPathComponent(Self.textFilename),
+            atomically: true,
+            encoding: .utf8
+        )
         return try loadNote(at: bundleURL)
     }
 

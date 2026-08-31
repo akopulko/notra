@@ -52,8 +52,7 @@ struct NoteEditorPane: View {
     @State private var isAttachmentInspectorPresented = false
     @State private var tagFeedback: NoteTagFeedback?
     @State private var tagFeedbackDismissTask: Task<Void, Never>?
-    @State private var pdfShareState = PDFShareState.unavailable
-    @State private var pdfShareRetryID = 0
+    @State private var pdfShareState = PDFShareState.idle
     #if os(iOS)
     @State private var selectedImageItem: PhotosPickerItem?
     @State private var isImagePickerPresented = false
@@ -105,40 +104,18 @@ struct NoteEditorPane: View {
         .onChange(of: store.selectedNoteID) {
             isEditing = false
             undoRedoAvailability = .disabled
+            pdfShareState = .idle
             clearTagFeedback()
             if !store.hasSelection {
                 isAttachmentInspectorPresented = false
             }
         }
+        .onChange(of: isEditing) {
+            pdfShareState = .idle
+        }
         .onChange(of: editorFocusRequest) {
             if editorFocusRequest > 0 {
                 isEditing = true
-            }
-        }
-        .task(id: pdfShareTask) {
-            let snapshot = pdfShareSnapshot
-            pdfShareState = snapshot == nil ? .unavailable : .generating
-            guard let snapshot else {
-                return
-            }
-
-            try? await Task.sleep(for: .milliseconds(250))
-            guard !Task.isCancelled else {
-                return
-            }
-
-            do {
-                let item = try NotePDFExporter().export(snapshot: snapshot)
-                guard !Task.isCancelled else {
-                    return
-                }
-                pdfShareState = .ready(item)
-            } catch {
-                guard !Task.isCancelled else {
-                    return
-                }
-                AppLog.error("Failed to prepare PDF for sharing: \(error.localizedDescription)")
-                pdfShareState = .failed
             }
         }
         .toolbar {
@@ -155,6 +132,7 @@ struct NoteEditorPane: View {
             },
             applyFormattingCommand: handleFormattingCommand,
             applyHeading: handleHeading,
+            requestAttachmentSelection: presentAttachmentPicker,
             headingFormattingRequest: headingFormattingRequest,
             boldFormattingRequest: boldFormattingRequest,
             italicFormattingRequest: italicFormattingRequest,
@@ -226,6 +204,7 @@ struct NoteEditorPane: View {
         )
         #endif
         ToolbarSpacer(.flexible)
+        #if os(macOS)
         ToolbarItem(placement: .primaryAction) {
             Button("Attach File", systemImage: "paperclip") {
                 presentAttachmentPicker()
@@ -235,36 +214,30 @@ struct NoteEditorPane: View {
             .accessibilityLabel("Attach File")
             .disabled(!store.hasSelection || !isEditing)
         }
+        #endif
         ToolbarItem(placement: .primaryAction) {
             switch pdfShareState {
-            case let .ready(item):
-                ShareLink(
-                    item: item,
-                    preview: SharePreview(item.suggestedFilename)
-                ) {
-                    Label("Share", systemImage: "square.and.arrow.up")
+            case .idle:
+                Button("Share", systemImage: "square.and.arrow.up") {
+                    sharePDF()
                 }
                 .labelStyle(.iconOnly)
                 .help("Share")
                 .accessibilityLabel("Share")
+                .disabled(pdfShareSnapshot == nil)
             case .failed:
                 Button("Retry Share", systemImage: "arrow.clockwise") {
-                    pdfShareRetryID += 1
+                    sharePDF()
                 }
                 .labelStyle(.iconOnly)
                 .help("Retry Share")
                 .accessibilityLabel("Retry Share")
+                .disabled(pdfShareSnapshot == nil)
             case .generating:
                 Button("Preparing Share", systemImage: "square.and.arrow.up") {}
                     .labelStyle(.iconOnly)
                     .help("Preparing PDF to share")
                     .accessibilityLabel("Preparing PDF to share")
-                    .disabled(true)
-            case .unavailable:
-                Button("Share", systemImage: "square.and.arrow.up") {}
-                    .labelStyle(.iconOnly)
-                    .help("Share")
-                    .accessibilityLabel("Share")
                     .disabled(true)
             }
         }
@@ -296,7 +269,8 @@ struct NoteEditorPane: View {
 
 private extension NoteEditorPane {
     private var pdfShareSnapshot: NotePDFSnapshot? {
-        guard store.hasSelection,
+        guard !isEditing,
+              store.hasSelection,
               let noteURL = store.selectedNoteURL,
               let noteSummary = store.selectedNoteSummary
         else {
@@ -311,10 +285,6 @@ private extension NoteEditorPane {
             isDarkMode: colorScheme == .dark,
             suggestedFilename: noteSummary.url.lastPathComponent
         )
-    }
-
-    private var pdfShareTask: PDFShareTask {
-        PDFShareTask(snapshot: pdfShareSnapshot, retryID: pdfShareRetryID)
     }
 
     private func undo() {
@@ -368,6 +338,26 @@ private extension NoteEditorPane {
         tagFeedbackDismissTask?.cancel()
         tagFeedbackDismissTask = nil
         tagFeedback = nil
+    }
+
+    private func sharePDF() {
+        guard pdfShareState != .generating, let snapshot = pdfShareSnapshot else {
+            pdfShareState = .idle
+            return
+        }
+
+        pdfShareState = .generating
+        Task { @MainActor in
+            await Task.yield()
+            do {
+                let item = try NotePDFExporter().export(snapshot: snapshot)
+                NoteSharePresenter.present(fileURL: item.fileURL)
+                pdfShareState = .idle
+            } catch {
+                AppLog.error("Failed to prepare PDF for sharing: \(error.localizedDescription)")
+                pdfShareState = .failed
+            }
+        }
     }
 
     private func insertAttachment(_ attachment: TextBundleAsset) {
@@ -587,18 +577,11 @@ private struct NoteTagFeedback: Identifiable, Equatable {
     let message: String
 }
 
-/// Tracks whether PDF sharing is unavailable, preparing, or ready for presentation.
+/// Tracks explicit PDF sharing attempts without preparing large exports on preview load.
 private enum PDFShareState {
-    case unavailable
+    case idle
     case generating
-    case ready(NotePDFShareItem)
     case failed
-}
-
-/// Carries the generated PDF and its presentation identity across SwiftUI updates.
-private struct PDFShareTask: Equatable {
-    let snapshot: NotePDFSnapshot?
-    let retryID: Int
 }
 
 /// Presents tag mutation feedback without coupling the editor to alert presentation.

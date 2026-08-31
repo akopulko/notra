@@ -13,9 +13,9 @@ struct NotraApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView(store: store)
-            #if os(macOS)
+                #if os(macOS)
                 .frame(minWidth: 720, minHeight: 480)
-            #endif
+                #endif
         }
         #if os(macOS)
         .defaultSize(width: 1040, height: 720)

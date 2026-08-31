@@ -127,11 +127,11 @@ final class NotesStore {
         }
     }
 
-    /// Creates, selects, and immediately indexes a new empty TextBundle.
-    func createNote() async {
+    /// Creates, selects, and immediately indexes a new TextBundle with the requested starting content.
+    func createNote(initialMarkdown: String = "") async {
         AppLog.info("Creating note")
         do {
-            let note = try repository.createNote()
+            let note = try repository.createNote(initialMarkdown: initialMarkdown)
             try refreshNotes()
             try select(note)
             await indexNote(note)
@@ -244,6 +244,7 @@ extension NotesStore {
             try repository.updateNoteMetadata(metadata, for: selectedNote.url)
             self.selectedNote = selectedNote
             selectedNoteTags = metadata.tags
+            applyTags(metadata.tags, toSummaryFor: selectedNote.id)
             selectedNoteBundleSize = repository.totalBundleSize(at: selectedNote.url)
             Task {
                 await indexNote(selectedNote)
@@ -275,6 +276,7 @@ extension NotesStore {
             try repository.updateNoteMetadata(metadata, for: selectedNote.url)
             self.selectedNote = selectedNote
             selectedNoteTags = metadata.tags
+            applyTags(metadata.tags, toSummaryFor: selectedNote.id)
             selectedNoteBundleSize = repository.totalBundleSize(at: selectedNote.url)
             await indexNote(selectedNote)
             AppLog.info("Tag removed; tag=\(tag.name)")
@@ -517,6 +519,26 @@ private extension NotesStore {
     /// Applies the current order to an already-loaded summary collection.
     private func applySortedNotes(_ summaries: [NoteSummary]) {
         notes = sortPreference.sorted(summaries)
+    }
+
+    /// Refreshes row-visible tag metadata immediately after note metadata changes.
+    private func applyTags(_ tags: [NoteTag], toSummaryFor noteID: URL) {
+        let updatedSummaries = notes.map { summary in
+            guard summary.id == noteID else {
+                return summary
+            }
+
+            return NoteSummary(
+                url: summary.url,
+                previewText: summary.previewText,
+                previewFirstLineIsHeading: summary.previewFirstLineIsHeading,
+                tags: tags,
+                attachmentSummary: summary.attachmentSummary,
+                createdAt: summary.createdAt,
+                modifiedAt: summary.modifiedAt
+            )
+        }
+        applySortedNotes(updatedSummaries)
     }
 
     /// Reconciles on-disk assets with links in the current, possibly unsaved editor text.

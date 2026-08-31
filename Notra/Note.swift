@@ -47,6 +47,8 @@ struct NoteSummary: Identifiable, Equatable {
     let previewText: String
     /// Preserves heading styling for the first preview line.
     let previewFirstLineIsHeading: Bool
+    /// Tags displayed as one compact metadata line in note rows.
+    let tags: [NoteTag]
     /// Linked-asset summary used by row icons and thumbnails.
     let attachmentSummary: NoteAttachmentSummary
     /// Bundle creation timestamp used by the date sort.
@@ -58,6 +60,7 @@ struct NoteSummary: Identifiable, Equatable {
         url: URL,
         previewText: String,
         previewFirstLineIsHeading: Bool = false,
+        tags: [NoteTag] = [],
         attachmentSummary: NoteAttachmentSummary = .empty,
         createdAt: Date,
         modifiedAt: Date
@@ -67,6 +70,7 @@ struct NoteSummary: Identifiable, Equatable {
         self.url = normalizedURL
         self.previewText = previewText
         self.previewFirstLineIsHeading = previewFirstLineIsHeading
+        self.tags = tags
         self.attachmentSummary = attachmentSummary
         self.createdAt = createdAt
         self.modifiedAt = modifiedAt
