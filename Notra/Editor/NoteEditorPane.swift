@@ -31,6 +31,7 @@ struct NoteEditorPane: View {
     @AppStorage(AppearanceSettingKey.previewUsesEditorTheme) private var previewUsesEditorTheme = true
     /// Request counters let the native editor react to repeated identical commands.
     @State private var headingFormattingRequest = MarkdownHeadingFormattingRequest(id: 0, level: .h1)
+    @State private var hashtagFormattingRequest = 0
     @State private var boldFormattingRequest = 0
     @State private var italicFormattingRequest = 0
     @State private var codeFormattingRequest = 0
@@ -134,6 +135,7 @@ struct NoteEditorPane: View {
             applyHeading: handleHeading,
             requestAttachmentSelection: presentAttachmentPicker,
             headingFormattingRequest: headingFormattingRequest,
+            hashtagFormattingRequest: hashtagFormattingRequest,
             boldFormattingRequest: boldFormattingRequest,
             italicFormattingRequest: italicFormattingRequest,
             codeFormattingRequest: codeFormattingRequest,
@@ -394,6 +396,8 @@ private extension NoteEditorPane {
             linkFormattingRequest += 1
         case .table:
             tableFormattingRequest += 1
+        case .hashtag:
+            hashtagFormattingRequest += 1
         case .image:
             AppLog.info(
                 """

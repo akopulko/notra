@@ -114,6 +114,7 @@ enum NoteFormattingCommand: CaseIterable, Hashable {
     case bold
     case italic
     case heading
+    case hashtag
     case unorderedList
     case orderedList
     case quote

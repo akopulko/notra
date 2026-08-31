@@ -19,6 +19,8 @@ enum MarkdownFormatting {
             return applyItalicResult(to: text, selection: selectedRange).text
         case .heading:
             return applyHeading(level: .h1, to: text, selection: selection)
+        case .hashtag:
+            return applyHashtagResult(to: text, selection: selectedRange).text
         case .unorderedList:
             return applyUnorderedListResult(to: text, selection: selectedRange).text
         case .orderedList:
@@ -46,6 +48,20 @@ enum MarkdownFormatting {
     /// Wraps the selection in underscore emphasis markers while preserving the resulting selection.
     static func applyItalicResult(to text: String, selection: Range<String.Index>) -> MarkdownFormattingResult {
         applyWrappedResult(to: text, selection: selection, prefix: "_", suffix: "_")
+    }
+
+    /// Prefixes the selection with a hashtag without toggling existing hashtag text.
+    static func applyHashtagResult(to text: String, selection: Range<String.Index>) -> MarkdownFormattingResult {
+        let selectedText = String(text[selection])
+        let replacement = "#\(selectedText)"
+        var result = text
+
+        result.replaceSubrange(selection, with: replacement)
+
+        let cursorOffset = text.distance(from: text.startIndex, to: selection.lowerBound) + replacement.count
+        let cursor = result.index(result.startIndex, offsetBy: cursorOffset)
+
+        return MarkdownFormattingResult(text: result, selection: cursor..<cursor)
     }
 
     /// Wraps the selection in inline-code markers without changing text outside the selection.

@@ -101,14 +101,14 @@ extension MarkdownHeadingLevel {
 
 extension NoteFormattingCommand {
     static let toolbarCommandGroups: [[NoteFormattingCommand]] = [
-        [.bold, .italic],
+        [.hashtag, .bold, .italic],
         [.unorderedList, .orderedList, .todo, .quote],
         [.link, .table, .code]
     ]
 
     static var editorMenuCommands: [NoteFormattingCommand] {
         #if os(iOS)
-        toolbarCommandGroups.flatMap(\.self) + [.image]
+        toolbarCommandGroups.flatMap(\.self).filter { $0 != .hashtag } + [.image]
         #else
         toolbarCommandGroups.flatMap(\.self)
         #endif
@@ -126,6 +126,8 @@ extension NoteFormattingCommand {
             "Italic"
         case .heading:
             "Headers"
+        case .hashtag:
+            "Hashtag"
         case .unorderedList:
             "Bulleted List"
         case .orderedList:
@@ -153,6 +155,8 @@ extension NoteFormattingCommand {
             "italic"
         case .heading:
             "textformat.size"
+        case .hashtag:
+            "number"
         case .unorderedList:
             "list.bullet"
         case .orderedList:

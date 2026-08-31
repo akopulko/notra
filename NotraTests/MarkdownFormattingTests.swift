@@ -107,6 +107,81 @@ struct MarkdownFormattingTests {
         #expect(markdown == "**value**")
     }
 
+    @Test func hashtagWithoutSelectionInEmptyDocumentPlacesCursorAfterMarker() {
+        let text = ""
+        let result = MarkdownFormatting.applyHashtagResult(
+            to: text,
+            selection: text.startIndex ..< text.startIndex
+        )
+
+        #expect(result.text == "#")
+        #expect(cursorOffset(in: result) == 1)
+    }
+
+    @Test func hashtagWithoutSelectionInsertsAtCursor() {
+        let text = "Hello world"
+        let cursor = text.firstIndex(of: " ") ?? text.endIndex
+        let result = MarkdownFormatting.applyHashtagResult(to: text, selection: cursor ..< cursor)
+
+        #expect(result.text == "Hello# world")
+        #expect(cursorOffset(in: result) == 6)
+    }
+
+    @Test func legacyHashtagCommandUsesSelectionAwareFormatter() {
+        let text = "value"
+        let markdown = MarkdownFormatting.apply(
+            .hashtag,
+            to: text,
+            selection: text.startIndex ..< text.endIndex
+        )
+
+        #expect(markdown == "#value")
+    }
+
+    @Test func hashtagWithASCIISelectionPlacesCursorAfterResult() throws {
+        let text = "before after"
+        let selection = try #require(text.range(of: "after"))
+        let result = MarkdownFormatting.applyHashtagResult(to: text, selection: selection)
+
+        #expect(result.text == "before #after")
+        #expect(cursorOffset(in: result) == 13)
+    }
+
+    @Test func hashtagWithUnicodeSelectionPreservesSelectedText() throws {
+        let text = "A 😀 note"
+        let selection = try #require(text.range(of: "😀"))
+        let result = MarkdownFormatting.applyHashtagResult(to: text, selection: selection)
+
+        #expect(result.text == "A #😀 note")
+        #expect(cursorOffset(in: result) == 4)
+    }
+
+    @Test func hashtagAlwaysAddsToExistingLeadingHashtag() {
+        let text = "#SwiftUI"
+        let result = MarkdownFormatting.applyHashtagResult(
+            to: text,
+            selection: text.startIndex ..< text.endIndex
+        )
+
+        #expect(result.text == "##SwiftUI")
+        #expect(cursorOffset(in: result) == 9)
+    }
+
+    @Test func hashtagResultRemainsCompatibleWithTagEntryParser() throws {
+        let text = "SwiftUI"
+        let result = MarkdownFormatting.applyHashtagResult(
+            to: text,
+            selection: text.startIndex ..< text.endIndex
+        )
+        let cursorOffset = result.selection.lowerBound.utf16Offset(in: result.text)
+        let entry = try #require(NoteTagEntryParser.entry(
+            in: result.text,
+            selection: MarkdownEditorSelectionSnapshot(lowerOffset: cursorOffset, upperOffset: cursorOffset)
+        ))
+
+        #expect(entry.tag.name == "SwiftUI")
+    }
+
     @Test func boldWithoutSelectionInEmptyDocumentPlacesCursorInsideMarkup() {
         let text = ""
         let result = MarkdownFormatting.applyBoldResult(

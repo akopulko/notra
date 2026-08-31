@@ -12,6 +12,7 @@ struct MarkdownEditor: View {
     let applyHeading: (MarkdownHeadingLevel) -> Void
     let requestAttachmentSelection: () -> Void
     let headingFormattingRequest: MarkdownHeadingFormattingRequest
+    let hashtagFormattingRequest: Int
     let boldFormattingRequest: Int
     let italicFormattingRequest: Int
     let codeFormattingRequest: Int
@@ -45,6 +46,9 @@ struct MarkdownEditor: View {
         }
         .onChange(of: headingFormattingRequest) {
             applyHeadingFormatting()
+        }
+        .onChange(of: hashtagFormattingRequest) {
+            applyHashtagFormatting()
         }
         .onChange(of: boldFormattingRequest) {
             applyBoldFormatting()
@@ -110,6 +114,13 @@ private extension MarkdownEditor {
 
     private func applyBoldFormatting() {
         applyInlineFormatting(command: .bold)
+    }
+
+    private func applyHashtagFormatting() {
+        let currentText = text
+        let selectedRange = formattingSelection(in: currentText)
+        let result = MarkdownFormatting.applyHashtagResult(to: currentText, selection: selectedRange)
+        applyFormattingResult(result, command: .hashtag, oldTextLength: currentText.count)
     }
 
     private func applyItalicFormatting() {
@@ -192,7 +203,7 @@ private extension MarkdownEditor {
             result = MarkdownFormatting.applyQuoteResult(to: currentText, selection: selectedRange)
         case .todo:
             result = MarkdownFormatting.applyTodoResult(to: currentText, selection: selectedRange)
-        case .bold, .italic, .heading, .code, .link, .table, .image:
+        case .bold, .italic, .heading, .hashtag, .code, .link, .table, .image:
             return
         }
 
@@ -217,7 +228,7 @@ private extension MarkdownEditor {
             result = MarkdownFormatting.applyCodeResult(to: currentText, selection: selectedRange)
         case .link:
             result = MarkdownFormatting.applyLinkResult(to: currentText, selection: selectedRange)
-        case .heading, .unorderedList, .orderedList, .quote, .todo, .table, .image:
+        case .heading, .hashtag, .unorderedList, .orderedList, .quote, .todo, .table, .image:
             return
         }
 
@@ -414,6 +425,8 @@ private extension NoteFormattingCommand {
             "Italic"
         case .heading:
             "Heading"
+        case .hashtag:
+            "Hashtag"
         case .unorderedList:
             "Unordered list"
         case .orderedList:
