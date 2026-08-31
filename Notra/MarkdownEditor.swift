@@ -10,6 +10,7 @@ struct MarkdownEditor: View {
     @Binding var text: String
     let applyFormattingCommand: (NoteFormattingCommand) -> Void
     let applyHeading: (MarkdownHeadingLevel) -> Void
+    let requestAttachmentSelection: () -> Void
     let headingFormattingRequest: MarkdownHeadingFormattingRequest
     let boldFormattingRequest: Int
     let italicFormattingRequest: Int
@@ -81,6 +82,7 @@ struct MarkdownEditor: View {
         .onAppear {
             bridge.applyFormattingCommand = applyFormattingCommand
             bridge.applyHeading = applyHeading
+            bridge.requestAttachmentSelection = requestAttachmentSelection
             bridge.commitTagEntry = commitTagEntry
             bridge.reportUndoRedoAvailability = onUndoRedoAvailabilityChanged
             bridge.refreshUndoRedoAvailability?()
@@ -244,11 +246,24 @@ private extension MarkdownEditor {
     }
 
     private func focusFirstLine() {
-        let firstLineSnapshot = MarkdownEditorSelectionSnapshot()
+        let firstLineEndOffset = firstLineEndUTF16Offset(in: text)
+        let firstLineSnapshot = MarkdownEditorSelectionSnapshot(
+            lowerOffset: firstLineEndOffset,
+            upperOffset: firstLineEndOffset
+        )
         selectionStore.snapshot = firstLineSnapshot
         selectionStore.lastNonEmptySnapshot = nil
         bridge.applyProgrammaticEdit?(text, firstLineSnapshot)
         bridge.focusEditor?()
+    }
+
+    private func firstLineEndUTF16Offset(in text: String) -> Int {
+        let newline = "\n".utf16.first!
+        guard let newlineIndex = text.utf16.firstIndex(of: newline) else {
+            return text.utf16.count
+        }
+
+        return text.utf16.distance(from: text.utf16.startIndex, to: newlineIndex)
     }
 
     private func commitTagEntry(selection: MarkdownEditorSelectionSnapshot) -> Bool {

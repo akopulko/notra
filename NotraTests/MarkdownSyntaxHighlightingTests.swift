@@ -108,6 +108,20 @@ struct MarkdownSyntaxHighlightingTests {
         #expect(MarkdownHighlightTheme.preferred(for: .light) == .light)
     }
 
+    @Test func tagColorsFollowThemeCodeColor() {
+        #expect(MarkdownHighlightTheme.tokyoNight.tagColors(for: .dark).background == MarkdownHighlightTheme.tokyoNight.code)
+        #expect(MarkdownHighlightTheme.light.tagColors(for: .light).background == MarkdownHighlightTheme.light.code)
+        #expect(MarkdownHighlightTheme.tokyoNight.tagColors(for: .dark).foreground.hex == "#293F1A")
+        #expect(MarkdownHighlightTheme.light.tagColors(for: .light).foreground.hex == "#FFFFFF")
+        #expect(MarkdownTagColors.neutral.background.hex == "#6B7280")
+        #expect(MarkdownTagColors.neutral.foreground.hex == "#D1D5DB")
+    }
+
+    @Test func noteListTitleColorFollowsThemeHeadingColor() {
+        #expect(MarkdownHighlightTheme.tokyoNight.noteListTitleSyntaxColor == MarkdownHighlightTheme.tokyoNight.heading)
+        #expect(MarkdownHighlightTheme.light.noteListTitleSyntaxColor == MarkdownHighlightTheme.light.heading)
+    }
+
     @Test func highlightsTableHeaderDelimiterAndBodyRows() {
         let markdown = """
         | Name | Type |

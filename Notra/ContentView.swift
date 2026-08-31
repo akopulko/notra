@@ -18,6 +18,9 @@ struct ContentView: View {
     @State private var attachmentSelectionRequest = MarkdownAttachmentSelectionRequest.empty
     /// Presentation state for the shared attachment file importer.
     @State private var isAttachmentFileImporterPresented = false
+    /// User-selected initial Markdown for new note creation.
+    @AppStorage(NoteSettingKey.startNewNoteWith) private var startNewNoteWith =
+        NoteStartContent.defaultValue.rawValue
 
     var body: some View {
         NavigationSplitView(
@@ -74,7 +77,8 @@ struct ContentView: View {
     private func createNote() {
         Task {
             let previousSelectionID = store.selectedNoteID
-            await store.createNote()
+            let startContent = NoteStartContent.resolved(rawValue: startNewNoteWith)
+            await store.createNote(initialMarkdown: startContent.initialMarkdown)
             searchText = ""
             guard store.selectedNoteID != previousSelectionID else {
                 return

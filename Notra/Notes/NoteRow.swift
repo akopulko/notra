@@ -9,6 +9,8 @@ import AppKit
 
 /// Renders one sidebar note row, including preview text, dates, tags, and attachment state.
 struct NoteRow: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @AppStorage(AppearanceSettingKey.previewUsesEditorTheme) private var previewUsesEditorTheme = true
     let note: NoteSummary
     let sortField: NoteSortField
 
@@ -30,6 +32,9 @@ struct NoteRow: View {
                 }
                 .font(.callout)
                 .foregroundStyle(.secondary)
+                if !note.tags.isEmpty {
+                    NoteRowTagsLine(tags: note.tags, colors: tagColors)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -48,11 +53,7 @@ struct NoteRow: View {
             let lines = note.previewText.components(separatedBy: .newlines)
             let remainingPreviewText = lines.dropFirst().joined(separator: "\n")
             VStack(alignment: .leading, spacing: 2) {
-                Text(verbatim: lines.first ?? NoteSummary.emptyPreviewText)
-                    .font(.title3)
-                    .fontWeight(.bold)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
+                titleText(lines.first ?? NoteSummary.emptyPreviewText)
                 if !remainingPreviewText.isEmpty {
                     Text(verbatim: remainingPreviewText)
                         .font(.body)
@@ -67,6 +68,87 @@ struct NoteRow: View {
                 .lineLimit(previewLineLimit)
                 .truncationMode(.tail)
         }
+    }
+
+    private var tagColors: MarkdownTagColors {
+        guard previewUsesEditorTheme else {
+            return .neutral
+        }
+
+        return theme.tagColors(for: colorScheme)
+    }
+
+    private var theme: MarkdownHighlightTheme {
+        MarkdownHighlightTheme.preferred(for: colorScheme)
+    }
+
+    @ViewBuilder
+    private func titleText(_ text: String) -> some View {
+        if previewUsesEditorTheme {
+            Text(verbatim: text)
+                .font(.title3)
+                .fontWeight(.bold)
+                .foregroundStyle(theme.noteListTitleColor)
+                .lineLimit(1)
+                .truncationMode(.tail)
+        } else {
+            Text(verbatim: text)
+                .font(.title3)
+                .fontWeight(.bold)
+                .lineLimit(1)
+                .truncationMode(.tail)
+        }
+    }
+}
+
+/// Keeps sidebar tags visually separate while fitting them into a single row.
+private struct NoteRowTagsLine: View {
+    let tags: [NoteTag]
+    let colors: MarkdownTagColors
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            tagsStack(tags: tags, showsOverflow: false)
+            ForEach(truncatedTagCounts, id: \.self) { visibleCount in
+                tagsStack(
+                    tags: Array(tags.prefix(visibleCount)),
+                    showsOverflow: true
+                )
+            }
+            tagsStack(tags: [], showsOverflow: true)
+        }
+        .font(.body)
+        .lineLimit(1)
+    }
+
+    private var truncatedTagCounts: [Int] {
+        guard tags.count > 1 else {
+            return []
+        }
+
+        return Array(stride(from: tags.count - 1, through: 1, by: -1))
+    }
+
+    private func tagsStack(tags visibleTags: [NoteTag], showsOverflow: Bool) -> some View {
+        HStack(spacing: 4) {
+            ForEach(visibleTags) { tag in
+                tagText(tag.prefixedDisplayName)
+            }
+
+            if showsOverflow {
+                tagText("...")
+            }
+        }
+    }
+
+    private func tagText(_ text: String) -> some View {
+        Text(verbatim: text)
+            .foregroundStyle(colors.foregroundColor)
+            .lineLimit(1)
+            .truncationMode(.tail)
+            .padding(.horizontal, 4)
+            .padding(.vertical, 1)
+            .background(colors.backgroundColor, in: RoundedRectangle(cornerRadius: 4, style: .continuous))
     }
 }
 

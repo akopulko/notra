@@ -114,6 +114,10 @@ extension NoteFormattingCommand {
         #endif
     }
 
+    static var keyboardAccessoryCommands: [NoteFormattingCommand] {
+        toolbarCommandGroups.flatMap(\.self)
+    }
+
     var title: String {
         switch self {
         case .bold:
@@ -165,6 +169,30 @@ extension NoteFormattingCommand {
             "tablecells"
         case .image:
             "photo"
+        }
+    }
+}
+
+/// The import actions grouped under the iOS keyboard accessory attachment menu.
+enum AttachmentKeyboardMenuItem: CaseIterable, Hashable {
+    case choosePhoto
+    case attachFile
+
+    var title: String {
+        switch self {
+        case .choosePhoto:
+            "Choose Photo"
+        case .attachFile:
+            "Attach File"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .choosePhoto:
+            "photo"
+        case .attachFile:
+            "doc"
         }
     }
 }

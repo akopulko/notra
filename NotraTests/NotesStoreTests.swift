@@ -116,6 +116,19 @@ struct NotesStoreTests {
         #expect(harness.store.editorText.isEmpty)
     }
 
+    @Test func creatingNoteUsesInitialMarkdown() async throws {
+        let harness = try makeHarness()
+        defer {
+            harness.cleanup()
+        }
+
+        await harness.store.createNote(initialMarkdown: "# ")
+
+        #expect(harness.store.hasSelection)
+        #expect(harness.store.editorText == "# ")
+        #expect(harness.store.notes.first?.previewText == "#")
+    }
+
     @Test func staleTitleSortPreferenceFallsBackToDateEdited() throws {
         let rootURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -182,6 +195,7 @@ struct NotesStoreTests {
         #expect(harness.store.selectedNoteTags.map(\.name) == ["Swift"])
         #expect(loadedNote.markdown == "Body")
         #expect(loadedNote.metadata.tags.map(\.name) == ["Swift"])
+        #expect(harness.store.notes.first { $0.id == note.id }?.tags.map(\.name) == ["Swift"])
     }
 
     @Test func addingDuplicateTagDoesNotDuplicateMetadata() async throws {
@@ -223,6 +237,7 @@ struct NotesStoreTests {
         #expect(harness.store.selectedNoteTags.isEmpty)
         #expect(loadedNote.markdown == "Body")
         #expect(loadedNote.metadata.tags.isEmpty)
+        #expect(harness.store.notes.first { $0.id == note.id }?.tags.isEmpty == true)
     }
 
     private func makeHarness() throws -> NotesStoreHarness {

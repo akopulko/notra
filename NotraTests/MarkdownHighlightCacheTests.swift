@@ -109,6 +109,67 @@ struct MarkdownHighlightCacheTests {
         expectConsistentCache(afterEditingTo: edited)
     }
 
+    @Test func typingInLargeDocumentUsesSmallEditRange() {
+        let markdown = largeMarkdown(lineCount: 2_000)
+        var cache = MarkdownHighlightCache()
+        cache.setText(markdown)
+
+        let insertion = " edited"
+        let location = (markdown as NSString).range(of: "Line 1200 with").location + "Line 1200".utf16.count
+        let edited = (markdown as NSString).replacingCharacters(
+            in: NSRange(location: location, length: 0),
+            with: insertion
+        )
+        let changedRange = cache.updateText(
+            edited,
+            edit: MarkdownTextEdit(range: NSRange(location: location, length: 0), replacementUTF16Length: insertion.utf16.count)
+        )
+
+        #expect(changedRange?.count == 1)
+        #expect(flattenedSpans(in: cache) == utf16Spans(in: edited))
+    }
+
+    @Test func insertingNewlineInLargeDocumentUsesSmallEditRange() {
+        let markdown = largeMarkdown(lineCount: 2_000)
+        var cache = MarkdownHighlightCache()
+        cache.setText(markdown)
+
+        let location = (markdown as NSString).range(of: "Line 20 with").location + "Line 20".utf16.count
+        let edited = (markdown as NSString).replacingCharacters(
+            in: NSRange(location: location, length: 0),
+            with: "\n"
+        )
+        let changedRange = cache.updateText(
+            edited,
+            edit: MarkdownTextEdit(range: NSRange(location: location, length: 0), replacementUTF16Length: 1)
+        )
+
+        #expect((changedRange?.count ?? 0) <= 2)
+        #expect(flattenedSpans(in: cache) == utf16Spans(in: edited))
+    }
+
+    @Test func editRangeStillRehighlightsFenceStateChanges() {
+        let markdown = """
+        ``swift
+        let value = 1
+        plain after
+        """
+        var cache = MarkdownHighlightCache()
+        cache.setText(markdown)
+
+        let edited = (markdown as NSString).replacingCharacters(
+            in: NSRange(location: 0, length: 0),
+            with: "`"
+        )
+        let changedRange = cache.updateText(
+            edited,
+            edit: MarkdownTextEdit(range: NSRange(location: 0, length: 0), replacementUTF16Length: 1)
+        )
+
+        #expect(changedRange == 0..<3)
+        #expect(flattenedSpans(in: cache) == utf16Spans(in: edited))
+    }
+
     @Test func removingDelimiterRehighlightsPreviousRow() {
         let edited = sampleMarkdown.replacingOccurrences(
             of: "| Name | Type |\n| --- | --- |",
@@ -140,5 +201,13 @@ struct MarkdownHighlightCacheTests {
                 upper: span.range.upperBound.utf16Offset(in: markdown)
             )
         }
+    }
+
+    private func largeMarkdown(lineCount: Int) -> String {
+        (0..<lineCount)
+            .map { line in
+                "Line \(line) with `code` and **bold** text"
+            }
+            .joined(separator: "\n")
     }
 }

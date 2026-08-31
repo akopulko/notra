@@ -431,9 +431,9 @@ private struct MarkdownAttachmentView: View {
         .accessibilityLabel("Attachment")
         .accessibilityValue(reference.filename)
         #if os(iOS)
-            .sheet(item: $previewedAttachment) { item in
-                AttachmentPreviewController(item: item)
-            }
+        .sheet(item: $previewedAttachment) { item in
+            AttachmentPreviewController(item: item)
+        }
         #endif
     }
 

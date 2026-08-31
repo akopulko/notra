@@ -20,6 +20,9 @@ struct SettingsView: View {
     /// Maximum attachment size enforced before an import reaches storage.
     @AppStorage(AttachmentSettingKey.maximumSizeMB) private var maximumAttachmentSizeMB =
         AttachmentSettings.defaultMaximumSizeMB
+    /// Initial Markdown template applied when users create a new note.
+    @AppStorage(NoteSettingKey.startNewNoteWith) private var startNewNoteWith =
+        NoteStartContent.defaultValue.rawValue
 
     #if os(iOS)
     @State private var presentedFontSelection: FontSelection?
@@ -105,6 +108,7 @@ struct SettingsView: View {
         switch category {
         case .general:
             GeneralSettingsDetailView(
+                startNewNoteWith: $startNewNoteWith,
                 maximumAttachmentSizeMB: $maximumAttachmentSizeMB,
                 showsHeader: showsHeader
             )
@@ -188,7 +192,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable, Hashable {
     var description: String {
         switch self {
         case .general:
-            "Configure common note and attachment behavior."
+            "Configure common note and attachment behaviour."
         case .appearance:
             "Choose how notes look while editing and previewing."
         case .about:
@@ -247,6 +251,7 @@ private struct SettingsHeaderView: View {
 
 /// Contains general storage, attachment, and behavior preferences.
 private struct GeneralSettingsDetailView: View {
+    @Binding var startNewNoteWith: String
     @Binding var maximumAttachmentSizeMB: Int
     let showsHeader: Bool
 
@@ -255,6 +260,18 @@ private struct GeneralSettingsDetailView: View {
             if showsHeader {
                 SettingsHeaderView(category: .general)
                     .settingsHeaderFormRow()
+            }
+
+            Section {
+                Picker("Start New Note With", selection: $startNewNoteWith) {
+                    ForEach(NoteStartContent.allCases) { option in
+                        Text(option.title)
+                            .tag(option.rawValue)
+                    }
+                }
+                .pickerStyle(.menu)
+            } header: {
+                Text("Notes")
             }
 
             Section {

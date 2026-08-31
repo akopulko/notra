@@ -20,6 +20,8 @@ final class MarkdownTextEditorBridge {
     var applyFormattingCommand: ((NoteFormattingCommand) -> Void)?
     /// Applies a selected heading level from the native menu or accessory toolbar.
     var applyHeading: ((MarkdownHeadingLevel) -> Void)?
+    /// Requests the parent SwiftUI view to present the platform attachment picker.
+    var requestAttachmentSelection: (() -> Void)?
     /// Consumes a newline when it commits a standalone tag entry.
     var commitTagEntry: ((MarkdownEditorSelectionSnapshot) -> Bool)?
 }

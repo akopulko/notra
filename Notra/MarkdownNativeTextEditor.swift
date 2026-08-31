@@ -44,13 +44,19 @@ extension MarkdownNativeTextEditor {
 
         private let applyHeading: (MarkdownHeadingLevel) -> Void
         private let applyFormatting: (NoteFormattingCommand) -> Void
+        private let choosePhoto: () -> Void
+        private let attachFile: () -> Void
 
         init(
             applyHeading: @escaping (MarkdownHeadingLevel) -> Void,
-            applyFormatting: @escaping (NoteFormattingCommand) -> Void
+            applyFormatting: @escaping (NoteFormattingCommand) -> Void,
+            choosePhoto: @escaping () -> Void,
+            attachFile: @escaping () -> Void
         ) {
             self.applyHeading = applyHeading
             self.applyFormatting = applyFormatting
+            self.choosePhoto = choosePhoto
+            self.attachFile = attachFile
             super.init(frame: CGRect(x: 0, y: 0, width: 320, height: Self.intrinsicHeight))
             setUp()
         }
@@ -96,6 +102,7 @@ extension MarkdownNativeTextEditor {
             for command in formattingCommands {
                 stackView.addArrangedSubview(makeFormattingButton(for: command))
             }
+            stackView.addArrangedSubview(makeAttachmentMenuButton())
 
             NSLayoutConstraint.activate([
                 glassView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Self.horizontalMargin),
@@ -116,7 +123,7 @@ extension MarkdownNativeTextEditor {
 
         /// Uses the same command ordering as the editor menu and SwiftUI toolbar.
         private var formattingCommands: [NoteFormattingCommand] {
-            NoteFormattingCommand.editorMenuCommands
+            NoteFormattingCommand.keyboardAccessoryCommands
         }
 
         private func makeHeadingButton() -> UIButton {
@@ -148,6 +155,32 @@ extension MarkdownNativeTextEditor {
             )
             return button
         }
+
+        private func makeAttachmentMenuButton() -> UIButton {
+            let button = UIButton(type: .system)
+            button.setImage(UIImage(systemName: "paperclip"), for: .normal)
+            button.accessibilityLabel = "Attachments"
+            button.accessibilityHint = "Choose a photo or attach a file"
+            button.tintColor = .label
+            button.menu = UIMenu(
+                children: AttachmentKeyboardMenuItem.allCases.map { item in
+                    UIAction(title: item.title, image: UIImage(systemName: item.systemImage)) { [weak self] _ in
+                        self?.performAttachmentMenuItem(item)
+                    }
+                }
+            )
+            button.showsMenuAsPrimaryAction = true
+            return button
+        }
+
+        private func performAttachmentMenuItem(_ item: AttachmentKeyboardMenuItem) {
+            switch item {
+            case .choosePhoto:
+                choosePhoto()
+            case .attachFile:
+                attachFile()
+            }
+        }
     }
 
     /// Bridges UITextView delegate events to the shared SwiftUI editor bridge.
@@ -160,6 +193,7 @@ extension MarkdownNativeTextEditor {
         private var lastFont: UIFont?
         private var lastTheme: MarkdownHighlightTheme?
         private var pendingProgrammaticSelection: MarkdownEditorSelectionSnapshot?
+        private var pendingTextEdit: MarkdownTextEdit?
 
         init(parent: MarkdownNativeTextEditor) {
             self.parent = parent
@@ -207,24 +241,27 @@ extension MarkdownNativeTextEditor {
             shouldChangeTextIn range: NSRange,
             replacementText text: String
         ) -> Bool {
+            let edit = MarkdownTextEdit(range: range, replacementUTF16Length: text.utf16.count)
             guard text == "\n",
                   range.length == 0,
                   textView.markedTextRange == nil,
                   let snapshot = selectionSnapshot(from: range),
                   parent.bridge.commitTagEntry?(snapshot) == true
             else {
+                pendingTextEdit = edit
                 return true
             }
 
+            pendingTextEdit = nil
             return false
         }
 
         func textView(
             _: UITextView,
             editMenuForTextInRanges _: [NSValue],
-            suggestedActions _: [UIMenuElement]
+            suggestedActions: [UIMenuElement]
         ) -> UIMenu? {
-            var children: [UIMenuElement] = buildEditActions()
+            var children = suggestedActions
             children.append(contentsOf: buildFormattingMenu())
             return UIMenu(children: children)
         }
@@ -251,6 +288,12 @@ extension MarkdownNativeTextEditor {
                 },
                 applyFormatting: { [weak self] command in
                     self?.parent.bridge.applyFormattingCommand?(command)
+                },
+                choosePhoto: { [weak self] in
+                    self?.parent.bridge.applyFormattingCommand?(.image)
+                },
+                attachFile: { [weak self] in
+                    self?.parent.bridge.requestAttachmentSelection?()
                 }
             )
             accessoryContainer = container
@@ -275,42 +318,6 @@ extension MarkdownNativeTextEditor {
             }
             parent.bridge.refreshUndoRedoAvailability = { [weak self] in
                 self?.updateUndoRedoAvailability()
-            }
-        }
-
-        private func buildEditActions() -> [UIMenuElement] {
-            let actions: [(title: String, image: String, selector: Selector)] = [
-                ("Select", "selection.pin.in.out", #selector(UIResponderStandardEditActions.select(_:))),
-                ("Select All", "selection.pin.in.out", #selector(UIResponderStandardEditActions.selectAll(_:))),
-                ("Cut", "scissors", #selector(UIResponderStandardEditActions.cut(_:))),
-                ("Copy", "doc.on.doc", #selector(UIResponderStandardEditActions.copy(_:))),
-                ("Paste", "doc.on.clipboard", #selector(UIResponderStandardEditActions.paste(_:)))
-            ]
-
-            return actions.compactMap { item in
-                guard textView.canPerformAction(item.selector, withSender: nil) else {
-                    return nil
-                }
-                return UIAction(title: item.title, image: UIImage(systemName: item.image)) { [weak self] _ in
-                    self?.performEditAction(item.selector)
-                }
-            }
-        }
-
-        private func performEditAction(_ selector: Selector) {
-            switch selector {
-            case #selector(UIResponderStandardEditActions.select(_:)):
-                textView.select(nil)
-            case #selector(UIResponderStandardEditActions.selectAll(_:)):
-                textView.selectAll(nil)
-            case #selector(UIResponderStandardEditActions.cut(_:)):
-                textView.cut(nil)
-            case #selector(UIResponderStandardEditActions.copy(_:)):
-                textView.copy(nil)
-            case #selector(UIResponderStandardEditActions.paste(_:)):
-                textView.paste(nil)
-            default:
-                break
             }
         }
 
@@ -348,7 +355,9 @@ extension MarkdownNativeTextEditor {
             }
 
             lastText = newText
-            if let changedRange = cache.updateText(newText) {
+            let edit = pendingTextEdit
+            pendingTextEdit = nil
+            if let changedRange = cache.updateText(newText, edit: edit) {
                 cache.applyColors(
                     theme: parent.theme,
                     font: currentFont,
@@ -541,6 +550,7 @@ extension MarkdownNativeTextEditor {
         private var lastFont: NSFont?
         private var lastTheme: MarkdownHighlightTheme?
         private var pendingProgrammaticSelection: MarkdownEditorSelectionSnapshot?
+        private var pendingTextEdit: MarkdownTextEdit?
 
         init(parent: MarkdownNativeTextEditor) {
             self.parent = parent
@@ -589,15 +599,22 @@ extension MarkdownNativeTextEditor {
             shouldChangeTextIn affectedCharRange: NSRange,
             replacementString: String?
         ) -> Bool {
+            let replacement = replacementString ?? ""
+            let edit = MarkdownTextEdit(
+                range: affectedCharRange,
+                replacementUTF16Length: replacement.utf16.count
+            )
             guard replacementString == "\n",
                   affectedCharRange.length == 0,
                   !textView.hasMarkedText(),
                   let snapshot = selectionSnapshot(from: affectedCharRange),
                   parent.bridge.commitTagEntry?(snapshot) == true
             else {
+                pendingTextEdit = edit
                 return true
             }
 
+            pendingTextEdit = nil
             return false
         }
 
@@ -716,7 +733,9 @@ extension MarkdownNativeTextEditor {
             }
 
             lastText = newText
-            if let changedRange = cache.updateText(newText), let storage = textView.textStorage {
+            let edit = pendingTextEdit
+            pendingTextEdit = nil
+            if let changedRange = cache.updateText(newText, edit: edit), let storage = textView.textStorage {
                 applyHighlight(to: storage, lines: changedRange)
             }
             parent.text = newText

@@ -39,11 +39,11 @@ struct NotesSidebar: View {
                 DefaultToolbarItem(kind: .search, placement: .automatic)
             }
             .searchable(text: $searchText, isPresented: searchPresentation, prompt: "Search Notes")
-        #if os(iOS)
+            #if os(iOS)
             .sheet(isPresented: $isSettingsPresented) {
                 SettingsView()
             }
-        #else
+            #else
             .fileExporter(
                 isPresented: Binding(
                     get: { pendingFileExport != nil },
@@ -63,7 +63,7 @@ struct NotesSidebar: View {
                 }
                 pendingFileExport = nil
             }
-        #endif
+            #endif
             .onChange(of: isEditing) {
                 if isEditing {
                     searchText = ""
@@ -95,6 +95,7 @@ struct NotesSidebar: View {
                     Button("Share…", systemImage: "square.and.arrow.up") {
                         sharePDF(note)
                     }
+                    .disabled(isEditing)
                     #if os(macOS)
                     Menu("Export…", systemImage: "arrow.forward.folder.fill") {
                         Button("PDF") {
@@ -104,6 +105,7 @@ struct NotesSidebar: View {
                             exportMarkdown(note)
                         }
                     }
+                    .disabled(isEditing)
                     #endif
                     Divider()
                     Button("Delete", systemImage: "trash", role: .destructive) {
@@ -287,7 +289,7 @@ struct NotesSidebar: View {
         format: NoteExportFormat,
         destination: NoteExportDestination
     ) {
-        guard exportTask == nil else {
+        guard !isEditing, exportTask == nil else {
             return
         }
 

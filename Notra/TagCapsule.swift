@@ -13,6 +13,7 @@ struct TagCapsule: View {
     }
 
     @Environment(\.colorScheme) private var colorScheme
+    @AppStorage(AppearanceSettingKey.previewUsesEditorTheme) private var previewUsesEditorTheme = true
     let tag: NoteTag
     var size: Size = .regular
     var style: Style = .standard
@@ -30,13 +31,13 @@ struct TagCapsule: View {
                         .symbolRenderingMode(.hierarchical)
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(.white)
+                .foregroundStyle(tagColors.foregroundColor)
                 .accessibilityLabel("Remove tag \(tag.displayName)")
             }
 
             Text(tag.prefixedDisplayName)
                 .font(font)
-                .foregroundStyle(.white)
+                .foregroundStyle(tagColors.foregroundColor)
                 .lineLimit(1)
                 .truncationMode(.middle)
         }
@@ -64,7 +65,7 @@ struct TagCapsule: View {
     }
 
     private var backgroundStyle: AnyShapeStyle {
-        AnyShapeStyle(Color.accentColor.opacity(backgroundOpacity))
+        AnyShapeStyle(tagColors.backgroundColor.opacity(backgroundOpacity))
     }
 
     private var strokeStyle: Color {
@@ -77,16 +78,6 @@ struct TagCapsule: View {
             } else {
                 Color.white.opacity(0.3)
             }
-        }
-    }
-
-    /// Preserves each tag presentation's existing transparency while changing the base colour.
-    private var backgroundOpacity: Double {
-        switch style {
-        case .standard:
-            0.82
-        case .previewOverlay:
-            colorScheme == .dark ? 0.58 : 0.72
         }
     }
 
@@ -118,6 +109,24 @@ struct TagCapsule: View {
             0
         case .previewOverlay:
             1
+        }
+    }
+
+    private var tagColors: MarkdownTagColors {
+        guard previewUsesEditorTheme else {
+            return .neutral
+        }
+
+        return MarkdownHighlightTheme.preferred(for: colorScheme).tagColors(for: colorScheme)
+    }
+
+    /// Preserves each tag presentation's original transparency while using the theme colour.
+    private var backgroundOpacity: Double {
+        switch style {
+        case .standard:
+            0.82
+        case .previewOverlay:
+            colorScheme == .dark ? 0.58 : 0.72
         }
     }
 
