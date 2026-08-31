@@ -117,7 +117,7 @@ private struct NoteRowTagsLine: View {
             }
             tagsStack(tags: [], showsOverflow: true)
         }
-        .font(.body)
+        .font(.caption2)
         .lineLimit(1)
     }
 
