@@ -171,7 +171,20 @@ enum MarkdownFormatting {
 
     /// Prefixes selected lines with unchecked task-list markers.
     static func applyTodoResult(to text: String, selection: Range<String.Index>) -> MarkdownFormattingResult {
-        applyLinePrefixResult(to: text, selection: selection, prefix: "- [ ] ")
+        if selection.isEmpty {
+            return resultPrefixingTodoContainingLine(
+                in: text,
+                cursor: selection.lowerBound
+            )
+        }
+
+        let lineRange = expandedSelectedLineRange(in: text, for: selection)
+        let lines = String(text[lineRange]).split(separator: "\n", omittingEmptySubsequences: false)
+        let replacement = lines
+            .map { todoLineTransformation(for: $0).text }
+            .joined(separator: "\n")
+
+        return resultReplacingLineRange(lineRange, in: text, with: replacement)
     }
 
     /// Replaces heading syntax on each selected line with the requested level.
@@ -367,6 +380,122 @@ enum MarkdownFormatting {
         }
 
         return text[text.index(before: index)] != "\n"
+    }
+}
+
+private extension MarkdownFormatting {
+    /// Applies task syntax to one line while preserving existing task markers and bare list markers.
+    static func resultPrefixingTodoContainingLine(
+        in text: String,
+        cursor: String.Index
+    ) -> MarkdownFormattingResult {
+        let lineRange = lineRange(in: text, containing: cursor)
+        let line = text[lineRange]
+
+        guard !hasTaskMarker(line) else {
+            return MarkdownFormattingResult(text: text, selection: cursor..<cursor)
+        }
+
+        let transformation = todoLineTransformation(for: line)
+        var result = text
+        result.replaceSubrange(lineRange, with: transformation.text)
+
+        let lineStartOffset = text.distance(from: text.startIndex, to: lineRange.lowerBound)
+        let cursorOffsetInLine = text.distance(from: lineRange.lowerBound, to: cursor)
+        let replacementCursorOffsetInLine = cursorOffsetInLine <= transformation.consumedPrefixLength
+            ? todoPrefix.count
+            : todoPrefix.count + cursorOffsetInLine - transformation.consumedPrefixLength
+        let cursorOffset = lineStartOffset + replacementCursorOffsetInLine
+        let adjustedCursor = result.index(result.startIndex, offsetBy: cursorOffset)
+
+        return MarkdownFormattingResult(text: result, selection: adjustedCursor..<adjustedCursor)
+    }
+
+    /// Replaces a bare unindented list marker without treating it as task content.
+    static func todoLineTransformation(for line: Substring) -> TodoLineTransformation {
+        guard !hasTaskMarker(line) else {
+            return TodoLineTransformation(text: String(line), consumedPrefixLength: 0)
+        }
+
+        guard let markerEnd = bareListMarkerEnd(in: line) else {
+            return TodoLineTransformation(text: "\(todoPrefix)\(line)", consumedPrefixLength: 0)
+        }
+
+        return TodoLineTransformation(
+            text: "\(todoPrefix)\(line[markerEnd...])",
+            consumedPrefixLength: line.distance(from: line.startIndex, to: markerEnd)
+        )
+    }
+
+    /// Finds a bare list marker at column zero, excluding thematic breaks.
+    static func bareListMarkerEnd(in line: Substring) -> Substring.Index? {
+        guard line.first == "-" else {
+            return nil
+        }
+
+        let markerEnd = line.index(after: line.startIndex)
+        guard markerEnd == line.endIndex || isHorizontalWhitespace(line[markerEnd]) else {
+            return nil
+        }
+
+        guard !isThematicBreak(line) else {
+            return nil
+        }
+
+        var contentStart = markerEnd
+        while contentStart < line.endIndex, isHorizontalWhitespace(line[contentStart]) {
+            contentStart = line.index(after: contentStart)
+        }
+
+        return contentStart
+    }
+
+    /// Keeps checkbox markers unchanged, including Markdown's optional three-space indentation.
+    static func hasTaskMarker(_ line: Substring) -> Bool {
+        var markerStart = line.startIndex
+        var leadingSpaceCount = 0
+        while leadingSpaceCount < 3 && markerStart < line.endIndex && line[markerStart] == " " {
+            leadingSpaceCount += 1
+            markerStart = line.index(after: markerStart)
+        }
+
+        let content = line[markerStart...]
+        for marker in ["- [ ]", "- [x]", "- [X]"] {
+            guard content.hasPrefix(marker) else {
+                continue
+            }
+
+            let suffixStart = content.index(content.startIndex, offsetBy: marker.count)
+            return suffixStart == content.endIndex || isHorizontalWhitespace(content[suffixStart])
+        }
+
+        return false
+    }
+
+    /// Distinguishes hyphen-only thematic breaks from a bare list marker.
+    static func isThematicBreak(_ line: Substring) -> Bool {
+        var hyphenCount = 0
+
+        for character in line {
+            if character == "-" {
+                hyphenCount += 1
+            } else if !isHorizontalWhitespace(character) {
+                return false
+            }
+        }
+
+        return hyphenCount >= 3
+    }
+
+    static func isHorizontalWhitespace(_ character: Character) -> Bool {
+        character == " " || character == "\t"
+    }
+
+    static let todoPrefix = "- [ ] "
+
+    struct TodoLineTransformation {
+        let text: String
+        let consumedPrefixLength: Int
     }
 }
 

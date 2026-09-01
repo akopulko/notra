@@ -501,6 +501,31 @@ struct MarkdownFormattingTests {
         #expect(cursorOffset(in: result) == 11)
     }
 
+    @Test func todoWithoutSelectionReplacesBareDash() {
+        let text = "-"
+        let result = MarkdownFormatting.applyTodoResult(to: text, selection: text.endIndex ..< text.endIndex)
+
+        #expect(result.text == "- [ ] ")
+        #expect(cursorOffset(in: result) == 6)
+    }
+
+    @Test func todoWithoutSelectionReplacesBareDashAndSeparator() {
+        let text = "- Item"
+        let result = MarkdownFormatting.applyTodoResult(to: text, selection: text.endIndex ..< text.endIndex)
+
+        #expect(result.text == "- [ ] Item")
+        #expect(cursorOffset(in: result) == 10)
+    }
+
+    @Test func todoWithoutSelectionMapsCaretAfterConsumedMarker() {
+        let text = "- Item"
+        let cursor = text.index(text.startIndex, offsetBy: 2)
+        let result = MarkdownFormatting.applyTodoResult(to: text, selection: cursor ..< cursor)
+
+        #expect(result.text == "- [ ] Item")
+        #expect(cursorOffset(in: result) == 6)
+    }
+
     @Test func todoWithoutSelectionOnEmptyLineInsertsMarkerAtCursor() {
         let text = ""
         let result = MarkdownFormatting.applyTodoResult(
@@ -534,6 +559,17 @@ struct MarkdownFormattingTests {
         #expect(cursorOffset(in: result) == 37)
     }
 
+    @Test func todoWithMixedMultilineSelectionPreservesTasksAndConsumesBareMarkers() {
+        let text = "- Item\n- [x] Done\nPlain"
+        let result = MarkdownFormatting.applyTodoResult(
+            to: text,
+            selection: text.startIndex ..< text.endIndex
+        )
+
+        #expect(result.text == "- [ ] Item\n- [x] Done\n- [ ] Plain")
+        #expect(cursorOffset(in: result) == 33)
+    }
+
     @Test func todoWithPartialLineSelectionPrefixesWholeLine() {
         let text = "Intro\nApple pie\nOutro"
         let lowerBound = text.range(of: "pie")?.lowerBound ?? text.startIndex
@@ -565,6 +601,71 @@ struct MarkdownFormattingTests {
 
         #expect(result.text == "- [ ] 😀\n- [ ] Note")
         #expect(cursorOffset(in: result) == 18)
+    }
+
+    @Test func todoPreservesExistingTaskMarkers() {
+        for text in ["- [ ] Item", "- [x] Done", "- [X] Done"] {
+            let result = MarkdownFormatting.applyTodoResult(
+                to: text,
+                selection: text.startIndex ..< text.endIndex
+            )
+
+            #expect(result.text == text)
+            #expect(cursorOffset(in: result) == text.count)
+        }
+    }
+
+    @Test func todoPreservesIndentedUncheckedTaskWithEmptySelection() {
+        let text = "  - [ ] Item"
+        let cursor = text.endIndex
+        let result = MarkdownFormatting.applyTodoResult(to: text, selection: cursor ..< cursor)
+
+        #expect(result.text == text)
+        #expect(cursorOffset(in: result) == text.count)
+    }
+
+    @Test func todoPreservesIndentedCheckedTaskWithNonEmptySelection() {
+        let text = "   - [x] Done"
+        let result = MarkdownFormatting.applyTodoResult(
+            to: text,
+            selection: text.startIndex ..< text.endIndex
+        )
+
+        #expect(result.text == text)
+        #expect(cursorOffset(in: result) == text.count)
+    }
+
+    @Test func todoDoesNotConsumeNonListHyphensOrIndentedMarkers() {
+        let cases = [
+            ("-1", "- [ ] -1"),
+            ("A-B", "- [ ] A-B"),
+            ("  - Item", "- [ ]   - Item"),
+            ("- - -", "- [ ] - - -")
+        ]
+
+        for (text, expected) in cases {
+            let result = MarkdownFormatting.applyTodoResult(
+                to: text,
+                selection: text.endIndex ..< text.endIndex
+            )
+
+            #expect(result.text == expected)
+        }
+    }
+
+    @Test func todoFormattingIsIdempotentForBareListItems() {
+        let text = "- Item"
+        let firstResult = MarkdownFormatting.applyTodoResult(
+            to: text,
+            selection: text.startIndex ..< text.endIndex
+        )
+        let secondResult = MarkdownFormatting.applyTodoResult(
+            to: firstResult.text,
+            selection: firstResult.text.startIndex ..< firstResult.text.endIndex
+        )
+
+        #expect(secondResult.text == firstResult.text)
+        #expect(cursorOffset(in: secondResult) == cursorOffset(in: firstResult))
     }
 
     @Test func insertsEmptyTableWithHeader() {
