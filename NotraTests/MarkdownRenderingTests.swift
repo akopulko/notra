@@ -166,6 +166,27 @@ struct MarkdownRenderingTests {
     }
 
     @Test
+    func `formatted bare list item parses as an unchecked task with its paragraph text`() {
+        let text = "- Item"
+        let formatted = MarkdownFormatting.applyTodoResult(
+            to: text,
+            selection: text.startIndex ..< text.endIndex
+        ).text
+        let document = SwiftMarkdownParser().parse(formatted)
+
+        guard case let .unorderedList(_, items) = document.blocks.first,
+              let item = items.first,
+              case let .paragraph(_, inlines) = item.blocks.first
+        else {
+            Issue.record("Expected one unchecked task item")
+            return
+        }
+
+        #expect(item.taskState == .unchecked)
+        #expect(plainText(in: inlines) == "Item")
+    }
+
+    @Test
     func `compacts a paragraph directly followed by a list`() {
         let document = SwiftMarkdownParser().parse("""
         User can:

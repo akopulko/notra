@@ -21,10 +21,7 @@ struct NoteRow: View {
             VStack(alignment: .leading, spacing: 6) {
                 previewText
                 HStack(spacing: 4) {
-                    Text(
-                        sortField == .dateCreated ? note.createdAt : note.modifiedAt,
-                        format: .dateTime.month().day().year().hour().minute()
-                    )
+                    dateText
                     if note.attachmentSummary.showsPaperclip {
                         Image(systemName: "paperclip")
                             .imageScale(.small)
@@ -68,6 +65,23 @@ struct NoteRow: View {
                 .lineLimit(previewLineLimit)
                 .truncationMode(.tail)
         }
+    }
+
+    @ViewBuilder
+    private var dateText: some View {
+        if previewUsesEditorTheme {
+            formattedDate
+                .foregroundStyle(theme.noteListDateColor)
+        } else {
+            formattedDate
+        }
+    }
+
+    private var formattedDate: some View {
+        Text(
+            sortField == .dateCreated ? note.createdAt : note.modifiedAt,
+            format: .dateTime.month().day().year().hour().minute()
+        )
     }
 
     private var tagColors: MarkdownTagColors {
@@ -117,7 +131,7 @@ private struct NoteRowTagsLine: View {
             }
             tagsStack(tags: [], showsOverflow: true)
         }
-        .font(.body)
+        .font(.caption2)
         .lineLimit(1)
     }
 

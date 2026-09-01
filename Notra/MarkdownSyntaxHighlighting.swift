@@ -206,6 +206,15 @@ struct MarkdownHighlightTheme: Equatable {
         heading
     }
 
+    /// Uses the theme's link colour for note-list dates when preview theming is enabled.
+    var noteListDateColor: Color {
+        noteListDateSyntaxColor.color
+    }
+
+    var noteListDateSyntaxColor: MarkdownSyntaxColor {
+        link
+    }
+
     /// Maps a Markdown role to its palette color, delegating fenced-code roles to `codeColor`.
     func color(for role: MarkdownHighlightRole) -> MarkdownSyntaxColor {
         if let codeRole = role.codeRole {

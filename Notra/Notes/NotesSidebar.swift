@@ -126,6 +126,9 @@ struct NotesSidebar: View {
             }
         }
         .listStyle(.sidebar)
+        #if os(iOS)
+        .toolbarTitleDisplayMode(.inline)
+        #endif
         .scrollContentBackground(.hidden)
         .background(.ultraThinMaterial)
         .overlay {

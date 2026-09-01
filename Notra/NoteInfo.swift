@@ -49,17 +49,22 @@ struct NoteInfo: Equatable, Sendable {
     let modifiedAt: Date
     /// Human-readable local or iCloud location label.
     let location: String
-    /// TextBundle filename shown in the inspector.
-    let filename: String
+    /// Canonical TextBundle URL used for file actions and display projections.
+    let fileURL: URL
     /// Total bytes occupied by the bundle and its assets.
     let byteCount: Int64
+
+    /// TextBundle filename derived from the canonical URL so it cannot drift from the file action target.
+    var filename: String {
+        fileURL.lastPathComponent
+    }
 
     init(summary: NoteSummary, markdown: String, location: String, byteCount: Int64) {
         statistics = NoteStatistics(markdown: markdown)
         createdAt = summary.createdAt
         modifiedAt = summary.modifiedAt
         self.location = location
-        filename = summary.url.lastPathComponent
+        fileURL = summary.url
         self.byteCount = byteCount
     }
 }

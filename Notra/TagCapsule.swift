@@ -56,11 +56,11 @@ struct TagCapsule: View {
     private var font: Font {
         switch (style, size) {
         case (.previewOverlay, _):
-            .callout
+            .caption2
         case (.standard, .compact):
-            .body.weight(.medium)
+            .caption2.weight(.medium)
         case (.standard, .regular):
-            .callout.weight(.medium)
+            .caption2.weight(.medium)
         }
     }
 
