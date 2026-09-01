@@ -122,6 +122,11 @@ struct MarkdownSyntaxHighlightingTests {
         #expect(MarkdownHighlightTheme.light.noteListTitleSyntaxColor == MarkdownHighlightTheme.light.heading)
     }
 
+    @Test func noteListDateColorFollowsThemeLinkColor() {
+        #expect(MarkdownHighlightTheme.tokyoNight.noteListDateSyntaxColor == MarkdownHighlightTheme.tokyoNight.link)
+        #expect(MarkdownHighlightTheme.light.noteListDateSyntaxColor == MarkdownHighlightTheme.light.link)
+    }
+
     @Test func highlightsTableHeaderDelimiterAndBodyRows() {
         let markdown = """
         | Name | Type |
