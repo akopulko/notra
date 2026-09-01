@@ -30,9 +30,12 @@ struct NoteInfoTests {
         #expect(NoteStatistics(markdown: twoHundredAndOneWords).readingTimeMinutes == 2)
     }
 
-    @Test func noteInfoUsesTextBundleMetadata() {
+    @Test func noteInfoProjectsURLAndDerivesFilenameFromTextBundleMetadata() {
+        let noteURL = URL(
+            fileURLWithPath: "/tmp/a-very-long-project-review.notes.v2.textbundle"
+        )
         let summary = NoteSummary(
-            url: URL(fileURLWithPath: "/tmp/example.textbundle"),
+            url: noteURL,
             previewText: "Example",
             createdAt: Date(timeIntervalSince1970: 100),
             modifiedAt: Date(timeIntervalSince1970: 200)
@@ -45,7 +48,8 @@ struct NoteInfoTests {
         )
 
         #expect(info.location == "On My Phone/Notra")
-        #expect(info.filename == summary.url.lastPathComponent)
+        #expect(info.fileURL == summary.url)
+        #expect(info.filename == "a-very-long-project-review.notes.v2.textbundle")
         #expect(info.byteCount == 1234)
         #expect(info.createdAt == summary.createdAt)
         #expect(info.modifiedAt == summary.modifiedAt)

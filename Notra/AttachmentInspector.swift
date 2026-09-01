@@ -21,7 +21,13 @@ struct AttachmentInspectorView: View {
         List(selection: $selectedAttachmentURL) {
             if let info = store.selectedNoteInfo {
                 Section {
+                    #if os(macOS)
+                    NoteInfoView(info: info) {
+                        NSWorkspace.shared.activateFileViewerSelecting([info.fileURL])
+                    }
+                    #else
                     NoteInfoView(info: info)
+                    #endif
                 } header: {
                     sectionHeader("Note Info")
                 }
