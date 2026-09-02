@@ -22,6 +22,7 @@ struct NoteRow: View {
                 previewText
                 HStack(spacing: 4) {
                     dateText
+                        .font(.caption2)
                     if note.attachmentSummary.showsPaperclip {
                         Image(systemName: "paperclip")
                             .imageScale(.small)
