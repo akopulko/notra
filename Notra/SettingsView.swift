@@ -24,9 +24,7 @@ struct SettingsView: View {
     @AppStorage(NoteSettingKey.startNewNoteWith) private var startNewNoteWith =
         NoteStartContent.defaultValue.rawValue
 
-    #if os(iOS)
-    @State private var presentedFontSelection: FontSelection?
-    #elseif os(macOS)
+    #if os(macOS)
     @State private var selectedCategory = SettingsCategory.general
     #endif
 
@@ -57,13 +55,6 @@ struct SettingsView: View {
                         dismiss()
                     }
                 }
-            }
-            .sheet(item: $presentedFontSelection) { selection in
-                NativeFontPicker(
-                    fontName: binding(for: selection),
-                    fontSize: sizeBinding(for: selection)?.wrappedValue,
-                    fixedPitchOnly: selection.fixedPitchOnly
-                )
             }
         }
         .presentationDetents([.fraction(0.82), .large])
@@ -118,41 +109,10 @@ struct SettingsView: View {
                 editorFontSize: $editorFontSize,
                 previewFontName: $previewFontName,
                 previewUsesEditorTheme: $previewUsesEditorTheme,
-                showsHeader: showsHeader,
-                showFontSelection: showFontSelection
+                showsHeader: showsHeader
             )
         case .about:
             AboutSettingsDetailView(info: .current, showsHeader: showsHeader)
-        }
-    }
-
-    private func showFontSelection(_ selection: FontSelection) {
-        #if os(iOS)
-        presentedFontSelection = selection
-        #elseif os(macOS)
-        NativeFontPanelController.shared.show(
-            selection: binding(for: selection),
-            size: sizeBinding(for: selection),
-            fixedPitchOnly: selection.fixedPitchOnly
-        )
-        #endif
-    }
-
-    private func binding(for selection: FontSelection) -> Binding<String> {
-        switch selection {
-        case .editor:
-            $editorFontName
-        case .preview:
-            $previewFontName
-        }
-    }
-
-    private func sizeBinding(for selection: FontSelection) -> Binding<Double>? {
-        switch selection {
-        case .editor:
-            $editorFontSize
-        case .preview:
-            nil
         }
     }
 }
@@ -310,7 +270,6 @@ private struct AppearanceSettingsDetailView: View {
     @Binding var previewFontName: String
     @Binding var previewUsesEditorTheme: Bool
     let showsHeader: Bool
-    let showFontSelection: (FontSelection) -> Void
 
     var body: some View {
         Form {
@@ -320,88 +279,58 @@ private struct AppearanceSettingsDetailView: View {
             }
 
             Section {
-                SettingsFontRow(
-                    title: "Editor Font",
-                    fontName: editorFontName,
-                    fontSize: editorFontSize,
-                    showsSize: true
-                ) {
-                    showFontSelection(.editor)
+                Picker("Editor Font", selection: $editorFontName) {
+                    fontChoices(fixedPitchOnly: true)
                 }
+                #if os(macOS)
+                .pickerStyle(.menu)
+                #else
+                .pickerStyle(.navigationLink)
+                #endif
 
                 Stepper(value: $editorFontSize, in: 12...28, step: 1) {
-                    LabeledContent("Editor Size") {
+                    LabeledContent("Editor Font Size") {
                         Text(editorFontSize.formatted(.number.precision(.fractionLength(0))) + " pt")
                     }
                 }
 
-                SettingsFontRow(
-                    title: "Preview Font",
-                    fontName: previewFontName,
-                    fontSize: AppearanceFont.defaultSize,
-                    showsSize: false
-                ) {
-                    showFontSelection(.preview)
+                Picker("Preview Font", selection: $previewFontName) {
+                    fontChoices(fixedPitchOnly: false)
                 }
+                #if os(macOS)
+                .pickerStyle(.menu)
+                #else
+                .pickerStyle(.navigationLink)
+                #endif
             } header: {
                 Text("Fonts")
             }
 
             Section {
-                Toggle("Use Editor Theme in Preview", isOn: $previewUsesEditorTheme)
+                Toggle("Apply Editor Theme Colors to Preview and UI", isOn: $previewUsesEditorTheme)
             } header: {
                 Text("Preview")
             }
         }
         .settingsDetailFormStyle()
         .settingsDetailNavigationTitle(SettingsCategory.appearance.title)
-    }
-}
-
-/// Displays one font preference and routes selection to the native picker where available.
-private struct SettingsFontRow: View {
-    let title: String
-    let fontName: String
-    let fontSize: Double
-    let showsSize: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .foregroundStyle(.primary)
-                    Text(displayName)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer()
-
-                Text("Select")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-
-                Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(.tertiary)
-            }
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(title)
-        .accessibilityValue(displayName)
+        .onAppear(perform: normaliseFontSelections)
     }
 
-    private var displayName: String {
-        let name = fontName.isEmpty ? AppearanceFont.defaultDisplayName : fontName
-
-        guard showsSize else {
-            return name
+    private func fontChoices(fixedPitchOnly: Bool) -> some View {
+        ForEach(AppearanceFont.availableChoices(fixedPitchOnly: fixedPitchOnly)) { choice in
+            Text(choice.displayName)
+                .tag(choice.fontName)
         }
+    }
 
-        return "\(name), \(fontSize.formatted(.number.precision(.fractionLength(0...1)))) pt"
+    /// Keeps persisted names valid when a previously selected system font is removed.
+    private func normaliseFontSelections() {
+        let editorChoices = AppearanceFont.availableChoices(fixedPitchOnly: true)
+        let previewChoices = AppearanceFont.availableChoices(fixedPitchOnly: false)
+
+        editorFontName = AppearanceFont.resolvedName(editorFontName, choices: editorChoices)
+        previewFontName = AppearanceFont.resolvedName(previewFontName, choices: previewChoices)
     }
 }
 
@@ -449,19 +378,6 @@ private struct AppAboutInfo {
 
     var versionDisplay: String {
         "Version \(version) (\(build))"
-    }
-}
-
-private enum FontSelection: String, Identifiable {
-    case editor
-    case preview
-
-    var id: String {
-        rawValue
-    }
-
-    var fixedPitchOnly: Bool {
-        self == .editor
     }
 }
 
