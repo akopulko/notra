@@ -59,6 +59,33 @@ struct MarkdownRenderingTests {
         #expect(html.contains("class=\"code-constant\" style=\"color:#f7768e\">true</span>"))
     }
 
+    @Test func checkedTaskCheckboxesUseThePreviewItalicColour() {
+        let document = SwiftMarkdownParser().parse("- [x] Done")
+        var darkRenderer = MarkdownHTMLRenderer(
+            style: .notra(previewFontName: AppearanceFont.defaultName, theme: .dark),
+            mode: .preview,
+            context: .empty
+        )
+        var lightRenderer = MarkdownHTMLRenderer(
+            style: .notra(previewFontName: AppearanceFont.defaultName, theme: .light),
+            mode: .preview,
+            context: .empty
+        )
+        var pdfRenderer = MarkdownHTMLRenderer(
+            style: .notra(previewFontName: AppearanceFont.defaultName, renderMode: .pdf),
+            mode: .pdf,
+            context: .empty
+        )
+
+        let darkHTML = darkRenderer.render(document).html
+        let lightHTML = lightRenderer.render(document).html
+        let pdfHTML = pdfRenderer.render(document).html
+
+        #expect(darkHTML.contains("accent-color: \(MarkdownTheme.dark.preview.italic.hex)"))
+        #expect(lightHTML.contains("accent-color: \(MarkdownTheme.light.preview.italic.hex)"))
+        #expect(!pdfHTML.contains("accent-color:"))
+    }
+
     @Test func previewConstrainsWideContentWithoutChangingPDFLayout() {
         let longToken = String(repeating: "unbroken", count: 64)
         let document = SwiftMarkdownParser().parse("Preview `\(longToken)`")

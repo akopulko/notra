@@ -451,6 +451,7 @@ struct NotePDFExporterTests {
             width: maximumX - minimumX + 1,
             height: maximumY - minimumY + 1
         )
+    }
 }
 
 /// Creates isolated temporary export inputs and removes generated files after each test.

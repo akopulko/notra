@@ -78,6 +78,7 @@ private extension MarkdownHTMLRenderer {
         li::marker { color: \(theme.listMarker); }
         .task-item { list-style: none; }
         .task-checkbox { margin: 0 6px 0 0; vertical-align: baseline; }
+        \(taskCheckboxRules(theme: theme))
         blockquote { border-left: 4px solid \(theme.quoteAccent); color: \(theme.quoteText); margin: 0 0 16px; padding-left: 12px; }
         a { color: \(theme.linkText); } code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
         strong { color: \(theme.boldText); } em { color: \(theme.italicText); } del { color: \(theme.strikethroughText); }
@@ -130,6 +131,15 @@ private extension MarkdownHTMLRenderer {
         table { width: 100%; max-width: 100%; table-layout: fixed; }
         th, td { overflow-wrap: anywhere; }
         """
+    }
+
+    func taskCheckboxRules(theme: MarkdownWebTheme) -> String {
+        guard mode == .preview else {
+            return ""
+        }
+
+        // Native checkbox controls otherwise use the operating system accent colour instead of the preview theme.
+        return ".task-checkbox:checked { accent-color: \(theme.italicText); }"
     }
 
     var pdfLayoutRules: String {
