@@ -35,8 +35,9 @@ struct MarkdownHTMLRenderer {
     /// Builds a full document so WebKit owns one continuous selection and print layout surface.
     mutating func render(_ document: NotraMarkdownDocument) -> MarkdownHTMLDocument {
         let content = document.blocks.map { render($0) }.joined(separator: "\n")
+        let head = "<meta charset=\"utf-8\">\(viewportMetadata)\(stylesheet)"
         return MarkdownHTMLDocument(
-            html: "<!doctype html><html><head><meta charset=\"utf-8\">\(stylesheet)</head><body>\(content)</body></html>",
+            html: "<!doctype html><html><head>\(head)</head><body>\(content)</body></html>",
             assets: assets,
             attachments: attachments,
             includedImageURLs: includedImageURLs
@@ -45,6 +46,15 @@ struct MarkdownHTMLRenderer {
 }
 
 private extension MarkdownHTMLRenderer {
+    var viewportMetadata: String {
+        guard mode == .preview else {
+            return ""
+        }
+
+        // Match CSS pixels to the iOS viewport so WebKit does not scale a desktop-width page into the preview.
+        return "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
+    }
+
     var stylesheet: String {
         let theme = MarkdownWebTheme(theme: style.codeSyntaxTheme)
         let fontFamily = cssString(style.previewFontName.isEmpty ? "-apple-system" : style.previewFontName)

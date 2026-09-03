@@ -59,6 +59,18 @@ struct MarkdownRenderingTests {
         #expect(html.contains("class=\"code-constant\" style=\"color:#f7768e\">true</span>"))
     }
 
+    @Test func previewUsesTheDeviceViewportWithoutChangingPDFLayout() {
+        let document = SwiftMarkdownParser().parse("Preview text")
+        let style = MarkdownStyle.notra(previewFontName: AppearanceFont.defaultName)
+        var previewRenderer = MarkdownHTMLRenderer(style: style, mode: .preview, context: .empty)
+        var pdfRenderer = MarkdownHTMLRenderer(style: style, mode: .pdf, context: .empty)
+
+        let viewport = "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
+
+        #expect(previewRenderer.render(document).html.contains(viewport))
+        #expect(!pdfRenderer.render(document).html.contains(viewport))
+    }
+
     @Test func previewCodeSyntaxThemeFollowsThePreviewThemeOption() {
         let themedPreview = MarkdownStyle.notra(
             previewFontName: AppearanceFont.defaultName,
