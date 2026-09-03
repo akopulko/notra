@@ -7,8 +7,6 @@ struct NotePDFSnapshot: Equatable, Sendable {
     let markdown: String
     let noteURL: URL
     let previewFontName: String
-    let previewUsesEditorTheme: Bool
-    let isDarkMode: Bool
     let suggestedFilename: String
 }
 
@@ -23,17 +21,15 @@ enum NotePDFExporterError: Error {
 struct NotePDFExporter {
     static let pageSize = CGSize(width: 595.2756, height: 841.8898)
     static let pageMargin: CGFloat = 48
+    /// Bounds an unavailable web image without delaying resources that are already ready.
+    static let remoteImageLoadTimeoutMilliseconds = 15000
 
     /// Generates WebKit PDF data only after the isolated HTML document has completed loading.
     func export(snapshot: NotePDFSnapshot) async throws -> NotePDFShareItem {
         let context = MarkdownRenderContext.textBundle(noteURL: snapshot.noteURL)
         let document = SwiftMarkdownParser().parse(snapshot.markdown)
-        let theme = snapshot.previewUsesEditorTheme
-            ? (snapshot.isDarkMode ? MarkdownTheme.dark : MarkdownTheme.light)
-            : nil
         let style = MarkdownStyle.notra(
             previewFontName: snapshot.previewFontName,
-            theme: theme,
             renderMode: .pdf
         )
         var htmlRenderer = MarkdownHTMLRenderer(style: style, mode: .pdf, context: context)
@@ -70,7 +66,7 @@ struct NotePDFExporter {
 }
 
 private extension NotePDFExporter {
-    /// Uses an off-screen A4 viewport so printed CSS and the PDF media box share fixed dimensions.
+    /// Loads the preview HTML in an isolated WebKit view before browser-based A4 pagination and capture.
     func render(_ document: MarkdownHTMLDocument) async throws -> Data {
         let assetHandler = MarkdownWebAssetHandler()
         assetHandler.update(document.assets)
@@ -86,7 +82,48 @@ private extension NotePDFExporter {
         try await loader.load(document.html, in: webView)
 
         do {
-            return try await webView.pdf()
+            // Navigation completion can precede remote image decoding, so settle each web image before measuring pages.
+            _ = try await webView.callAsyncJavaScript(
+                """
+                await document.fonts.ready;
+                const remoteImages = Array.from(document.images).filter(image => {
+                    const source = image.currentSrc || image.src;
+                    return source.startsWith('http://') || source.startsWith('https://');
+                });
+                await Promise.all(remoteImages.map(image => new Promise(resolve => {
+                    var settled = false;
+                    const settle = () => {
+                        if (settled) { return; }
+                        settled = true;
+                        clearTimeout(timeout);
+                        resolve();
+                    };
+                    const timeout = setTimeout(settle, timeoutMilliseconds);
+                    image.addEventListener('load', settle, { once: true });
+                    image.addEventListener('error', settle, { once: true });
+                    if (image.complete) { settle(); }
+                })));
+                await Promise.all(remoteImages.map(async image => {
+                    if (!image.complete || image.naturalWidth === 0) { return; }
+                    await new Promise(resolve => {
+                        const timeout = setTimeout(resolve, timeoutMilliseconds);
+                        image.decode().then(
+                            () => { clearTimeout(timeout); resolve(); },
+                            () => { clearTimeout(timeout); resolve(); }
+                        );
+                    });
+                }));
+                return document.documentElement.scrollHeight;
+                """,
+                arguments: [
+                    "timeoutMilliseconds": Self.remoteImageLoadTimeoutMilliseconds
+                ],
+                contentWorld: .page
+            )
+            return try await NotePDFPrintRenderer.render(
+                webView: webView,
+                pageSize: Self.pageSize
+            )
         } catch {
             throw NotePDFExporterError.unableToCreatePDF
         }

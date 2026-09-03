@@ -167,23 +167,11 @@ struct MarkdownSyntaxHighlightingTests {
         #expect(MarkdownTheme.preferred(for: .light) == .light)
     }
 
-    @Test func tagColorsFollowSharedPalette() {
-        #expect(MarkdownTheme.dark.tagColors(for: .dark).background == MarkdownPalette.dark.green)
-        #expect(MarkdownTheme.light.tagColors(for: .light).background == MarkdownPalette.light.green)
-        #expect(MarkdownTheme.dark.tagColors(for: .dark).foreground == MarkdownPalette.dark.background)
-        #expect(MarkdownTheme.light.tagColors(for: .light).foreground == MarkdownPalette.light.surface)
-        #expect(MarkdownTagColors.neutral.background.hex == "#6B7280")
-        #expect(MarkdownTagColors.neutral.foreground.hex == "#D1D5DB")
-    }
-
-    @Test func noteListTitleColorFollowsThemeHeadingColor() {
-        #expect(MarkdownTheme.dark.noteListTitleColor == MarkdownTheme.dark.preview.headingPrimary.color)
-        #expect(MarkdownTheme.light.noteListTitleColor == MarkdownTheme.light.preview.headingPrimary.color)
-    }
-
-    @Test func noteListDateColorFollowsThemeLinkColor() {
-        #expect(MarkdownTheme.dark.noteListDateColor == MarkdownTheme.dark.preview.link.color)
-        #expect(MarkdownTheme.light.noteListDateColor == MarkdownTheme.light.preview.link.color)
+    @Test func previewHashtagColorsFollowBoldThemeRole() {
+        #expect(MarkdownTheme.dark.previewHashtagColors.background == MarkdownTheme.dark.preview.bold)
+        #expect(MarkdownTheme.light.previewHashtagColors.background == MarkdownTheme.light.preview.bold)
+        #expect(MarkdownTheme.dark.previewHashtagColors.foreground == MarkdownPalette.dark.background)
+        #expect(MarkdownTheme.light.previewHashtagColors.foreground == MarkdownPalette.light.surface)
     }
 
     @Test func highlightsTableHeaderDelimiterAndBodyRows() {

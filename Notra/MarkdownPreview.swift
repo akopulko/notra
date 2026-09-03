@@ -4,7 +4,7 @@ import SwiftUI
 import AppKit
 #endif
 
-/// Renders parsed Markdown and overlays the selected note's tags when preview mode allows it.
+/// Renders parsed Markdown and overlays the selected note's hashtags.
 struct MarkdownPreview: View {
     @Environment(\.colorScheme) private var colorScheme
     @AppStorage(AppearanceSettingKey.previewFontName) private var previewFontName = AppearanceFont.defaultName
@@ -46,8 +46,12 @@ struct MarkdownPreview: View {
         .notra(
             previewFontName: previewFontName,
             // Preview themes are limited to Markdown text colours; the scroll canvas stays system-owned.
-            theme: previewUsesEditorTheme ? MarkdownTheme.preferred(for: colorScheme) : nil
+            theme: previewTheme
         )
+    }
+
+    private var previewTheme: MarkdownTheme? {
+        previewUsesEditorTheme ? MarkdownTheme.preferred(for: colorScheme) : nil
     }
 
     /// Keeps local attachment activation consistent with the previous native preview.

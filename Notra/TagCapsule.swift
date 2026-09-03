@@ -13,11 +13,22 @@ struct TagCapsule: View {
     }
 
     @Environment(\.colorScheme) private var colorScheme
-    @AppStorage(AppearanceSettingKey.previewUsesEditorTheme) private var previewUsesEditorTheme = true
     let tag: NoteTag
     var size: Size = .regular
     var style: Style = .standard
     var removeAction: (() -> Void)?
+
+    init(
+        tag: NoteTag,
+        size: Size = .regular,
+        style: Style = .standard,
+        removeAction: (() -> Void)? = nil
+    ) {
+        self.tag = tag
+        self.size = size
+        self.style = style
+        self.removeAction = removeAction
+    }
 
     var body: some View {
         HStack(spacing: 6) {
@@ -43,9 +54,9 @@ struct TagCapsule: View {
         }
         .padding(.horizontal, horizontalPadding)
         .padding(.vertical, verticalPadding)
-        .background(backgroundStyle, in: Capsule())
+        .background(backgroundStyle, in: roundedRectangle)
         .overlay {
-            Capsule()
+            roundedRectangle
                 .stroke(strokeStyle, lineWidth: 0.5)
         }
         .shadow(color: shadowColor, radius: shadowRadius, y: shadowY)
@@ -66,6 +77,10 @@ struct TagCapsule: View {
 
     private var backgroundStyle: AnyShapeStyle {
         AnyShapeStyle(tagColors.backgroundColor.opacity(backgroundOpacity))
+    }
+
+    private var roundedRectangle: RoundedRectangle {
+        RoundedRectangle(cornerRadius: style == .previewOverlay ? 4 : 3, style: .continuous)
     }
 
     private var strokeStyle: Color {
@@ -113,38 +128,35 @@ struct TagCapsule: View {
     }
 
     private var tagColors: MarkdownTagColors {
-        guard previewUsesEditorTheme else {
-            return .neutral
-        }
-
-        return MarkdownTheme.preferred(for: colorScheme).tagColors(for: colorScheme)
+        // Hashtags follow the OS appearance, independently of preview body theming.
+        MarkdownTheme.preferred(for: colorScheme).previewHashtagColors
     }
 
-    /// Preserves each tag presentation's original transparency while using the theme colour.
+    /// Keeps overlay hashtags translucent while improving contrast against preview content.
     private var backgroundOpacity: Double {
         switch style {
         case .standard:
-            0.82
+            1
         case .previewOverlay:
-            colorScheme == .dark ? 0.58 : 0.72
+            colorScheme == .dark ? 0.73 : 0.87
         }
     }
 
     private var horizontalPadding: CGFloat {
         switch size {
         case .compact:
-            10
+            8
         case .regular:
-            12
+            10
         }
     }
 
     private var verticalPadding: CGFloat {
         switch size {
         case .compact:
-            5
+            4
         case .regular:
-            6
+            5
         }
     }
 }

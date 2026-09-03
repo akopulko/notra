@@ -3,7 +3,6 @@ import UniformTypeIdentifiers
 
 /// Owns the searchable, sortable note list and its context-menu export actions.
 struct NotesSidebar: View {
-    @Environment(\.colorScheme) private var colorScheme
     @Bindable var store: NotesStore
     let isEditing: Bool
     @Binding var searchText: String
@@ -15,7 +14,6 @@ struct NotesSidebar: View {
     @State private var isLoadingMoreSearchResults = false
     @State private var exportTask: Task<Void, Never>?
     @AppStorage(AppearanceSettingKey.previewFontName) private var previewFontName = AppearanceFont.defaultName
-    @AppStorage(AppearanceSettingKey.previewUsesEditorTheme) private var previewUsesEditorTheme = true
     #if os(iOS)
     @State private var isSettingsPresented = false
     #else
@@ -331,8 +329,6 @@ struct NotesSidebar: View {
             markdown: payload.markdown,
             noteURL: payload.noteURL,
             previewFontName: previewFontName,
-            previewUsesEditorTheme: previewUsesEditorTheme,
-            isDarkMode: colorScheme == .dark,
             suggestedFilename: payload.suggestedFilename
         )
     }

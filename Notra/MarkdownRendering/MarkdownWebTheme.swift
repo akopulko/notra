@@ -30,7 +30,38 @@ struct MarkdownWebTheme {
     let codeAttribute: String
     let codeConstant: String
 
-    init(theme: MarkdownTheme?) {
+    init(theme: MarkdownTheme?, printable: Bool = false) {
+        if printable {
+            bodyText = "#111111"
+            secondaryText = "#555555"
+            headingPrimary = "#111111"
+            headingSecondary = "#222222"
+            headingTertiary = "#333333"
+            boldText = "#111111"
+            italicText = "#333333"
+            strikethroughText = "#555555"
+            linkText = "#1f5fbf"
+            listMarker = "#333333"
+            quoteText = "#555555"
+            quoteAccent = "#888888"
+            border = "#b8b8b8"
+            inlineCodeText = "#222222"
+            inlineCodeBackground = "#f1f1f1"
+            horizontalRule = "#b8b8b8"
+            codeBlockText = "#222222"
+            codeComment = codeBlockText
+            codeKeyword = codeBlockText
+            codeString = codeBlockText
+            codeNumber = codeBlockText
+            codeType = codeBlockText
+            codeFunction = codeBlockText
+            codeOperator = codeBlockText
+            codeTag = codeBlockText
+            codeAttribute = codeBlockText
+            codeConstant = codeBlockText
+            return
+        }
+
         guard let theme else {
             bodyText = "CanvasText"
             secondaryText = "GrayText"

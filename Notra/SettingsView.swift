@@ -15,7 +15,7 @@ struct SettingsView: View {
     @AppStorage(AppearanceSettingKey.editorFontSize) private var editorFontSize = AppearanceFont.defaultSize
     /// Persisted preview font family.
     @AppStorage(AppearanceSettingKey.previewFontName) private var previewFontName = AppearanceFont.defaultName
-    /// Whether preview code follows the editor's selected syntax theme.
+    /// Whether the Markdown preview follows the editor's selected syntax theme.
     @AppStorage(AppearanceSettingKey.previewUsesEditorTheme) private var previewUsesEditorTheme = true
     /// Maximum attachment size enforced before an import reaches storage.
     @AppStorage(AttachmentSettingKey.maximumSizeMB) private var maximumAttachmentSizeMB =
@@ -307,7 +307,7 @@ private struct AppearanceSettingsDetailView: View {
             }
 
             Section {
-                Toggle("Apply Editor Theme Colors to Preview and UI", isOn: $previewUsesEditorTheme)
+                Toggle("Apply Editor Theme Colors to Preview", isOn: $previewUsesEditorTheme)
             } header: {
                 Text("Preview")
             }

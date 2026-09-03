@@ -8,8 +8,6 @@ import PhotosUI
 struct NoteEditorPane: View {
     /// Keeps animated feedback respectful of the user's accessibility preference.
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    /// Drives syntax colors and Markdown preview palette selection.
-    @Environment(\.colorScheme) private var colorScheme
     /// Main-actor store supplying the selected note and editor text.
     @Bindable var store: NotesStore
     /// Parent-owned edit/preview mode shared with the sidebar and floating button.
@@ -27,8 +25,6 @@ struct NoteEditorPane: View {
         AttachmentSettings.defaultMaximumSizeMB
     /// Persisted preview font family.
     @AppStorage(AppearanceSettingKey.previewFontName) private var previewFontName = AppearanceFont.defaultName
-    /// Whether preview code should use the editor's selected syntax theme.
-    @AppStorage(AppearanceSettingKey.previewUsesEditorTheme) private var previewUsesEditorTheme = true
     /// Request counters let the native editor react to repeated identical commands.
     @State private var headingFormattingRequest = MarkdownHeadingFormattingRequest(id: 0, level: .h1)
     @State private var hashtagFormattingRequest = 0
@@ -283,8 +279,6 @@ private extension NoteEditorPane {
             markdown: store.editorText,
             noteURL: noteURL,
             previewFontName: previewFontName,
-            previewUsesEditorTheme: previewUsesEditorTheme,
-            isDarkMode: colorScheme == .dark,
             suggestedFilename: noteSummary.url.lastPathComponent
         )
     }
