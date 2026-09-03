@@ -10,11 +10,11 @@ import UniformTypeIdentifiers
 /// Verifies PDF page geometry, extractable text, formatting, images, and pagination.
 struct NotePDFExporterTests {
     @Test
-    func `exports valid empty PDF with A 4 media box`() throws {
+    func `exports valid empty PDF with A 4 media box`() async throws {
         let fixture = try Fixture()
         defer { fixture.remove() }
 
-        let item = try fixture.export(markdown: "")
+        let item = try await fixture.export(markdown: "")
         defer { removeExport(item) }
 
         let document = try #require(PDFDocument(url: item.fileURL))
@@ -25,12 +25,12 @@ struct NotePDFExporterTests {
     }
 
     @Test
-    func `exports extractable text and paginates long notes`() throws {
+    func `exports extractable text and paginates long notes`() async throws {
         let fixture = try Fixture()
         defer { fixture.remove() }
 
         let markdown = (0..<180).map { "Line \($0): unsaved printable text." }.joined(separator: "\n\n")
-        let item = try fixture.export(markdown: markdown)
+        let item = try await fixture.export(markdown: markdown)
         defer { removeExport(item) }
 
         let document = try #require(PDFDocument(url: item.fileURL))
@@ -42,11 +42,11 @@ struct NotePDFExporterTests {
     }
 
     @Test
-    func `preserves exported text order`() throws {
+    func `preserves exported text order`() async throws {
         let fixture = try Fixture()
         defer { fixture.remove() }
 
-        let item = try fixture.export(markdown: "First string. Second string. Third string.")
+        let item = try await fixture.export(markdown: "First string. Second string. Third string.")
         defer { removeExport(item) }
 
         let document = try #require(PDFDocument(url: item.fileURL))
@@ -54,12 +54,12 @@ struct NotePDFExporterTests {
     }
 
     @Test
-    func `keeps exported images upright`() throws {
+    func `keeps exported images upright`() async throws {
         let fixture = try Fixture()
         defer { fixture.remove() }
         try fixture.writeOrientationMarker(named: "marker.png")
 
-        let item = try fixture.export(markdown: "![Marker](assets/marker.png)")
+        let item = try await fixture.export(markdown: "![Marker](assets/marker.png)")
         defer { removeExport(item) }
 
         let pdf = try #require(CGPDFDocument(item.fileURL as CFURL))
@@ -69,7 +69,7 @@ struct NotePDFExporterTests {
     }
 
     @Test
-    func `includes only decoded local image markdown nodes`() throws {
+    func `includes only decoded local image markdown nodes`() async throws {
         let fixture = try Fixture()
         defer { fixture.remove() }
         try fixture.writeImage(named: "valid.png")
@@ -96,20 +96,20 @@ struct NotePDFExporterTests {
         ![Outside](../outside.png)
         [Ordinary link](assets/unlinked.png)
         """
-        let item = try fixture.export(markdown: markdown)
+        let item = try await fixture.export(markdown: markdown)
         defer { removeExport(item) }
 
         #expect(item.includedImageURLs == [fixture.assetURL(named: "valid.png")])
     }
 
     @Test
-    func `omits non image attachment cards but preserves surrounding text`() throws {
+    func `omits non image attachment cards but preserves surrounding text`() async throws {
         let fixture = try Fixture()
         defer { fixture.remove() }
         try fixture.writeAsset(named: "report.pdf", data: Data("PDF attachment".utf8))
         try fixture.writeImage(named: "unlinked.png")
 
-        let item = try fixture.export(
+        let item = try await fixture.export(
             markdown: "Before [Report](assets/report.pdf) and [Image](assets/unlinked.png) After"
         )
         defer { removeExport(item) }
@@ -234,11 +234,11 @@ struct NotePDFExporterTests {
     }
 
     @Test
-    func `exports current unsaved editor snapshot`() throws {
+    func `exports current unsaved editor snapshot`() async throws {
         let fixture = try Fixture()
         defer { fixture.remove() }
 
-        let item = try fixture.export(markdown: "Unsaved editor text")
+        let item = try await fixture.export(markdown: "Unsaved editor text")
         defer { removeExport(item) }
 
         let document = try #require(PDFDocument(url: item.fileURL))
@@ -315,8 +315,8 @@ private struct Fixture {
         try FileManager.default.createDirectory(at: assetsURL, withIntermediateDirectories: true)
     }
 
-    func export(markdown: String) throws -> NotePDFShareItem {
-        try NotePDFExporter().export(
+    func export(markdown: String) async throws -> NotePDFShareItem {
+        try await NotePDFExporter().export(
             snapshot: NotePDFSnapshot(
                 markdown: markdown,
                 noteURL: bundleURL,

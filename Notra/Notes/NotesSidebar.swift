@@ -303,7 +303,7 @@ struct NotesSidebar: View {
                 let payload = try await store.exportPayload(for: note)
                 switch format {
                 case .pdf:
-                    let item = try NotePDFExporter().export(snapshot: pdfSnapshot(for: payload))
+                    let item = try await NotePDFExporter().export(snapshot: pdfSnapshot(for: payload))
                     try present(
                         fileURL: item.fileURL,
                         contentType: .pdf,

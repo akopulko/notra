@@ -36,7 +36,7 @@ struct MarkdownEditor: View {
             text: $text,
             fontName: editorFontName,
             fontSize: editorFontSize,
-            theme: MarkdownHighlightTheme.preferred(for: colorScheme),
+            theme: MarkdownTheme.preferred(for: colorScheme),
             bridge: bridge,
             selectionStore: selectionStore
         )

@@ -11,6 +11,7 @@ enum MarkdownCodeHighlightRole: Equatable {
     case `operator`
     case tag
     case attribute
+    case constant
 }
 
 /// Associates one code-token role with its original range in the source string.
@@ -102,7 +103,7 @@ struct MarkdownCodeSyntaxHighlighter {
     func highlight(
         _ code: String,
         languageTag: String?,
-        theme: MarkdownHighlightTheme?,
+        theme: MarkdownTheme?,
         baseColor: Color
     ) -> AttributedString {
         var attributed = AttributedString(code)
@@ -264,7 +265,7 @@ private extension MarkdownCodeSyntaxHighlighter {
             return .type
         }
         if Self.constants.contains(word) {
-            return .number
+            return .constant
         }
         if nextSignificantCharacter(in: code, after: index) == "(" {
             return .function

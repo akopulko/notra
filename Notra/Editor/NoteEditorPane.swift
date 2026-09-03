@@ -352,7 +352,7 @@ private extension NoteEditorPane {
         Task { @MainActor in
             await Task.yield()
             do {
-                let item = try NotePDFExporter().export(snapshot: snapshot)
+                let item = try await NotePDFExporter().export(snapshot: snapshot)
                 NoteSharePresenter.present(fileURL: item.fileURL)
                 pdfShareState = .idle
             } catch {

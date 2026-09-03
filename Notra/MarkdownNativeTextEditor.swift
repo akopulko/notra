@@ -12,7 +12,7 @@ struct MarkdownNativeTextEditor: UIViewRepresentable {
     @Binding var text: String
     let fontName: String
     let fontSize: Double
-    let theme: MarkdownHighlightTheme
+    let theme: MarkdownTheme
     let bridge: MarkdownTextEditorBridge
     let selectionStore: MarkdownEditorSelectionStore
 
@@ -191,7 +191,7 @@ extension MarkdownNativeTextEditor {
         private var cache = MarkdownHighlightCache()
         private var lastText = ""
         private var lastFont: UIFont?
-        private var lastTheme: MarkdownHighlightTheme?
+        private var lastTheme: MarkdownTheme?
         private var pendingProgrammaticSelection: MarkdownEditorSelectionSnapshot?
         private var pendingTextEdit: MarkdownTextEdit?
 
@@ -361,7 +361,7 @@ extension MarkdownNativeTextEditor {
                 cache.applyColors(
                     theme: parent.theme,
                     font: currentFont,
-                    baseColor: .label,
+                    baseColor: parent.theme.editor.normalText.platformColor,
                     to: textView.textStorage,
                     lines: changedRange
                 )
@@ -383,7 +383,7 @@ extension MarkdownNativeTextEditor {
             cache.applyColors(
                 theme: parent.theme,
                 font: font,
-                baseColor: .label,
+                baseColor: parent.theme.editor.normalText.platformColor,
                 to: textView.textStorage,
                 lines: 0..<cache.count
             )
@@ -458,7 +458,7 @@ extension MarkdownNativeTextEditor {
             cache.applyColors(
                 theme: parent.theme,
                 font: font,
-                baseColor: .label,
+                baseColor: parent.theme.editor.normalText.platformColor,
                 to: textView.textStorage,
                 lines: 0..<cache.count
             )
@@ -507,7 +507,7 @@ extension MarkdownNativeTextEditor {
         }
 
         private var typingAttributes: [NSAttributedString.Key: Any] {
-            [.font: currentFont, .foregroundColor: UIColor.label]
+            [.font: currentFont, .foregroundColor: parent.theme.editor.normalText.platformColor]
         }
     }
 }
@@ -517,7 +517,7 @@ struct MarkdownNativeTextEditor: NSViewRepresentable {
     @Binding var text: String
     let fontName: String
     let fontSize: Double
-    let theme: MarkdownHighlightTheme
+    let theme: MarkdownTheme
     let bridge: MarkdownTextEditorBridge
     let selectionStore: MarkdownEditorSelectionStore
 
@@ -548,7 +548,7 @@ extension MarkdownNativeTextEditor {
         private var cache = MarkdownHighlightCache()
         private var lastText = ""
         private var lastFont: NSFont?
-        private var lastTheme: MarkdownHighlightTheme?
+        private var lastTheme: MarkdownTheme?
         private var pendingProgrammaticSelection: MarkdownEditorSelectionSnapshot?
         private var pendingTextEdit: MarkdownTextEdit?
 
@@ -576,7 +576,7 @@ extension MarkdownNativeTextEditor {
             if lastFont != font {
                 lastFont = font
                 textView.font = font
-                textView.typingAttributes = [.font: font, .foregroundColor: NSColor.labelColor]
+                textView.typingAttributes = [.font: font, .foregroundColor: parent.theme.editor.normalText.platformColor]
             }
 
             if lastTheme != parent.theme {
@@ -835,7 +835,7 @@ extension MarkdownNativeTextEditor {
             cache.applyColors(
                 theme: parent.theme,
                 font: currentFont,
-                baseColor: .labelColor,
+                baseColor: parent.theme.editor.normalText.platformColor,
                 to: storage,
                 lines: lines
             )
