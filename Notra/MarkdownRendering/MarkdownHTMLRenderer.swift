@@ -63,6 +63,7 @@ private extension MarkdownHTMLRenderer {
         <style>
         :root { color-scheme: light dark; }
         html, body { margin: 0; min-height: 100%; background: transparent; }
+        \(previewWidthRules)
         body { box-sizing: border-box; padding: 24px; color: \(theme.bodyText); }
         body { font: 17px \(fontFamily), -apple-system, sans-serif; line-height: 1.35; }
         h1, h2 { color: \(theme.headingPrimary); font-weight: 600; line-height: 1.2; }
@@ -112,6 +113,23 @@ private extension MarkdownHTMLRenderer {
         .markdown-image { break-inside: avoid-page; page-break-inside: avoid; }
         table, tr { break-inside: avoid-page; page-break-inside: avoid; } }
         </style>
+        """
+    }
+
+    var previewWidthRules: String {
+        guard mode == .preview else {
+            return ""
+        }
+
+        // Keep wide content inside the interactive viewport while allowing fenced code to scroll locally.
+        return """
+        html, body { width: 100%; max-width: 100%; overflow-x: hidden; }
+        *, *::before, *::after { box-sizing: border-box; }
+        body { overflow-wrap: anywhere; }
+        pre { max-width: 100%; }
+        pre, pre code { overflow-wrap: normal; }
+        table { width: 100%; max-width: 100%; table-layout: fixed; }
+        th, td { overflow-wrap: anywhere; }
         """
     }
 

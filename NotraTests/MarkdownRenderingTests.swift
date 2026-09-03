@@ -59,16 +59,27 @@ struct MarkdownRenderingTests {
         #expect(html.contains("class=\"code-constant\" style=\"color:#f7768e\">true</span>"))
     }
 
-    @Test func previewUsesTheDeviceViewportWithoutChangingPDFLayout() {
-        let document = SwiftMarkdownParser().parse("Preview text")
+    @Test func previewConstrainsWideContentWithoutChangingPDFLayout() {
+        let longToken = String(repeating: "unbroken", count: 64)
+        let document = SwiftMarkdownParser().parse("Preview `\(longToken)`")
         let style = MarkdownStyle.notra(previewFontName: AppearanceFont.defaultName)
         var previewRenderer = MarkdownHTMLRenderer(style: style, mode: .preview, context: .empty)
         var pdfRenderer = MarkdownHTMLRenderer(style: style, mode: .pdf, context: .empty)
 
         let viewport = "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
+        let constrainedRoot = "html, body { width: 100%; max-width: 100%; overflow-x: hidden; }"
+        let constrainedTable = "table { width: 100%; max-width: 100%; table-layout: fixed; }"
+        let localCodeOverflow = "pre, pre code { overflow-wrap: normal; }"
+        let previewHTML = previewRenderer.render(document).html
+        let pdfHTML = pdfRenderer.render(document).html
 
-        #expect(previewRenderer.render(document).html.contains(viewport))
-        #expect(!pdfRenderer.render(document).html.contains(viewport))
+        #expect(previewHTML.contains(viewport))
+        #expect(previewHTML.contains(constrainedRoot))
+        #expect(previewHTML.contains("body { overflow-wrap: anywhere; }"))
+        #expect(previewHTML.contains(constrainedTable))
+        #expect(previewHTML.contains(localCodeOverflow))
+        #expect(!pdfHTML.contains(viewport))
+        #expect(!pdfHTML.contains(constrainedRoot))
     }
 
     @Test func previewCodeSyntaxThemeFollowsThePreviewThemeOption() {

@@ -106,6 +106,10 @@ private final class Coordinator: NSObject, WKNavigationDelegate {
         webView.isOpaque = false
         webView.backgroundColor = .clear
         webView.scrollView.backgroundColor = .clear
+        // The document owns any local horizontal overflow, so the outer preview should remain vertically anchored.
+        webView.scrollView.alwaysBounceHorizontal = false
+        webView.scrollView.showsHorizontalScrollIndicator = false
+        webView.scrollView.isDirectionalLockEnabled = true
         #else
         webView.setValue(false, forKey: "drawsBackground")
         #endif
