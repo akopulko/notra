@@ -288,6 +288,62 @@ struct NotePDFExporterTests {
         #expect(document.string?.contains("Unsaved editor text") == true)
     }
 
+    @Test
+    func `exports linked text in ordered lists`() async throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+
+        let item = try await fixture.export(markdown: """
+        1. [Ingredients entry](#ingredients)
+        2. [Equipment entry](#equipment)
+        3. [Preparation entry](#preparation)
+        4. [Example](https://example.com)
+
+        ## Ingredients
+        """)
+        defer { removeExport(item) }
+
+        let document = try #require(PDFDocument(url: item.fileURL))
+        #expect(document.string?.contains("1.") == true)
+        #expect(document.string?.contains("2.") == true)
+        #expect(document.string?.contains("3.") == true)
+        #expect(document.string?.contains("4.") == true)
+        #expect(document.string?.contains("Ingredients entry") == true)
+        #expect(document.string?.contains("Equipment entry") == true)
+        #expect(document.string?.contains("Preparation entry") == true)
+        #expect(document.string?.contains("Example") == true)
+    }
+
+    @Test
+    func `uses distinct WebKit image URLs for assets in different notes`() throws {
+        let firstFixture = try Fixture()
+        defer { firstFixture.remove() }
+        let secondFixture = try Fixture()
+        defer { secondFixture.remove() }
+        try firstFixture.writeImage(named: "image.png")
+        try secondFixture.writeImage(named: "image.png")
+
+        let markdown = "![Image](assets/image.png)"
+        let document = SwiftMarkdownParser().parse(markdown)
+        var firstRenderer = MarkdownHTMLRenderer(
+            style: .notra(previewFontName: AppearanceFont.defaultName),
+            mode: .preview,
+            context: .textBundle(noteURL: firstFixture.bundleURL)
+        )
+        var secondRenderer = MarkdownHTMLRenderer(
+            style: .notra(previewFontName: AppearanceFont.defaultName),
+            mode: .preview,
+            context: .textBundle(noteURL: secondFixture.bundleURL)
+        )
+
+        let firstHTML = firstRenderer.render(document).html
+        let secondHTML = secondRenderer.render(document).html
+
+        #expect(firstHTML != secondHTML)
+        #expect(firstHTML.contains("notra-asset://asset/resource-"))
+        #expect(secondHTML.contains("notra-asset://asset/resource-"))
+    }
+
     private func removeExport(_ item: NotePDFShareItem) {
         try? FileManager.default.removeItem(at: item.fileURL.deletingLastPathComponent())
     }
@@ -395,7 +451,6 @@ struct NotePDFExporterTests {
             width: maximumX - minimumX + 1,
             height: maximumY - minimumY + 1
         )
-    }
 }
 
 /// Creates isolated temporary export inputs and removes generated files after each test.

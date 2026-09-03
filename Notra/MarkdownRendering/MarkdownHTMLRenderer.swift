@@ -257,7 +257,8 @@ private extension MarkdownHTMLRenderer {
 
     func isPDFAssetLink(_ destination: String) -> Bool {
         guard let url = MarkdownAttachmentReferences.resolve(destination, assetBaseURL: context.assetBaseURL),
-              url.isFileURL
+              url.isFileURL,
+              (try? url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true
         else {
             return false
         }
@@ -283,10 +284,11 @@ private extension MarkdownHTMLRenderer {
             return mode == .pdf ? "<span class=\"pdf-image-container\">\(image)</span>" : image
         }
 
-        guard mode == .preview, url.scheme == "http" || url.scheme == "https" else {
+        guard url.scheme == "http" || url.scheme == "https" else {
             return mode == .preview ? placeholder(alt) : ""
         }
-        return "<img class=\"markdown-image\" src=\"\(escapeAttribute(url.absoluteString))\" alt=\"\(escapeAttribute(alt))\">"
+        let image = "<img class=\"markdown-image\" src=\"\(escapeAttribute(url.absoluteString))\" alt=\"\(escapeAttribute(alt))\">"
+        return mode == .pdf ? "<span class=\"pdf-image-container\">\(image)</span>" : image
     }
 
     func renderCode(_ code: String, language: String?) -> String {
@@ -378,9 +380,15 @@ private extension MarkdownHTMLRenderer {
     }
 
     mutating func registerAsset(_ url: URL) -> String {
-        let id = "resource-\(nextResourceID)"
-        nextResourceID += 1
-        assets[id] = url
+        let canonicalURL = url.notraCanonicalFileURL
+        // WebKit caches custom-scheme responses by URL, so a per-document counter would leak images across notes.
+        let encodedURL = Data(canonicalURL.absoluteString.utf8)
+            .base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+        let id = "resource-\(encodedURL)"
+        assets[id] = canonicalURL
         return id
     }
 

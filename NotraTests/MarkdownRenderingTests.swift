@@ -123,6 +123,20 @@ struct MarkdownRenderingTests {
         #expect(!html.contains(MarkdownTheme.dark.code.keyword.hex))
     }
 
+    @Test func pdfHTMLIncludesRemoteImages() {
+        let document = SwiftMarkdownParser().parse("![Remote](https://example.com/test-image.jpg)")
+        var renderer = MarkdownHTMLRenderer(
+            style: .notra(previewFontName: AppearanceFont.defaultName, renderMode: .pdf),
+            mode: .pdf,
+            context: .empty
+        )
+
+        let html = renderer.render(document).html
+
+        #expect(html.contains("src=\"https://example.com/test-image.jpg\""))
+        #expect(html.contains("<span class=\"pdf-image-container\"><img"))
+    }
+
     @Test
     func `parses representative markdown surface`() {
         let document = SwiftMarkdownParser().parse("""
