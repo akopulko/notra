@@ -7,8 +7,6 @@ struct NotePDFSnapshot: Equatable, Sendable {
     let markdown: String
     let noteURL: URL
     let previewFontName: String
-    let previewUsesEditorTheme: Bool
-    let isDarkMode: Bool
     let suggestedFilename: String
 }
 
@@ -28,12 +26,8 @@ struct NotePDFExporter {
     func export(snapshot: NotePDFSnapshot) async throws -> NotePDFShareItem {
         let context = MarkdownRenderContext.textBundle(noteURL: snapshot.noteURL)
         let document = SwiftMarkdownParser().parse(snapshot.markdown)
-        let theme = snapshot.previewUsesEditorTheme
-            ? (snapshot.isDarkMode ? MarkdownTheme.dark : MarkdownTheme.light)
-            : nil
         let style = MarkdownStyle.notra(
             previewFontName: snapshot.previewFontName,
-            theme: theme,
             renderMode: .pdf
         )
         var htmlRenderer = MarkdownHTMLRenderer(style: style, mode: .pdf, context: context)

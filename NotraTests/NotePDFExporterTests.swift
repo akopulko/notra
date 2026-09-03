@@ -321,8 +321,6 @@ private struct Fixture {
                 markdown: markdown,
                 noteURL: bundleURL,
                 previewFontName: AppearanceFont.defaultName,
-                previewUsesEditorTheme: false,
-                isDarkMode: false,
                 suggestedFilename: bundleURL.lastPathComponent
             )
         )

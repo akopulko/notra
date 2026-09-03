@@ -324,28 +324,16 @@ struct MarkdownTheme: Equatable {
         }
     }
 
-    func tagColors(for _: ColorScheme) -> MarkdownTagColors {
-        MarkdownTagColors(background: palette.green, foreground: palette.closestBackground)
-    }
-
-    var noteListTitleColor: Color {
-        preview.headingPrimary.color
-    }
-
-    var noteListDateColor: Color {
-        preview.link.color
+    /// Uses the preview bold role for hashtags while keeping their foreground readable.
+    var previewHashtagColors: MarkdownTagColors {
+        MarkdownTagColors(background: preview.bold, foreground: palette.closestBackground)
     }
 }
 
-/// Theme-derived colours for tag UI, keeping tag styling tied to the shared palette.
+/// Colours for hashtag capsules derived from the active Markdown theme.
 struct MarkdownTagColors: Equatable {
     let background: MarkdownSyntaxColor
     let foreground: MarkdownSyntaxColor
-
-    static let neutral = MarkdownTagColors(
-        background: MarkdownSyntaxColor(hex: "#6B7280"),
-        foreground: MarkdownSyntaxColor(hex: "#D1D5DB")
-    )
 
     var backgroundColor: Color {
         background.color

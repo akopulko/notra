@@ -10,7 +10,6 @@ import AppKit
 /// Renders one sidebar note row, including preview text, dates, tags, and attachment state.
 struct NoteRow: View {
     @Environment(\.colorScheme) private var colorScheme
-    @AppStorage(AppearanceSettingKey.previewUsesEditorTheme) private var previewUsesEditorTheme = true
     let note: NoteSummary
     let sortField: NoteSortField
 
@@ -21,7 +20,7 @@ struct NoteRow: View {
             VStack(alignment: .leading, spacing: 6) {
                 previewText
                 HStack(spacing: 4) {
-                    dateText
+                    formattedDate
                         .font(.caption2)
                     if note.attachmentSummary.showsPaperclip {
                         Image(systemName: "paperclip")
@@ -68,16 +67,6 @@ struct NoteRow: View {
         }
     }
 
-    @ViewBuilder
-    private var dateText: some View {
-        if previewUsesEditorTheme {
-            formattedDate
-                .foregroundStyle(theme.noteListDateColor)
-        } else {
-            formattedDate
-        }
-    }
-
     private var formattedDate: some View {
         Text(
             sortField == .dateCreated ? note.createdAt : note.modifiedAt,
@@ -85,34 +74,16 @@ struct NoteRow: View {
         )
     }
 
-    private var tagColors: MarkdownTagColors {
-        guard previewUsesEditorTheme else {
-            return .neutral
-        }
-
-        return theme.tagColors(for: colorScheme)
-    }
-
-    private var theme: MarkdownTheme {
-        MarkdownTheme.preferred(for: colorScheme)
-    }
-
-    @ViewBuilder
     private func titleText(_ text: String) -> some View {
-        if previewUsesEditorTheme {
-            Text(verbatim: text)
-                .font(.title3)
-                .fontWeight(.bold)
-                .foregroundStyle(theme.noteListTitleColor)
-                .lineLimit(1)
-                .truncationMode(.tail)
-        } else {
-            Text(verbatim: text)
-                .font(.title3)
-                .fontWeight(.bold)
-                .lineLimit(1)
-                .truncationMode(.tail)
-        }
+        Text(verbatim: text)
+            .font(.title3)
+            .fontWeight(.bold)
+            .lineLimit(1)
+            .truncationMode(.tail)
+    }
+
+    private var tagColors: MarkdownTagColors {
+        MarkdownTheme.preferred(for: colorScheme).previewHashtagColors
     }
 }
 
