@@ -7,28 +7,71 @@ import Testing
 /// Checks parsing, styling, and native Markdown rendering inputs used by preview and PDF export.
 struct MarkdownRenderingTests {
     @Test func webThemeKeepsNormalTextSeparateFromCodeText() {
-        let webTheme = MarkdownWebTheme(syntaxTheme: .tokyoNight)
+        let webTheme = MarkdownWebTheme(theme: .dark)
+
+        #expect(webTheme.bodyText == MarkdownTheme.dark.preview.body.hex)
+        #expect(webTheme.codeBlockText == MarkdownTheme.dark.code.plain.hex)
+        #expect(webTheme.inlineCodeText == MarkdownTheme.dark.preview.inlineCode.hex)
+        #expect(webTheme.headingPrimary == MarkdownTheme.dark.preview.headingPrimary.hex)
+        #expect(webTheme.codeColour(for: .keyword) == MarkdownTheme.dark.code.keyword.hex)
+    }
+
+    @Test func webThemePreservesSystemFallbacksWhenPreviewThemingIsDisabled() {
+        let webTheme = MarkdownWebTheme(theme: nil)
 
         #expect(webTheme.bodyText == "CanvasText")
-        #expect(webTheme.codeBlockText == "CanvasText")
-        #expect(webTheme.inlineCodeText == MarkdownHighlightTheme.tokyoNight.code.hex)
-        #expect(webTheme.headingText == MarkdownHighlightTheme.tokyoNight.heading.hex)
-        #expect(webTheme.codeColour(for: .keyword) == MarkdownHighlightTheme.tokyoNight.codeKeyword.hex)
+        #expect(webTheme.headingPrimary == "CanvasText")
+        #expect(webTheme.linkText == "LinkText")
+        #expect(webTheme.inlineCodeText == "CanvasText")
+        #expect(webTheme.codeColour(for: .keyword) == "CanvasText")
+    }
+
+    @Test func htmlRendererAppliesPreviewAndCodeSemanticColours() {
+        let document = SwiftMarkdownParser().parse("""
+        # Heading
+
+        **Bold** *Italic* ~~Removed~~ [Link](https://example.com) `inline`
+
+        - List item
+
+        > Quote
+
+        ```swift
+        let enabled = true
+        ```
+        """)
+        var renderer = MarkdownHTMLRenderer(
+            style: .notra(previewFontName: AppearanceFont.defaultName, theme: .dark),
+            mode: .preview,
+            context: .empty
+        )
+
+        let html = renderer.render(document).html
+
+        #expect(html.contains("body { box-sizing: border-box; padding: 24px; color: #c0caf5; }"))
+        #expect(html.contains("h1, h2 { color: #7aa2f7;"))
+        #expect(html.contains("strong { color: #e0af68; }"))
+        #expect(html.contains("em { color: #bb9af7; }"))
+        #expect(html.contains("del { color: #9aa5ce; }"))
+        #expect(html.contains("li::marker { color: #f7768e; }"))
+        #expect(html.contains("blockquote { border-left: 4px solid #565f89; color: #9ece6a;"))
+        #expect(html.contains("<code class=\"inline-code\">inline</code>"))
+        #expect(html.contains("class=\"code-constant\" style=\"color:#f7768e\">true</span>"))
     }
 
     @Test func previewCodeSyntaxThemeFollowsThePreviewThemeOption() {
         let themedPreview = MarkdownStyle.notra(
             previewFontName: AppearanceFont.defaultName,
-            theme: .tokyoNight
+            theme: .dark
         )
         let defaultPreview = MarkdownStyle.notra(previewFontName: AppearanceFont.defaultName)
         let themedPDF = MarkdownStyle.notra(
             previewFontName: AppearanceFont.defaultName,
-            theme: .tokyoNight,
+            theme: .dark,
             renderMode: .pdf
         )
 
-        #expect(themedPreview.codeSyntaxTheme == .tokyoNight)
+        #expect(themedPreview.codeSyntaxTheme == .dark)
         #expect(defaultPreview.codeSyntaxTheme == nil)
         #expect(themedPDF.codeSyntaxTheme == nil)
     }
@@ -458,19 +501,20 @@ struct MarkdownRenderingTests {
 
     @Test
     func `preview style uses editor theme colors when enabled`() {
-        let theme = MarkdownHighlightTheme.light
+        let theme = MarkdownTheme.light
         let style = MarkdownStyle.notra(previewFontName: AppearanceFont.defaultName, theme: theme)
 
-        #expect(style.headingColor == theme.heading.color)
-        #expect(style.linkColor == theme.link.color)
-        #expect(style.markerColor == theme.marker.color)
-        #expect(style.quoteAccentColor == theme.quote.color)
-        #expect(style.codeTextColor == theme.code.color)
+        #expect(style.textColor == theme.preview.body.color)
+        #expect(style.headingColor == theme.preview.headingPrimary.color)
+        #expect(style.linkColor == theme.preview.link.color)
+        #expect(style.markerColor == theme.preview.listMarker.color)
+        #expect(style.quoteAccentColor == theme.preview.blockquoteIndicator.color)
+        #expect(style.codeTextColor == theme.preview.inlineCode.color)
     }
 
     @Test
     func `themed preview style preserves preview font selection`() {
-        let style = MarkdownStyle.notra(previewFontName: "Helvetica", theme: .tokyoNight)
+        let style = MarkdownStyle.notra(previewFontName: "Helvetica", theme: .dark)
 
         #expect(style.previewFontName == "Helvetica")
     }

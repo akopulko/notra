@@ -1,44 +1,29 @@
 // swiftlint:disable file_length
 import Foundation
 import SwiftUI
-#if os(macOS)
-import AppKit
-#elseif os(iOS)
-import UIKit
-#endif
-
-#if os(macOS)
-typealias MarkdownPlatformColor = NSColor
-typealias MarkdownPlatformFont = NSFont
-#elseif os(iOS)
-typealias MarkdownPlatformColor = UIColor
-typealias MarkdownPlatformFont = UIFont
-#endif
-
-extension MarkdownPlatformColor {
-    static var defaultLabel: MarkdownPlatformColor {
-        #if os(macOS)
-        return .labelColor
-        #else
-        return .label
-        #endif
-    }
-}
 
 /// Semantic Markdown roles used to apply editor syntax colors.
 enum MarkdownHighlightRole: Equatable {
     case headingMarker
-    case headingText
+    case headingText(level: Int)
+    case strongMarker
+    case strongText
     case emphasisMarker
     case emphasisText
-    case inlineCode
+    case strikethroughMarker
+    case strikethroughText
+    case inlineCodeMarker
+    case inlineCodeText
     case codeFence
+    case codeLanguageIdentifier
     case quoteMarker
+    case quoteText
     case listMarker
     case linkText
     case linkDestination
     case linkMarker
     case thematicBreak
+    case escapedCharacter
     case tableMarker
     case tableHeader
     case tableDelimiter
@@ -52,6 +37,7 @@ enum MarkdownHighlightRole: Equatable {
     case codeOperator
     case codeTag
     case codeAttribute
+    case codeConstant
 }
 
 /// Associates a syntax role with a UTF-16 range in the Markdown source.
@@ -60,213 +46,10 @@ struct MarkdownHighlightSpan: Equatable {
     let range: Range<String.Index>
 }
 
-/// Stores light and dark colors for one syntax role.
-struct MarkdownSyntaxColor: Equatable {
-    let hex: String
-
-    private var components: (red: CGFloat, green: CGFloat, blue: CGFloat)? {
-        let value = hex.trimmingCharacters(in: CharacterSet(charactersIn: "#"))
-        guard value.count == 6, let integer = Int(value, radix: 16) else {
-            return nil
-        }
-
-        return (
-            red: CGFloat((integer >> 16) & 0xFF) / 255.0,
-            green: CGFloat((integer >> 8) & 0xFF) / 255.0,
-            blue: CGFloat(integer & 0xFF) / 255.0
-        )
-    }
-
-    var color: Color {
-        guard let components else {
-            return .primary
-        }
-
-        return Color(
-            red: Double(components.red),
-            green: Double(components.green),
-            blue: Double(components.blue)
-        )
-    }
-
-    var platformColor: MarkdownPlatformColor {
-        guard let components else {
-            return .defaultLabel
-        }
-
-        return MarkdownPlatformColor(
-            red: components.red,
-            green: components.green,
-            blue: components.blue,
-            alpha: 1
-        )
-    }
-}
-
-/// Theme-derived colours for tag UI, keeping tag styling tied to the syntax palette.
-struct MarkdownTagColors: Equatable {
-    let background: MarkdownSyntaxColor
-    let foreground: MarkdownSyntaxColor
-
-    static let neutral = MarkdownTagColors(
-        background: MarkdownSyntaxColor(hex: "#6B7280"),
-        foreground: MarkdownSyntaxColor(hex: "#D1D5DB")
-    )
-
-    var backgroundColor: Color {
-        background.color
-    }
-
-    var foregroundColor: Color {
-        foreground.color
-    }
-}
-
-/// Bundles syntax colors and provides the theme selected by the current color scheme.
-struct MarkdownHighlightTheme: Equatable {
-    let marker: MarkdownSyntaxColor
-    let heading: MarkdownSyntaxColor
-    let emphasis: MarkdownSyntaxColor
-    let code: MarkdownSyntaxColor
-    let quote: MarkdownSyntaxColor
-    let link: MarkdownSyntaxColor
-    let table: MarkdownSyntaxColor
-    let codeComment: MarkdownSyntaxColor
-    let codeKeyword: MarkdownSyntaxColor
-    let codeString: MarkdownSyntaxColor
-    let codeNumber: MarkdownSyntaxColor
-    let codeType: MarkdownSyntaxColor
-    let codeFunction: MarkdownSyntaxColor
-    let codeOperator: MarkdownSyntaxColor
-    let codeTag: MarkdownSyntaxColor
-    let codeAttribute: MarkdownSyntaxColor
-
-    static let tokyoNight = MarkdownHighlightTheme(
-        marker: MarkdownSyntaxColor(hex: "#565F89"),
-        heading: MarkdownSyntaxColor(hex: "#7AA2F7"),
-        emphasis: MarkdownSyntaxColor(hex: "#BB9AF7"),
-        code: MarkdownSyntaxColor(hex: "#9ECE6A"),
-        quote: MarkdownSyntaxColor(hex: "#E0AF68"),
-        link: MarkdownSyntaxColor(hex: "#2AC3DE"),
-        table: MarkdownSyntaxColor(hex: "#0DB9D7"),
-        codeComment: MarkdownSyntaxColor(hex: "#565F89"),
-        codeKeyword: MarkdownSyntaxColor(hex: "#BB9AF7"),
-        codeString: MarkdownSyntaxColor(hex: "#9ECE6A"),
-        codeNumber: MarkdownSyntaxColor(hex: "#FF9E64"),
-        codeType: MarkdownSyntaxColor(hex: "#2AC3DE"),
-        codeFunction: MarkdownSyntaxColor(hex: "#7DCFFF"),
-        codeOperator: MarkdownSyntaxColor(hex: "#89DDFF"),
-        codeTag: MarkdownSyntaxColor(hex: "#7AA2F7"),
-        codeAttribute: MarkdownSyntaxColor(hex: "#E0AF68")
-    )
-
-    static let light = MarkdownHighlightTheme(
-        marker: MarkdownSyntaxColor(hex: "#6B7280"),
-        heading: MarkdownSyntaxColor(hex: "#1D4ED8"),
-        emphasis: MarkdownSyntaxColor(hex: "#7C3AED"),
-        code: MarkdownSyntaxColor(hex: "#047857"),
-        quote: MarkdownSyntaxColor(hex: "#B45309"),
-        link: MarkdownSyntaxColor(hex: "#0369A1"),
-        table: MarkdownSyntaxColor(hex: "#0E7490"),
-        codeComment: MarkdownSyntaxColor(hex: "#6B7280"),
-        codeKeyword: MarkdownSyntaxColor(hex: "#7C3AED"),
-        codeString: MarkdownSyntaxColor(hex: "#047857"),
-        codeNumber: MarkdownSyntaxColor(hex: "#C2410C"),
-        codeType: MarkdownSyntaxColor(hex: "#0369A1"),
-        codeFunction: MarkdownSyntaxColor(hex: "#0E7490"),
-        codeOperator: MarkdownSyntaxColor(hex: "#0891B2"),
-        codeTag: MarkdownSyntaxColor(hex: "#1D4ED8"),
-        codeAttribute: MarkdownSyntaxColor(hex: "#B45309")
-    )
-
-    /// Selects the dark or light palette without making the editor own theme state.
-    static func preferred(for colorScheme: ColorScheme) -> MarkdownHighlightTheme {
-        switch colorScheme {
-        case .dark:
-            tokyoNight
-        default:
-            light
-        }
-    }
-
-    func tagColors(for colorScheme: ColorScheme) -> MarkdownTagColors {
-        MarkdownTagColors(
-            background: code,
-            foreground: colorScheme == .dark
-                ? MarkdownSyntaxColor(hex: "#293F1A")
-                : MarkdownSyntaxColor(hex: "#FFFFFF")
-        )
-    }
-
-    var noteListTitleColor: Color {
-        noteListTitleSyntaxColor.color
-    }
-
-    var noteListTitleSyntaxColor: MarkdownSyntaxColor {
-        heading
-    }
-
-    /// Uses the theme's link colour for note-list dates when preview theming is enabled.
-    var noteListDateColor: Color {
-        noteListDateSyntaxColor.color
-    }
-
-    var noteListDateSyntaxColor: MarkdownSyntaxColor {
-        link
-    }
-
-    /// Maps a Markdown role to its palette color, delegating fenced-code roles to `codeColor`.
-    func color(for role: MarkdownHighlightRole) -> MarkdownSyntaxColor {
-        if let codeRole = role.codeRole {
-            return codeColor(for: codeRole)
-        }
-
-        return switch role {
-        case .headingMarker, .linkMarker, .thematicBreak:
-            marker
-        case .headingText:
-            heading
-        case .emphasisMarker:
-            marker
-        case .emphasisText:
-            emphasis
-        case .inlineCode, .codeFence:
-            code
-        case .quoteMarker:
-            quote
-        case .listMarker:
-            marker
-        case .linkText, .linkDestination:
-            link
-        case .tableHeader:
-            heading
-        case .tableMarker, .tableDelimiter, .tableBody:
-            table
-        case .codeComment, .codeKeyword, .codeString, .codeNumber, .codeType, .codeFunction, .codeOperator, .codeTag, .codeAttribute:
-            marker
-        }
-    }
-
-    /// Maps language-token roles to the dedicated code palette entries.
-    func codeColor(for role: MarkdownCodeHighlightRole) -> MarkdownSyntaxColor {
-        switch role {
-        case .comment: codeComment
-        case .keyword: codeKeyword
-        case .string: codeString
-        case .number: codeNumber
-        case .type: codeType
-        case .function: codeFunction
-        case .operator: codeOperator
-        case .tag: codeTag
-        case .attribute: codeAttribute
-        }
-    }
-}
-
 /// Parses Markdown line-by-line into stable spans suitable for native text views.
 struct MarkdownSyntaxHighlighter {
     /// Converts syntax spans into an attributed string for SwiftUI preview or native text views.
-    func highlight(_ markdown: String, theme: MarkdownHighlightTheme) -> AttributedString {
+    func highlight(_ markdown: String, theme: MarkdownTheme) -> AttributedString {
         var attributed = AttributedString(markdown)
 
         for span in spans(in: markdown) {
@@ -347,13 +130,21 @@ struct MarkdownSyntaxHighlighter {
     ) {
         let contentStart = firstNonSpace(in: markdown, range: range)
 
-        if isCodeFence(in: markdown, startingAt: contentStart, lineEnd: range.upperBound) {
-            spans.append(MarkdownHighlightSpan(role: .codeFence, range: contentStart..<range.upperBound))
+        if let markerEnd = codeFenceMarkerEnd(in: markdown, startingAt: contentStart, lineEnd: range.upperBound) {
+            spans.append(MarkdownHighlightSpan(role: .codeFence, range: contentStart..<markerEnd))
+            let languageRange = fenceLanguageIdentifierRange(
+                in: markdown,
+                after: markerEnd,
+                lineEnd: range.upperBound
+            )
+            if !fenceState.isInFence, let languageRange {
+                spans.append(MarkdownHighlightSpan(role: .codeLanguageIdentifier, range: languageRange))
+            }
             fenceState = fenceState.isInFence
                 ? .closed
                 : MarkdownCodeFenceState(
                     isInFence: true,
-                    language: fenceLanguage(in: markdown, startingAt: contentStart, lineEnd: range.upperBound)
+                    language: fenceLanguage(in: markdown, after: markerEnd, lineEnd: range.upperBound)
                 )
             return
         }
@@ -411,7 +202,7 @@ struct MarkdownSyntaxHighlighter {
 
         let textStart = skipSpaces(in: markdown, from: current, to: range.upperBound)
         if textStart < range.upperBound {
-            spans.append(MarkdownHighlightSpan(role: .headingText, range: textStart..<range.upperBound))
+            spans.append(MarkdownHighlightSpan(role: .headingText(level: count), range: textStart..<range.upperBound))
         }
 
         return textStart
@@ -429,7 +220,11 @@ struct MarkdownSyntaxHighlighter {
         if markdown[range.lowerBound] == ">" {
             let markerEnd = markdown.index(after: range.lowerBound)
             spans.append(MarkdownHighlightSpan(role: .quoteMarker, range: range.lowerBound..<markerEnd))
-            return skipSpaces(in: markdown, from: markerEnd, to: range.upperBound)
+            let textStart = skipSpaces(in: markdown, from: markerEnd, to: range.upperBound)
+            if textStart < range.upperBound {
+                spans.append(MarkdownHighlightSpan(role: .quoteText, range: textStart..<range.upperBound))
+            }
+            return textStart
         }
 
         if let markerEnd = unorderedListMarkerEnd(in: markdown, range: range) {
@@ -496,11 +291,15 @@ extension MarkdownSyntaxHighlighter {
         var current = range.lowerBound
 
         while current < range.upperBound {
-            if let end = parseInlineCode(in: markdown, at: current, limit: range.upperBound, spans: &spans) {
+            if let end = parseEscapedCharacter(in: markdown, at: current, limit: range.upperBound, spans: &spans) {
+                current = end
+            } else if let end = parseInlineCode(in: markdown, at: current, limit: range.upperBound, spans: &spans) {
                 current = end
             } else if let end = parseLink(in: markdown, at: current, limit: range.upperBound, spans: &spans) {
                 current = end
             } else if let end = parseStrong(in: markdown, at: current, limit: range.upperBound, spans: &spans) {
+                current = end
+            } else if let end = parseStrikethrough(in: markdown, at: current, limit: range.upperBound, spans: &spans) {
                 current = end
             } else if let end = parseEmphasis(in: markdown, at: current, limit: range.upperBound, spans: &spans) {
                 current = end
@@ -510,7 +309,28 @@ extension MarkdownSyntaxHighlighter {
         }
     }
 
-    /// Recognizes a closed backtick pair and marks the complete inline-code range.
+    /// Recognises an escaped punctuation pair before the escaped marker can open inline syntax.
+    private func parseEscapedCharacter(
+        in markdown: String,
+        at index: String.Index,
+        limit: String.Index,
+        spans: inout [MarkdownHighlightSpan]
+    ) -> String.Index? {
+        guard markdown[index] == "\\" else {
+            return nil
+        }
+
+        let escapedIndex = markdown.index(after: index)
+        guard escapedIndex < limit, Self.escapableCharacters.contains(markdown[escapedIndex]) else {
+            return nil
+        }
+
+        let end = markdown.index(after: escapedIndex)
+        spans.append(MarkdownHighlightSpan(role: .escapedCharacter, range: index..<end))
+        return end
+    }
+
+    /// Recognises a closed backtick pair and separates its markers from its content.
     private func parseInlineCode(
         in markdown: String,
         at index: String.Index,
@@ -527,7 +347,11 @@ extension MarkdownSyntaxHighlighter {
         }
 
         let end = markdown.index(after: closing)
-        spans.append(MarkdownHighlightSpan(role: .inlineCode, range: index..<end))
+        spans.append(MarkdownHighlightSpan(role: .inlineCodeMarker, range: index..<contentStart))
+        if contentStart < closing {
+            spans.append(MarkdownHighlightSpan(role: .inlineCodeText, range: contentStart..<closing))
+        }
+        spans.append(MarkdownHighlightSpan(role: .inlineCodeMarker, range: closing..<end))
         return end
     }
 
@@ -583,9 +407,33 @@ extension MarkdownSyntaxHighlighter {
         }
 
         let end = markdown.index(closingStart, offsetBy: 2)
-        spans.append(MarkdownHighlightSpan(role: .emphasisMarker, range: index..<textStart))
-        spans.append(MarkdownHighlightSpan(role: .emphasisText, range: textStart..<closingStart))
-        spans.append(MarkdownHighlightSpan(role: .emphasisMarker, range: closingStart..<end))
+        spans.append(MarkdownHighlightSpan(role: .strongMarker, range: index..<textStart))
+        spans.append(MarkdownHighlightSpan(role: .strongText, range: textStart..<closingStart))
+        spans.append(MarkdownHighlightSpan(role: .strongMarker, range: closingStart..<end))
+        return end
+    }
+
+    /// Recognises a closed GFM strikethrough pair and separates markers from content.
+    private func parseStrikethrough(
+        in markdown: String,
+        at index: String.Index,
+        limit: String.Index,
+        spans: inout [MarkdownHighlightSpan]
+    ) -> String.Index? {
+        let second = markdown.index(after: index)
+        guard second < limit, markdown[index] == "~", markdown[second] == "~" else {
+            return nil
+        }
+
+        let textStart = markdown.index(index, offsetBy: 2)
+        guard let closingStart = firstDoubleMarker("~", in: markdown, from: textStart, to: limit) else {
+            return nil
+        }
+
+        let end = markdown.index(closingStart, offsetBy: 2)
+        spans.append(MarkdownHighlightSpan(role: .strikethroughMarker, range: index..<textStart))
+        spans.append(MarkdownHighlightSpan(role: .strikethroughText, range: textStart..<closingStart))
+        spans.append(MarkdownHighlightSpan(role: .strikethroughMarker, range: closingStart..<end))
         return end
     }
 
@@ -684,14 +532,18 @@ extension MarkdownSyntaxHighlighter {
         return markdown.index(after: spaceIndex)
     }
 
-    private func isCodeFence(in markdown: String, startingAt index: String.Index, lineEnd: String.Index) -> Bool {
+    private func codeFenceMarkerEnd(
+        in markdown: String,
+        startingAt index: String.Index,
+        lineEnd: String.Index
+    ) -> String.Index? {
         guard index < lineEnd else {
-            return false
+            return nil
         }
 
         let marker = markdown[index]
         guard marker == "`" || marker == "~" else {
-            return false
+            return nil
         }
 
         var current = index
@@ -702,21 +554,35 @@ extension MarkdownSyntaxHighlighter {
             current = markdown.index(after: current)
         }
 
-        return count >= 3
+        return count >= 3 ? current : nil
     }
 
-    private func fenceLanguage(in markdown: String, startingAt index: String.Index, lineEnd: String.Index) -> MarkdownCodeLanguage? {
-        let marker = markdown[index]
-        var current = index
-        while current < lineEnd, markdown[current] == marker {
-            current = markdown.index(after: current)
+    private func fenceLanguageIdentifierRange(
+        in markdown: String,
+        after markerEnd: String.Index,
+        lineEnd: String.Index
+    ) -> Range<String.Index>? {
+        let languageStart = skipSpaces(in: markdown, from: markerEnd, to: lineEnd)
+        guard languageStart < lineEnd else {
+            return nil
         }
-        let tag = String(markdown[current..<lineEnd])
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .split(whereSeparator: \.isWhitespace)
-            .first
-            .map(String.init)
-        return tag.flatMap(MarkdownCodeLanguage.init(fenceTag:))
+
+        var languageEnd = languageStart
+        while languageEnd < lineEnd, !markdown[languageEnd].isWhitespace {
+            languageEnd = markdown.index(after: languageEnd)
+        }
+        return languageStart..<languageEnd
+    }
+
+    private func fenceLanguage(
+        in markdown: String,
+        after markerEnd: String.Index,
+        lineEnd: String.Index
+    ) -> MarkdownCodeLanguage? {
+        guard let range = fenceLanguageIdentifierRange(in: markdown, after: markerEnd, lineEnd: lineEnd) else {
+            return nil
+        }
+        return MarkdownCodeLanguage(fenceTag: String(markdown[range]))
     }
 
     private func appendCodeSpans(
@@ -793,7 +659,7 @@ extension MarkdownSyntaxHighlighter {
     }
 }
 
-private extension MarkdownHighlightRole {
+extension MarkdownHighlightRole {
     var codeRole: MarkdownCodeHighlightRole? {
         switch self {
         case .codeComment: .comment
@@ -805,6 +671,7 @@ private extension MarkdownHighlightRole {
         case .codeOperator: .operator
         case .codeTag: .tag
         case .codeAttribute: .attribute
+        case .codeConstant: .constant
         default: nil
         }
     }
@@ -820,8 +687,13 @@ private extension MarkdownHighlightRole {
         case .operator: self = .codeOperator
         case .tag: self = .codeTag
         case .attribute: self = .codeAttribute
+        case .constant: self = .codeConstant
         }
     }
+}
+
+private extension MarkdownSyntaxHighlighter {
+    static let escapableCharacters = "\\`*{}_[]<>()#+-.!|~"
 }
 
 extension MarkdownSyntaxHighlighter {
@@ -1139,7 +1011,7 @@ struct MarkdownHighlightCache {
     }
 
     func applyColors(
-        theme: MarkdownHighlightTheme,
+        theme: MarkdownTheme,
         font: MarkdownPlatformFont,
         baseColor: MarkdownPlatformColor,
         to storage: NSMutableAttributedString,

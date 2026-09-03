@@ -29,7 +29,7 @@ struct NotePDFExporter {
         let context = MarkdownRenderContext.textBundle(noteURL: snapshot.noteURL)
         let document = SwiftMarkdownParser().parse(snapshot.markdown)
         let theme = snapshot.previewUsesEditorTheme
-            ? (snapshot.isDarkMode ? MarkdownHighlightTheme.tokyoNight : MarkdownHighlightTheme.light)
+            ? (snapshot.isDarkMode ? MarkdownTheme.dark : MarkdownTheme.light)
             : nil
         let style = MarkdownStyle.notra(
             previewFontName: snapshot.previewFontName,

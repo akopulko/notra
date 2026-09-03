@@ -93,8 +93,8 @@ struct NoteRow: View {
         return theme.tagColors(for: colorScheme)
     }
 
-    private var theme: MarkdownHighlightTheme {
-        MarkdownHighlightTheme.preferred(for: colorScheme)
+    private var theme: MarkdownTheme {
+        MarkdownTheme.preferred(for: colorScheme)
     }
 
     @ViewBuilder

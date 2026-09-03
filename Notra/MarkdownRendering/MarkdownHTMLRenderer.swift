@@ -46,7 +46,7 @@ struct MarkdownHTMLRenderer {
 
 private extension MarkdownHTMLRenderer {
     var stylesheet: String {
-        let theme = MarkdownWebTheme(syntaxTheme: style.codeSyntaxTheme)
+        let theme = MarkdownWebTheme(theme: style.codeSyntaxTheme)
         let fontFamily = cssString(style.previewFontName.isEmpty ? "-apple-system" : style.previewFontName)
 
         return """
@@ -55,18 +55,22 @@ private extension MarkdownHTMLRenderer {
         html, body { margin: 0; min-height: 100%; background: transparent; }
         body { box-sizing: border-box; padding: 24px; color: \(theme.bodyText); }
         body { font: 17px \(fontFamily), -apple-system, sans-serif; line-height: 1.35; }
-        h1, h2, h3, h4, h5, h6 { color: \(theme.headingText); font-weight: 600; line-height: 1.2; }
+        h1, h2 { color: \(theme.headingPrimary); font-weight: 600; line-height: 1.2; }
+        h3 { color: \(theme.headingSecondary); font-weight: 600; line-height: 1.2; }
+        h4, h5, h6 { color: \(theme.headingTertiary); font-weight: 600; line-height: 1.2; }
         h1 { font-size: 34px; margin: 24px 0 16px; border-bottom: 1px solid \(theme.border); padding-bottom: 8px; }
         h2 { font-size: 25.5px; margin: 24px 0 16px; border-bottom: 1px solid \(theme.border); padding-bottom: 8px; }
         h3 { font-size: 21.25px; margin: 16px 0; } h4 { font-size: 17px; margin: 16px 0; }
         h5 { font-size: 14.875px; margin: 16px 0; } h6 { font-size: 14.45px; margin: 16px 0; }
         p { margin: 0 0 16px; } ul, ol { margin: 0 0 16px; padding-left: 24px; } li { margin: 0 0 4px; }
+        li::marker { color: \(theme.listMarker); }
         .task-item { list-style: none; }
         .task-checkbox { margin: 0 6px 0 0; vertical-align: baseline; }
-        blockquote { border-left: 4px solid \(theme.quoteAccent); color: \(theme.markerText); margin: 0 0 16px; padding-left: 12px; }
+        blockquote { border-left: 4px solid \(theme.quoteAccent); color: \(theme.quoteText); margin: 0 0 16px; padding-left: 12px; }
         a { color: \(theme.linkText); } code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-        p code { color: \(theme.inlineCodeText); padding: 1px 4px; border-radius: 4px; }
-        p code { background: color-mix(in srgb, currentColor 12%, transparent); }
+        strong { color: \(theme.boldText); } em { color: \(theme.italicText); } del { color: \(theme.strikethroughText); }
+        .inline-code { color: \(theme.inlineCodeText); padding: 1px 4px; border-radius: 4px; }
+        .inline-code { background: \(theme.inlineCodeBackground); }
         pre { margin: 0 0 16px; padding: 16px; overflow-x: auto; border-radius: 6px; }
         pre { background: color-mix(in srgb, currentColor 10%, transparent); white-space: pre-wrap; }
         pre code { color: \(theme.codeBlockText); }
@@ -79,7 +83,8 @@ private extension MarkdownHTMLRenderer {
         .code-operator { color: \(theme.codeOperator); }
         .code-tag { color: \(theme.codeTag); }
         .code-attribute { color: \(theme.codeAttribute); }
-        hr { border: 0; border-top: 1px solid \(theme.border); margin: 0 0 16px; }
+        .code-constant { color: \(theme.codeConstant); }
+        hr { border: 0; border-top: 1px solid \(theme.horizontalRule); margin: 0 0 16px; }
         table { border-collapse: separate; border-spacing: 0; border: 1px solid \(theme.border); }
         table { border-radius: 6px; margin: 0 0 16px; min-width: 100%; overflow: hidden; }
         th, td { border-right: 1px solid \(theme.border); border-bottom: 1px solid \(theme.border); }
@@ -90,6 +95,7 @@ private extension MarkdownHTMLRenderer {
         .markdown-image { display: block; max-width: 100%; height: auto; margin: 8px 0; }
         .markdown-image { break-inside: avoid-page; page-break-inside: avoid; }
         .image-placeholder, .attachment { display: block; margin: 8px 0; padding: 10px; border-radius: 6px; }
+        .image-placeholder, .attachment { color: \(theme.secondaryText); }
         .image-placeholder, .attachment { background: color-mix(in srgb, currentColor 8%, transparent); }
         @media print { @page { size: 595.2756pt 841.8898pt; margin: 48pt; } body { padding: 0; color: #000; background: #fff; }
         .markdown-image { max-width: 499.2756pt; max-height: 745.8898pt; object-fit: contain; }
@@ -173,7 +179,7 @@ private extension MarkdownHTMLRenderer {
         case let .strikethrough(children):
             "<del>\(render(children))</del>"
         case let .code(code):
-            "<code>\(escape(code))</code>"
+            "<code class=\"inline-code\">\(escape(code))</code>"
         case let .link(destination, _, children):
             renderLink(destination: destination, children: children)
         case let .image(source, _, alt):
@@ -229,7 +235,7 @@ private extension MarkdownHTMLRenderer {
             return escape(code)
         }
 
-        let theme = MarkdownWebTheme(syntaxTheme: style.codeSyntaxTheme)
+        let theme = MarkdownWebTheme(theme: style.codeSyntaxTheme)
         let spans = MarkdownCodeSyntaxHighlighter().spans(in: code, language: parsedLanguage)
         var result = ""
         var cursor = code.startIndex
@@ -255,6 +261,7 @@ private extension MarkdownHTMLRenderer {
         case .operator: "code-operator"
         case .tag: "code-tag"
         case .attribute: "code-attribute"
+        case .constant: "code-constant"
         }
     }
 

@@ -14,7 +14,7 @@ struct MarkdownStyle: Equatable {
     let dividerColor: Color
     let quoteAccentColor: Color
     let codeTextColor: Color
-    let codeSyntaxTheme: MarkdownHighlightTheme?
+    let codeSyntaxTheme: MarkdownTheme?
     let codeBlockFont: Font
     let inlineCodeFont: Font
     let blockSpacing: CGFloat
@@ -26,28 +26,30 @@ struct MarkdownStyle: Equatable {
 
     static func notra(
         previewFontName: String,
-        theme: MarkdownHighlightTheme? = nil,
+        theme: MarkdownTheme? = nil,
         renderMode: MarkdownRenderMode = .preview
     ) -> MarkdownStyle {
         let isPDF = renderMode == .pdf
-        let linkColor = theme?.link.color ?? Color(red: 44 / 255, green: 101 / 255, blue: 207 / 255)
-        let markerColor = theme?.marker.color ?? (isPDF ? Color.gray : Color.secondary)
-        let borderColor = theme?.marker.color.opacity(0.5) ?? (isPDF ? Color.gray.opacity(0.5) : Color.secondary.opacity(0.25))
+        let appliedTheme = isPDF ? nil : theme
+        let linkColor = appliedTheme?.preview.link.color ?? Color(red: 44 / 255, green: 101 / 255, blue: 207 / 255)
+        let markerColor = appliedTheme?.preview.listMarker.color ?? (isPDF ? Color.gray : Color.secondary)
+        let borderColor = appliedTheme?.preview.border.color ??
+            (isPDF ? Color.gray.opacity(0.5) : Color.secondary.opacity(0.25))
 
         return MarkdownStyle(
             bodyFont: AppearanceFont.bodyFont(named: previewFontName),
             previewFontName: previewFontName,
             headingScales: [2, 1.5, 1.25, 1, 0.875, 0.85],
-            textColor: isPDF ? .black : .primary,
-            secondaryTextColor: isPDF ? .gray : .secondary,
-            headingColor: theme?.heading.color ?? (isPDF ? .black : .primary),
+            textColor: appliedTheme?.preview.body.color ?? (isPDF ? .black : .primary),
+            secondaryTextColor: appliedTheme?.preview.secondaryText.color ?? (isPDF ? .gray : .secondary),
+            headingColor: appliedTheme?.preview.headingPrimary.color ?? (isPDF ? .black : .primary),
             linkColor: linkColor,
             markerColor: markerColor,
             borderColor: borderColor,
-            dividerColor: markerColor.opacity(theme == nil ? 0.2 : 0.45),
-            quoteAccentColor: theme?.quote.color ?? borderColor,
-            codeTextColor: theme?.code.color ?? (isPDF ? .black : .primary),
-            codeSyntaxTheme: isPDF ? nil : theme,
+            dividerColor: appliedTheme?.preview.horizontalRule.color ?? markerColor.opacity(0.2),
+            quoteAccentColor: appliedTheme?.preview.blockquoteIndicator.color ?? borderColor,
+            codeTextColor: appliedTheme?.preview.inlineCode.color ?? (isPDF ? .black : .primary),
+            codeSyntaxTheme: appliedTheme,
             codeBlockFont: .system(.body, design: .monospaced),
             inlineCodeFont: .system(.callout, design: .monospaced),
             blockSpacing: 0,

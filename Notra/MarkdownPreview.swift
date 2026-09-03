@@ -46,7 +46,7 @@ struct MarkdownPreview: View {
         .notra(
             previewFontName: previewFontName,
             // Preview themes are limited to Markdown text colours; the scroll canvas stays system-owned.
-            theme: previewUsesEditorTheme ? MarkdownHighlightTheme.preferred(for: colorScheme) : nil
+            theme: previewUsesEditorTheme ? MarkdownTheme.preferred(for: colorScheme) : nil
         )
     }
 

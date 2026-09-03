@@ -117,7 +117,7 @@ struct TagCapsule: View {
             return .neutral
         }
 
-        return MarkdownHighlightTheme.preferred(for: colorScheme).tagColors(for: colorScheme)
+        return MarkdownTheme.preferred(for: colorScheme).tagColors(for: colorScheme)
     }
 
     /// Preserves each tag presentation's original transparency while using the theme colour.
