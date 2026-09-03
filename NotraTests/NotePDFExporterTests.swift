@@ -69,6 +69,49 @@ struct NotePDFExporterTests {
     }
 
     @Test
+    func `moves an image intact when it does not fit the current A 4 page`() async throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        try fixture.writeMagentaImage(named: "boundary.png", width: 300, height: 300)
+        let leadingText = (0..<16).map { "Paragraph \($0) before the image." }.joined(separator: "\n\n")
+
+        let item = try await fixture.export(
+            markdown: "\(leadingText)\n\n![Boundary](assets/boundary.png)\n\nAfter image."
+        )
+        defer { removeExport(item) }
+
+        let document = try #require(CGPDFDocument(item.fileURL as CFURL))
+        let pagesWithImage = (1...document.numberOfPages).compactMap { pageIndex -> Int? in
+            guard let page = document.page(at: pageIndex), magentaBounds(in: page) != nil else {
+                return nil
+            }
+            return pageIndex
+        }
+
+        #expect(document.numberOfPages > 1)
+        #expect(pagesWithImage.count == 1)
+        #expect(pagesWithImage.first != 1)
+    }
+
+    @Test
+    func `scales an oversized image proportionally into one printable page`() async throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        try fixture.writeMagentaImage(named: "tall.png", width: 100, height: 1_000)
+
+        let item = try await fixture.export(markdown: "![Tall](assets/tall.png)")
+        defer { removeExport(item) }
+
+        let document = try #require(CGPDFDocument(item.fileURL as CFURL))
+        let page = try #require(document.page(at: 1))
+        let bounds = try #require(magentaBounds(in: page))
+
+        #expect(document.numberOfPages == 1)
+        #expect(bounds.height <= 746)
+        #expect(abs(bounds.width / bounds.height - 0.1) < 0.03)
+    }
+
+    @Test
     func `includes only decoded local image markdown nodes`() async throws {
         let fixture = try Fixture()
         defer { fixture.remove() }
@@ -300,6 +343,59 @@ struct NotePDFExporterTests {
         }
         return (blackTotalY / blackCount, grayTotalY / grayCount)
     }
+
+    private func magentaBounds(in page: CGPDFPage) -> CGRect? {
+        let width = Int(ceil(NotePDFExporter.pageSize.width))
+        let height = Int(ceil(NotePDFExporter.pageSize.height))
+        let bytesPerRow = width * 4
+        let data = NSMutableData(length: bytesPerRow * height)!
+        guard let context = CGContext(
+            data: data.mutableBytes,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: bytesPerRow,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGBitmapInfo.byteOrder32Big.rawValue | CGImageAlphaInfo.noneSkipLast.rawValue
+        ) else {
+            return nil
+        }
+
+        context.setFillColor(CGColor(gray: 1, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        context.drawPDFPage(page)
+
+        let pixels = data.bytes.assumingMemoryBound(to: UInt8.self)
+        var minimumX = width
+        var minimumY = height
+        var maximumX = -1
+        var maximumY = -1
+        for y in 0..<height {
+            for x in 0..<width {
+                let offset = y * bytesPerRow + x * 4
+                let red = pixels[offset]
+                let green = pixels[offset + 1]
+                let blue = pixels[offset + 2]
+                guard red > 200, green < 80, blue > 150 else {
+                    continue
+                }
+                minimumX = min(minimumX, x)
+                minimumY = min(minimumY, y)
+                maximumX = max(maximumX, x)
+                maximumY = max(maximumY, y)
+            }
+        }
+
+        guard maximumX >= minimumX, maximumY >= minimumY else {
+            return nil
+        }
+        return CGRect(
+            x: minimumX,
+            y: minimumY,
+            width: maximumX - minimumX + 1,
+            height: maximumY - minimumY + 1
+        )
+    }
 }
 
 /// Creates isolated temporary export inputs and removes generated files after each test.
@@ -347,6 +443,29 @@ private struct Fixture {
         context.fill(CGRect(x: 0, y: 0, width: width, height: height))
         context.setFillColor(CGColor(gray: 0, alpha: 1))
         context.fill(CGRect(x: 0, y: height / 2, width: width, height: height / 2))
+        let image = try #require(context.makeImage())
+        let destination = try #require(CGImageDestinationCreateWithURL(
+            assetURL(named: name) as CFURL,
+            UTType.png.identifier as CFString,
+            1,
+            nil
+        ))
+        CGImageDestinationAddImage(destination, image, nil)
+        #expect(CGImageDestinationFinalize(destination))
+    }
+
+    func writeMagentaImage(named name: String, width: Int, height: Int) throws {
+        let context = try #require(CGContext(
+            data: nil,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: width * 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ))
+        context.setFillColor(CGColor(red: 1, green: 0, blue: 1, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
         let image = try #require(context.makeImage())
         let destination = try #require(CGImageDestinationCreateWithURL(
             assetURL(named: name) as CFURL,

@@ -99,6 +99,30 @@ struct MarkdownRenderingTests {
         #expect(themedPDF.codeSyntaxTheme == nil)
     }
 
+    @Test func pdfHTMLUsesAThemeIndependentLightA4Layout() {
+        let document = SwiftMarkdownParser().parse("# Heading\n\n```swift\nlet value = 42\n```")
+        var renderer = MarkdownHTMLRenderer(
+            style: .notra(
+                previewFontName: AppearanceFont.defaultName,
+                theme: .dark,
+                renderMode: .pdf
+            ),
+            mode: .pdf,
+            context: .empty
+        )
+
+        let html = renderer.render(document).html
+
+        #expect(html.contains(":root { color-scheme: only light; }"))
+        #expect(html.contains("body { box-sizing: border-box; padding: 24px; color: #111111; }"))
+        #expect(html.contains("<main class=\"pdf-content\">"))
+        #expect(html.contains("width: 595px; height: 842px"))
+        #expect(html.contains("column-width: 499px; column-gap: 96px"))
+        #expect(html.contains("break-inside: avoid-column"))
+        #expect(!html.contains(MarkdownTheme.dark.preview.body.hex))
+        #expect(!html.contains(MarkdownTheme.dark.code.keyword.hex))
+    }
+
     @Test
     func `parses representative markdown surface`() {
         let document = SwiftMarkdownParser().parse("""

@@ -35,9 +35,10 @@ struct MarkdownHTMLRenderer {
     /// Builds a full document so WebKit owns one continuous selection and print layout surface.
     mutating func render(_ document: NotraMarkdownDocument) -> MarkdownHTMLDocument {
         let content = document.blocks.map { render($0) }.joined(separator: "\n")
+        let body = mode == .pdf ? "<main class=\"pdf-content\">\(content)</main>" : content
         let head = "<meta charset=\"utf-8\">\(viewportMetadata)\(stylesheet)"
         return MarkdownHTMLDocument(
-            html: "<!doctype html><html><head>\(head)</head><body>\(content)</body></html>",
+            html: "<!doctype html><html><head>\(head)</head><body>\(body)</body></html>",
             assets: assets,
             attachments: attachments,
             includedImageURLs: includedImageURLs
@@ -56,12 +57,12 @@ private extension MarkdownHTMLRenderer {
     }
 
     var stylesheet: String {
-        let theme = MarkdownWebTheme(theme: style.codeSyntaxTheme)
+        let theme = MarkdownWebTheme(theme: style.codeSyntaxTheme, printable: mode == .pdf)
         let fontFamily = cssString(style.previewFontName.isEmpty ? "-apple-system" : style.previewFontName)
 
         return """
         <style>
-        :root { color-scheme: light dark; }
+        :root { color-scheme: \(mode == .pdf ? "only light" : "light dark"); }
         html, body { margin: 0; min-height: 100%; background: transparent; }
         \(previewWidthRules)
         body { box-sizing: border-box; padding: 24px; color: \(theme.bodyText); }
@@ -105,13 +106,11 @@ private extension MarkdownHTMLRenderer {
         th { background: color-mix(in srgb, currentColor 8%, transparent); }
         .markdown-image { display: block; max-width: 100%; height: auto; margin: 8px 0; }
         .markdown-image { break-inside: avoid-page; page-break-inside: avoid; }
+        .pdf-image-container { display: block; max-width: 100%; break-inside: avoid-page; page-break-inside: avoid; }
         .image-placeholder, .attachment { display: block; margin: 8px 0; padding: 10px; border-radius: 6px; }
         .image-placeholder, .attachment { color: \(theme.secondaryText); }
         .image-placeholder, .attachment { background: color-mix(in srgb, currentColor 8%, transparent); }
-        @media print { @page { size: 595.2756pt 841.8898pt; margin: 48pt; } body { padding: 0; color: #000; background: #fff; }
-        .markdown-image { max-width: 499.2756pt; max-height: 745.8898pt; object-fit: contain; }
-        .markdown-image { break-inside: avoid-page; page-break-inside: avoid; }
-        table, tr { break-inside: avoid-page; page-break-inside: avoid; } }
+        \(pdfLayoutRules)
         </style>
         """
     }
@@ -130,6 +129,27 @@ private extension MarkdownHTMLRenderer {
         pre, pre code { overflow-wrap: normal; }
         table { width: 100%; max-width: 100%; table-layout: fixed; }
         th, td { overflow-wrap: anywhere; }
+        """
+    }
+
+    var pdfLayoutRules: String {
+        guard mode == .pdf else {
+            return ""
+        }
+
+        // Lay pages out as fixed-height browser columns so each captured region is exactly one A4 sheet.
+        return """
+        html, body { width: 595px; height: 842px; min-height: 842px; overflow: visible; }
+        html, body { color-scheme: only light; background: #fff; }
+        body { padding: 0; background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .pdf-content { position: absolute; left: 48px; top: 48px; width: 499px; height: 746px; }
+        .pdf-content { column-width: 499px; column-gap: 96px; column-fill: auto; }
+        pre { max-width: 100%; overflow: hidden; overflow-wrap: anywhere; }
+        table { width: 100%; max-width: 100%; table-layout: fixed; }
+        th, td { overflow-wrap: anywhere; }
+        .pdf-image-container { break-inside: avoid-column; }
+        .markdown-image { width: auto; max-width: 100%; height: auto; max-height: 746px; margin: 0; }
+        tr { break-inside: avoid-column; }
         """
     }
 
@@ -220,6 +240,10 @@ private extension MarkdownHTMLRenderer {
     }
 
     mutating func renderLink(destination: String, children: [MarkdownInline]) -> String {
+        if mode == .pdf, isPDFAssetLink(destination) {
+            return ""
+        }
+
         if let url = attachmentURL(for: destination) {
             let id = registerAttachment(url)
             return "<a class=\"attachment\" href=\"notra-attachment://attachment/\(id)\">\(render(children))</a>"
@@ -229,6 +253,15 @@ private extension MarkdownHTMLRenderer {
             return render(children)
         }
         return "<a href=\"\(escapeAttribute(url.absoluteString))\">\(render(children))</a>"
+    }
+
+    func isPDFAssetLink(_ destination: String) -> Bool {
+        guard let url = MarkdownAttachmentReferences.resolve(destination, assetBaseURL: context.assetBaseURL),
+              url.isFileURL
+        else {
+            return false
+        }
+        return isImage(url) || isAttachment(url)
     }
 
     mutating func renderImage(source: String?, alt: String) -> String {
@@ -246,7 +279,8 @@ private extension MarkdownHTMLRenderer {
             if mode == .pdf {
                 includedImageURLs.insert(url.notraCanonicalFileURL)
             }
-            return "<img class=\"markdown-image\" src=\"notra-asset://asset/\(id)\" alt=\"\(escapeAttribute(alt))\">"
+            let image = "<img class=\"markdown-image\" src=\"notra-asset://asset/\(id)\" alt=\"\(escapeAttribute(alt))\">"
+            return mode == .pdf ? "<span class=\"pdf-image-container\">\(image)</span>" : image
         }
 
         guard mode == .preview, url.scheme == "http" || url.scheme == "https" else {
@@ -263,7 +297,7 @@ private extension MarkdownHTMLRenderer {
             return escape(code)
         }
 
-        let theme = MarkdownWebTheme(theme: style.codeSyntaxTheme)
+        let theme = MarkdownWebTheme(theme: style.codeSyntaxTheme, printable: mode == .pdf)
         let spans = MarkdownCodeSyntaxHighlighter().spans(in: code, language: parsedLanguage)
         var result = ""
         var cursor = code.startIndex

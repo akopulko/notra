@@ -64,7 +64,7 @@ struct NotePDFExporter {
 }
 
 private extension NotePDFExporter {
-    /// Uses an off-screen A4 viewport so printed CSS and the PDF media box share fixed dimensions.
+    /// Loads the preview HTML in an isolated WebKit view before browser-based A4 pagination and capture.
     func render(_ document: MarkdownHTMLDocument) async throws -> Data {
         let assetHandler = MarkdownWebAssetHandler()
         assetHandler.update(document.assets)
@@ -80,7 +80,27 @@ private extension NotePDFExporter {
         try await loader.load(document.html, in: webView)
 
         do {
-            return try await webView.pdf()
+            // Navigation completion can precede font and image decoding, so wait before measuring pages.
+            _ = try await webView.callAsyncJavaScript(
+                """
+                await document.fonts.ready;
+                await Promise.all(Array.from(document.images).map(async image => {
+                    if (!image.complete) {
+                        await new Promise(resolve => {
+                            image.addEventListener('load', resolve, { once: true });
+                            image.addEventListener('error', resolve, { once: true });
+                        });
+                    }
+                    try { await image.decode(); } catch { }
+                }));
+                return document.documentElement.scrollHeight;
+                """,
+                contentWorld: .page
+            )
+            return try await NotePDFPrintRenderer.render(
+                webView: webView,
+                pageSize: Self.pageSize
+            )
         } catch {
             throw NotePDFExporterError.unableToCreatePDF
         }
