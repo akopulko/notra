@@ -1,27 +1,30 @@
 import SwiftUI
 
+#if os(macOS)
+import AppKit
+#endif
+
 /// Renders parsed Markdown and overlays the selected note's tags when preview mode allows it.
 struct MarkdownPreview: View {
     @Environment(\.colorScheme) private var colorScheme
     @AppStorage(AppearanceSettingKey.previewFontName) private var previewFontName = AppearanceFont.defaultName
     @AppStorage(AppearanceSettingKey.previewUsesEditorTheme) private var previewUsesEditorTheme = true
+    // Keeps attachment presentation owned by the preview rather than by WebKit navigation.
+    #if os(iOS)
+    @State private var previewedAttachment: AttachmentPreviewItem?
+    #endif
 
     let markdown: String
     let context: MarkdownRenderContext
     var tags: [NoteTag] = []
 
     var body: some View {
-        ScrollView {
-            MarkdownDocumentView(
-                input: MarkdownRenderInput(
-                    markdown: markdown,
-                    context: context
-                )
-            )
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(24)
-            .padding(.bottom, tags.isEmpty ? 0 : 88)
-        }
+        MarkdownWebPreview(
+            markdown: markdown,
+            context: context,
+            style: previewStyle,
+            openAttachment: openAttachment
+        )
         .overlay(alignment: .bottom) {
             if !tags.isEmpty {
                 PreviewTagsOverlay(tags: tags)
@@ -32,6 +35,11 @@ struct MarkdownPreview: View {
         .environment(\.markdownStyle, previewStyle)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Note preview")
+        #if os(iOS)
+        .sheet(item: $previewedAttachment) { item in
+            AttachmentPreviewController(item: item)
+        }
+        #endif
     }
 
     private var previewStyle: MarkdownStyle {
@@ -40,6 +48,15 @@ struct MarkdownPreview: View {
             // Preview themes are limited to Markdown text colours; the scroll canvas stays system-owned.
             theme: previewUsesEditorTheme ? MarkdownHighlightTheme.preferred(for: colorScheme) : nil
         )
+    }
+
+    /// Keeps local attachment activation consistent with the previous native preview.
+    private func openAttachment(_ url: URL) {
+        #if os(macOS)
+        NSWorkspace.shared.open(url)
+        #else
+        previewedAttachment = AttachmentPreviewItem(url: url)
+        #endif
     }
 }
 

@@ -6,6 +6,16 @@ import Testing
 @MainActor
 /// Checks parsing, styling, and native Markdown rendering inputs used by preview and PDF export.
 struct MarkdownRenderingTests {
+    @Test func webThemeKeepsNormalTextSeparateFromCodeText() {
+        let webTheme = MarkdownWebTheme(syntaxTheme: .tokyoNight)
+
+        #expect(webTheme.bodyText == "CanvasText")
+        #expect(webTheme.codeBlockText == "CanvasText")
+        #expect(webTheme.inlineCodeText == MarkdownHighlightTheme.tokyoNight.code.hex)
+        #expect(webTheme.headingText == MarkdownHighlightTheme.tokyoNight.heading.hex)
+        #expect(webTheme.codeColour(for: .keyword) == MarkdownHighlightTheme.tokyoNight.codeKeyword.hex)
+    }
+
     @Test func previewCodeSyntaxThemeFollowsThePreviewThemeOption() {
         let themedPreview = MarkdownStyle.notra(
             previewFontName: AppearanceFont.defaultName,
@@ -163,6 +173,25 @@ struct MarkdownRenderingTests {
         }
 
         #expect(items.map(\.taskState) == [.unchecked, .checked])
+    }
+
+    @Test
+    func `renders task text beside its checkbox without a list marker`() {
+        let document = SwiftMarkdownParser().parse("""
+        - [ ] test 1
+        - [x] test 2
+        """)
+        var renderer = MarkdownHTMLRenderer(
+            style: .notra(previewFontName: AppearanceFont.defaultName),
+            mode: .preview,
+            context: .empty
+        )
+
+        let html = renderer.render(document).html
+
+        #expect(html.contains("<li class=\"task-item\"><input class=\"task-checkbox\" type=\"checkbox\" disabled><span>test 1</span></li>"))
+        #expect(html.contains("<li class=\"task-item\"><input class=\"task-checkbox\" type=\"checkbox\" checked disabled><span>test 2</span></li>"))
+        #expect(!html.contains("<li><input type=\"checkbox\""))
     }
 
     @Test
