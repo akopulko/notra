@@ -13,6 +13,8 @@ struct NotesSidebar: View {
     @State private var hasMoreSearchResults = false
     @State private var isLoadingMoreSearchResults = false
     @State private var exportTask: Task<Void, Never>?
+    /// Holds one user-initiated deletion until its native confirmation is resolved.
+    @State private var pendingDeletion: NoteDeletionRequest?
     @AppStorage(AppearanceSettingKey.previewFontName) private var previewFontName = AppearanceFont.defaultName
     @AppStorage(AppearanceSettingKey.showsNotePreview) private var showsNotePreview = true
     #if os(iOS)
@@ -118,9 +120,7 @@ struct NotesSidebar: View {
                     #endif
                     Divider()
                     Button("Delete", systemImage: "trash", role: .destructive) {
-                        Task {
-                            await store.deleteNotes([note])
-                        }
+                        requestNoteDeletion([note])
                     }
                 }
                 .notePinSwipeAction(note: note) {
@@ -128,13 +128,14 @@ struct NotesSidebar: View {
                         await store.togglePin(for: note)
                     }
                 }
+                .noteDeletionSwipeAction {
+                    requestNoteDeletion([note])
+                }
                 .listRowSeparator(.visible, edges: .bottom)
             }
-            .onDelete { offsets in
-                Task {
-                    await store.deleteNotes(offsets.map { visibleNotes[$0] })
-                }
-            }
+            #if os(macOS)
+            .onDelete(perform: requestNoteDeletionForOffsets)
+            #endif
             if isSearching, hasMoreSearchResults {
                 loadMoreRow
             }
@@ -160,6 +161,11 @@ struct NotesSidebar: View {
                 searchEmptyState
             }
         }
+        .modifier(NoteDeletionConfirmationModifier(request: $pendingDeletion) { summaries in
+            Task {
+                await store.deleteNotes(summaries)
+            }
+        })
     }
 
     private var visibleNotes: [NoteSummary] {
@@ -376,6 +382,21 @@ struct NotesSidebar: View {
     }
 }
 
+private extension NotesSidebar {
+    /// Defers every user-facing deletion entry point to one confirmation dialog.
+    func requestNoteDeletion(_ summaries: [NoteSummary]) {
+        guard !summaries.isEmpty, pendingDeletion == nil else {
+            return
+        }
+
+        pendingDeletion = NoteDeletionRequest(summaries: summaries)
+    }
+
+    func requestNoteDeletionForOffsets(_ offsets: IndexSet) {
+        requestNoteDeletion(offsets.map { visibleNotes[$0] })
+    }
+}
+
 /// Provides the context-menu action that changes one note's persisted pin state.
 private struct NotePinContextMenuButton: View {
     let note: NoteSummary
@@ -392,6 +413,54 @@ private struct NotePinContextMenuButton: View {
     }
 }
 
+/// Captures the exact note rows selected before the list can change under a confirmation dialog.
+private struct NoteDeletionRequest {
+    let summaries: [NoteSummary]
+
+    var message: String {
+        summaries.count == 1
+            ? "This note will be permanently deleted."
+            : "These notes will be permanently deleted."
+    }
+}
+
+/// Presents one native destructive alert before delegating to the existing store deletion path.
+private struct NoteDeletionConfirmationModifier: ViewModifier {
+    @Binding var request: NoteDeletionRequest?
+    let delete: ([NoteSummary]) -> Void
+
+    func body(content: Content) -> some View {
+        content.alert(
+            "Delete Note?",
+            isPresented: presentationBinding
+        ) {
+            Button("Delete", role: .destructive) {
+                guard let deletionRequest = request else {
+                    return
+                }
+                request = nil
+                delete(deletionRequest.summaries)
+            }
+            Button("Cancel", role: .cancel) {
+                request = nil
+            }
+        } message: {
+            Text(request?.message ?? "")
+        }
+    }
+
+    /// Clears the request when the system dismisses the dialog outside the explicit buttons.
+    private var presentationBinding: Binding<Bool> {
+        Binding {
+            request != nil
+        } set: { isPresented in
+            if !isPresented {
+                request = nil
+            }
+        }
+    }
+}
+
 private extension View {
     @ViewBuilder
     func notePinSwipeAction(note: NoteSummary, action: @escaping () -> Void) -> some View {
@@ -404,6 +473,23 @@ private extension View {
                 )
             }
             .tint(note.isPinned ? .orange : .accentColor)
+        }
+        #else
+        self
+        #endif
+    }
+
+    @ViewBuilder
+    func noteDeletionSwipeAction(action: @escaping () -> Void) -> some View {
+        #if os(iOS)
+        swipeActions(edge: .trailing) {
+            // A destructive role makes List begin its own row-removal batch update.
+            // Confirmation deliberately defers the model mutation, so retain the red
+            // affordance without asking UIKit to remove the row before confirmation.
+            Button(action: action) {
+                Label("Delete", systemImage: "trash")
+            }
+            .tint(.red)
         }
         #else
         self
