@@ -13,6 +13,8 @@ struct AttachmentInspectorView: View {
     let removeTag: (NoteTag) -> Void
     @State private var selectedAttachmentURL: URL?
     @State private var pendingDeletion: TextBundleAsset?
+    @State private var tagInput = ""
+    @State private var tagEntryFeedback: TagEntryFeedback?
     #if os(iOS)
     @State private var previewedAttachment: AttachmentPreviewItem?
     #endif
@@ -84,6 +86,8 @@ struct AttachmentInspectorView: View {
         .onChange(of: store.selectedNoteID) {
             selectedAttachmentURL = nil
             pendingDeletion = nil
+            tagInput = ""
+            tagEntryFeedback = nil
         }
         .inspectorColumnWidth(min: 260, ideal: 300, max: 420)
     }
@@ -98,6 +102,8 @@ struct AttachmentInspectorView: View {
 
     private var tagSection: some View {
         Section {
+            tagEntry
+
             if store.selectedNoteTags.isEmpty {
                 Text("No Tags")
                     .font(.body)
@@ -117,22 +123,76 @@ struct AttachmentInspectorView: View {
         }
     }
 
-    @ViewBuilder
+    private var tagEntry: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                tagInputField
+
+                Button("Add Tag", systemImage: "plus") {
+                    addTag()
+                }
+                .labelStyle(.iconOnly)
+                .help("Add Tag")
+                .accessibilityLabel("Add Tag")
+                .disabled(tagInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(.background, in: Capsule())
+
+            if let tagEntryFeedback {
+                Text(tagEntryFeedback.message)
+                    .font(.caption)
+                    .foregroundStyle(tagEntryFeedback.foregroundStyle)
+                    .accessibilityLabel(tagEntryFeedback.message)
+            }
+        }
+        .onChange(of: tagInput) {
+            tagEntryFeedback = nil
+        }
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
+    }
+
+    private var tagInputField: some View {
+        TextField("Add Tag", text: $tagInput)
+            #if os(iOS)
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled()
+            #endif
+            .textFieldStyle(.plain)
+            .onSubmit(addTag)
+            .accessibilityLabel("Add Tag")
+    }
+
     private func tagCapsule(for tag: NoteTag) -> some View {
-        if isEditing {
-            TagCapsule(
-                tag: tag,
-                size: .compact
-            ) {
-                removeTag(tag)
-            }
-            .frame(maxWidth: 180)
-            .accessibilityAction(named: "Remove tag \(tag.displayName)") {
-                removeTag(tag)
-            }
-        } else {
-            TagCapsule(tag: tag, size: .compact)
-                .frame(maxWidth: 180)
+        TagCapsule(
+            tag: tag,
+            size: .compact
+        ) {
+            removeTag(tag)
+        }
+        .frame(maxWidth: 180)
+        .accessibilityAction(named: "Remove tag \(tag.displayName)") {
+            removeTag(tag)
+        }
+    }
+
+    private func addTag() {
+        guard let tag = NoteTag(inspectorInput: tagInput) else {
+            tagEntryFeedback = .invalid
+            return
+        }
+
+        guard let result = store.addTag(tag) else {
+            return
+        }
+
+        switch result {
+        case .added:
+            tagInput = ""
+        case .duplicate:
+            tagEntryFeedback = .duplicate
         }
     }
 
@@ -249,6 +309,30 @@ struct AttachmentInspectorView: View {
             return "This attachment is used in the note. All references to it will also be removed."
         }
         return "This permanently deletes the attachment from this note."
+    }
+}
+
+/// Describes validation feedback kept beside the inspector's tag entry field.
+private enum TagEntryFeedback {
+    case invalid
+    case duplicate
+
+    var message: String {
+        switch self {
+        case .invalid:
+            "Use letters, numbers, hyphens, or underscores."
+        case .duplicate:
+            "Tag already added."
+        }
+    }
+
+    var foregroundStyle: Color {
+        switch self {
+        case .invalid:
+            .red
+        case .duplicate:
+            .secondary
+        }
     }
 }
 

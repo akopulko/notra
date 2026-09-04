@@ -237,23 +237,12 @@ extension MarkdownNativeTextEditor {
         }
 
         func textView(
-            _ textView: UITextView,
+            _: UITextView,
             shouldChangeTextIn range: NSRange,
             replacementText text: String
         ) -> Bool {
-            let edit = MarkdownTextEdit(range: range, replacementUTF16Length: text.utf16.count)
-            guard text == "\n",
-                  range.length == 0,
-                  textView.markedTextRange == nil,
-                  let snapshot = selectionSnapshot(from: range),
-                  parent.bridge.commitTagEntry?(snapshot) == true
-            else {
-                pendingTextEdit = edit
-                return true
-            }
-
-            pendingTextEdit = nil
-            return false
+            pendingTextEdit = MarkdownTextEdit(range: range, replacementUTF16Length: text.utf16.count)
+            return true
         }
 
         func textView(
@@ -595,27 +584,16 @@ extension MarkdownNativeTextEditor {
         }
 
         func textView(
-            _ textView: NSTextView,
+            _: NSTextView,
             shouldChangeTextIn affectedCharRange: NSRange,
             replacementString: String?
         ) -> Bool {
             let replacement = replacementString ?? ""
-            let edit = MarkdownTextEdit(
+            pendingTextEdit = MarkdownTextEdit(
                 range: affectedCharRange,
                 replacementUTF16Length: replacement.utf16.count
             )
-            guard replacementString == "\n",
-                  affectedCharRange.length == 0,
-                  !textView.hasMarkedText(),
-                  let snapshot = selectionSnapshot(from: affectedCharRange),
-                  parent.bridge.commitTagEntry?(snapshot) == true
-            else {
-                pendingTextEdit = edit
-                return true
-            }
-
-            pendingTextEdit = nil
-            return false
+            return true
         }
 
         func textView(

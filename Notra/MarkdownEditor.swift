@@ -12,7 +12,6 @@ struct MarkdownEditor: View {
     let applyHeading: (MarkdownHeadingLevel) -> Void
     let requestAttachmentSelection: () -> Void
     let headingFormattingRequest: MarkdownHeadingFormattingRequest
-    let hashtagFormattingRequest: Int
     let boldFormattingRequest: Int
     let italicFormattingRequest: Int
     let codeFormattingRequest: Int
@@ -24,8 +23,6 @@ struct MarkdownEditor: View {
     let undoRequest: Int
     let redoRequest: Int
     let focusFirstLineRequest: Int
-    let commitTag: (NoteTag) -> NoteTagMutationResult?
-    let onTagCommitResult: (NoteTagMutationResult) -> Void
     let onUndoRedoAvailabilityChanged: (EditorUndoRedoAvailability) -> Void
 
     @State private var bridge = MarkdownTextEditorBridge()
@@ -46,9 +43,6 @@ struct MarkdownEditor: View {
         }
         .onChange(of: headingFormattingRequest) {
             applyHeadingFormatting()
-        }
-        .onChange(of: hashtagFormattingRequest) {
-            applyHashtagFormatting()
         }
         .onChange(of: boldFormattingRequest) {
             applyBoldFormatting()
@@ -87,7 +81,6 @@ struct MarkdownEditor: View {
             bridge.applyFormattingCommand = applyFormattingCommand
             bridge.applyHeading = applyHeading
             bridge.requestAttachmentSelection = requestAttachmentSelection
-            bridge.commitTagEntry = commitTagEntry
             bridge.reportUndoRedoAvailability = onUndoRedoAvailabilityChanged
             bridge.refreshUndoRedoAvailability?()
             if focusFirstLineRequest > 0 {
@@ -114,13 +107,6 @@ private extension MarkdownEditor {
 
     private func applyBoldFormatting() {
         applyInlineFormatting(command: .bold)
-    }
-
-    private func applyHashtagFormatting() {
-        let currentText = text
-        let selectedRange = formattingSelection(in: currentText)
-        let result = MarkdownFormatting.applyHashtagResult(to: currentText, selection: selectedRange)
-        applyFormattingResult(result, command: .hashtag, oldTextLength: currentText.count)
     }
 
     private func applyItalicFormatting() {
@@ -203,7 +189,7 @@ private extension MarkdownEditor {
             result = MarkdownFormatting.applyQuoteResult(to: currentText, selection: selectedRange)
         case .todo:
             result = MarkdownFormatting.applyTodoResult(to: currentText, selection: selectedRange)
-        case .bold, .italic, .heading, .hashtag, .code, .link, .table, .image:
+        case .bold, .italic, .heading, .code, .link, .table, .image:
             return
         }
 
@@ -228,7 +214,7 @@ private extension MarkdownEditor {
             result = MarkdownFormatting.applyCodeResult(to: currentText, selection: selectedRange)
         case .link:
             result = MarkdownFormatting.applyLinkResult(to: currentText, selection: selectedRange)
-        case .heading, .hashtag, .unorderedList, .orderedList, .quote, .todo, .table, .image:
+        case .heading, .unorderedList, .orderedList, .quote, .todo, .table, .image:
             return
         }
 
@@ -275,35 +261,6 @@ private extension MarkdownEditor {
         }
 
         return text.utf16.distance(from: text.utf16.startIndex, to: newlineIndex)
-    }
-
-    private func commitTagEntry(selection: MarkdownEditorSelectionSnapshot) -> Bool {
-        guard let entry = NoteTagEntryParser.entry(in: text, selection: selection),
-              let result = commitTag(entry.tag)
-        else {
-            return false
-        }
-
-        applyTagEntryResult(entry.result, tag: entry.tag)
-        onTagCommitResult(result)
-        return true
-    }
-
-    private func applyTagEntryResult(_ result: MarkdownFormattingResult, tag: NoteTag) {
-        AppLog.info(
-            """
-            Tag entry committed; tag=\(tag.name); \
-            oldLength=\(text.count); newLength=\(result.text.count); \
-            cursor=\(rangeDescription(result.selection, in: result.text))
-            """
-        )
-
-        let resultSnapshot = snapshot(for: result.selection, in: result.text)
-        selectionStore.snapshot = resultSnapshot
-        selectionStore.lastNonEmptySnapshot = nil
-        bridge.applyProgrammaticEdit?(result.text, resultSnapshot)
-        text = result.text
-        bridge.focusEditor?()
     }
 
     private func formattingSelection(in plainText: String) -> Range<String.Index> {
@@ -425,8 +382,6 @@ private extension NoteFormattingCommand {
             "Italic"
         case .heading:
             "Heading"
-        case .hashtag:
-            "Hashtag"
         case .unorderedList:
             "Unordered list"
         case .orderedList:

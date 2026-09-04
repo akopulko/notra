@@ -22,8 +22,6 @@ final class MarkdownTextEditorBridge {
     var applyHeading: ((MarkdownHeadingLevel) -> Void)?
     /// Requests the parent SwiftUI view to present the platform attachment picker.
     var requestAttachmentSelection: (() -> Void)?
-    /// Consumes a newline when it commits a standalone tag entry.
-    var commitTagEntry: ((MarkdownEditorSelectionSnapshot) -> Bool)?
 }
 
 /// Reports which native undo and redo commands can currently be performed.

@@ -1,7 +1,4 @@
 import SwiftUI
-#if os(macOS)
-import AppKit
-#endif
 
 /// Hosts the settings navigation shell and platform-specific appearance controls.
 struct SettingsView: View {
@@ -92,7 +89,6 @@ struct SettingsView: View {
             }
         }
         .frame(minWidth: 620, idealWidth: 720, minHeight: 420, idealHeight: 500)
-        .background(SettingsWindowCenteringView())
     }
     #endif
 
@@ -232,9 +228,15 @@ private struct GeneralSettingsDetailView: View {
                             .tag(option.rawValue)
                     }
                 }
+                #if os(macOS)
                 .pickerStyle(.menu)
+                #else
+                .pickerStyle(.navigationLink)
+                #endif
             } header: {
                 Text("Notes")
+            } footer: {
+                Text("Choose whether new notes begin with a title heading or an empty document.")
             }
 
             Section {
@@ -247,8 +249,6 @@ private struct GeneralSettingsDetailView: View {
                         Text("\(maximumAttachmentSizeMB.formatted(.number)) MB")
                     }
                 }
-            } header: {
-                Text("Attachments")
             } footer: {
                 Text("Files larger than this limit cannot be added to a note.")
             }
@@ -291,13 +291,23 @@ private struct AppearanceSettingsDetailView: View {
                 #else
                 .pickerStyle(.navigationLink)
                 #endif
+            } header: {
+                Text("Fonts")
+            } footer: {
+                Text("Choose the monospaced font used while editing Markdown.")
+            }
 
+            Section {
                 Stepper(value: $editorFontSize, in: 12...28, step: 1) {
                     LabeledContent("Editor Font Size") {
                         Text(editorFontSize.formatted(.number.precision(.fractionLength(0))) + " pt")
                     }
                 }
+            } footer: {
+                Text("Adjust the text size used in the editor.")
+            }
 
+            Section {
                 Picker("Preview Font", selection: $previewFontName) {
                     fontChoices(fixedPitchOnly: false)
                 }
@@ -306,15 +316,22 @@ private struct AppearanceSettingsDetailView: View {
                 #else
                 .pickerStyle(.navigationLink)
                 #endif
-            } header: {
-                Text("Fonts")
+            } footer: {
+                Text("Choose the font used when reading note previews.")
             }
 
             Section {
                 Toggle("Apply Editor Theme Colors to Preview", isOn: $previewUsesEditorTheme)
-                Toggle("Show Note Preview", isOn: $showsNotePreview)
             } header: {
                 Text("Preview")
+            } footer: {
+                Text("Use the editor’s syntax colours when rendering note previews.")
+            }
+
+            Section {
+                Toggle("Show Note Preview", isOn: $showsNotePreview)
+            } footer: {
+                Text("Show each note’s first line or content preview in the notes list.")
             }
         }
         .settingsDetailFormStyle()
@@ -425,76 +442,6 @@ private extension Bundle {
         object(forInfoDictionaryKey: key) as? String
     }
 }
-
-#if os(macOS)
-private enum SettingsWindowMetrics {
-    static let contentSize = NSSize(width: 350, height: 450)
-}
-
-private struct SettingsWindowCenteringView: NSViewRepresentable {
-    func makeCoordinator() -> Coordinator {
-        Coordinator()
-    }
-
-    func makeNSView(context _: Context) -> NSView {
-        NSView()
-    }
-
-    func updateNSView(_ nsView: NSView, context: Context) {
-        let coordinator = context.coordinator
-        Task { @MainActor [weak nsView, coordinator] in
-            guard let window = nsView?.window else {
-                return
-            }
-
-            coordinator.center(window)
-        }
-    }
-
-    @MainActor
-    final class Coordinator {
-        private var centeredWindowIDs = Set<ObjectIdentifier>()
-
-        func center(_ settingsWindow: NSWindow) {
-            let settingsWindowID = ObjectIdentifier(settingsWindow)
-            guard !centeredWindowIDs.contains(settingsWindowID),
-                  let referenceWindow = referenceWindow(for: settingsWindow)
-            else {
-                return
-            }
-
-            settingsWindow.setContentSize(SettingsWindowMetrics.contentSize)
-
-            let referenceFrame = referenceWindow.frame
-            let settingsFrame = settingsWindow.frame
-            var origin = NSPoint(
-                x: referenceFrame.midX - settingsFrame.width / 2,
-                y: referenceFrame.midY - settingsFrame.height / 2
-            )
-
-            if let visibleFrame = referenceWindow.screen?.visibleFrame {
-                origin.x = min(max(origin.x, visibleFrame.minX), visibleFrame.maxX - settingsFrame.width)
-                origin.y = min(max(origin.y, visibleFrame.minY), visibleFrame.maxY - settingsFrame.height)
-            }
-
-            settingsWindow.setFrameOrigin(origin)
-            centeredWindowIDs.insert(settingsWindowID)
-        }
-
-        private func referenceWindow(for settingsWindow: NSWindow) -> NSWindow? {
-            let candidates = NSApp.windows.filter { window in
-                window !== settingsWindow
-                    && window.isVisible
-                    && !window.isMiniaturized
-                    && window.level == .normal
-            }
-
-            return candidates.first { $0.title == "Notra" }
-                ?? candidates.first { $0.canBecomeMain }
-        }
-    }
-}
-#endif
 
 #Preview {
     SettingsView()
