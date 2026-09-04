@@ -99,6 +99,7 @@ struct SettingsView: View {
             GeneralSettingsDetailView(
                 startNewNoteWith: $startNewNoteWith,
                 maximumAttachmentSizeMB: $maximumAttachmentSizeMB,
+                showsNotePreview: $showsNotePreview,
                 showsHeader: showsHeader
             )
         case .appearance:
@@ -107,7 +108,6 @@ struct SettingsView: View {
                 editorFontSize: $editorFontSize,
                 previewFontName: $previewFontName,
                 previewUsesEditorTheme: $previewUsesEditorTheme,
-                showsNotePreview: $showsNotePreview,
                 showsHeader: showsHeader
             )
         case .about:
@@ -212,6 +212,7 @@ private struct SettingsHeaderView: View {
 private struct GeneralSettingsDetailView: View {
     @Binding var startNewNoteWith: String
     @Binding var maximumAttachmentSizeMB: Int
+    @Binding var showsNotePreview: Bool
     let showsHeader: Bool
 
     var body: some View {
@@ -237,6 +238,12 @@ private struct GeneralSettingsDetailView: View {
                 Text("Notes")
             } footer: {
                 Text("Choose whether new notes begin with a title heading or an empty document.")
+            }
+
+            Section {
+                Toggle("Show Note Preview", isOn: $showsNotePreview)
+            } footer: {
+                Text("Show each note’s first line or content preview in the notes list.")
             }
 
             Section {
@@ -272,7 +279,6 @@ private struct AppearanceSettingsDetailView: View {
     @Binding var editorFontSize: Double
     @Binding var previewFontName: String
     @Binding var previewUsesEditorTheme: Bool
-    @Binding var showsNotePreview: Bool
     let showsHeader: Bool
 
     var body: some View {
@@ -321,17 +327,11 @@ private struct AppearanceSettingsDetailView: View {
             }
 
             Section {
-                Toggle("Apply Editor Theme Colors to Preview", isOn: $previewUsesEditorTheme)
+                Toggle("Colourful Preview", isOn: $previewUsesEditorTheme)
             } header: {
                 Text("Preview")
             } footer: {
                 Text("Use the editor’s syntax colours when rendering note previews.")
-            }
-
-            Section {
-                Toggle("Show Note Preview", isOn: $showsNotePreview)
-            } footer: {
-                Text("Show each note’s first line or content preview in the notes list.")
             }
         }
         .settingsDetailFormStyle()
