@@ -21,15 +21,23 @@ struct NoteRow: View {
             VStack(alignment: .leading, spacing: 6) {
                 previewText
                 HStack(spacing: 4) {
+                    if note.isPinned {
+                        Image(systemName: "pin.fill")
+                            .font(.caption2)
+                            .imageScale(.small)
+                            .foregroundStyle(italicColor)
+                            .accessibilityHidden(true)
+                    }
                     formattedDate
                         .font(.caption2)
+                        .foregroundStyle(.secondary)
                     if note.attachmentSummary.showsPaperclip {
                         Image(systemName: "paperclip")
                             .imageScale(.small)
+                            .foregroundStyle(.secondary)
                     }
                 }
                 .font(.callout)
-                .foregroundStyle(.secondary)
                 if !note.tags.isEmpty {
                     NoteRowTagsLine(tags: note.tags, colors: tagColors)
                 }
@@ -42,7 +50,7 @@ struct NoteRow: View {
         }
         .padding(.vertical, 4)
         .accessibilityElement(children: .combine)
-        .accessibilityValue(note.attachmentSummary.accessibilityDescription)
+        .accessibilityValue(accessibilityValue)
     }
 
     @ViewBuilder
@@ -85,6 +93,18 @@ struct NoteRow: View {
 
     private var tagColors: MarkdownTagColors {
         MarkdownTheme.preferred(for: colorScheme).previewHashtagColors
+    }
+
+    /// Reuses the Markdown preview's italic role for the pinned-note indicator.
+    private var italicColor: Color {
+        MarkdownTheme.preferred(for: colorScheme).preview.italic.color
+    }
+
+    private var accessibilityValue: String {
+        [note.isPinned ? "Pinned" : nil, note.attachmentSummary.accessibilityDescription]
+            .compactMap { $0 }
+            .filter { !$0.isEmpty }
+            .joined(separator: ", ")
     }
 }
 

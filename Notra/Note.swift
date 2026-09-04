@@ -55,6 +55,13 @@ struct NoteSummary: Identifiable, Equatable {
     let createdAt: Date
     /// Markdown modification timestamp used by the default sort.
     let modifiedAt: Date
+    /// Timestamp that keeps pinned notes in a stable, note-owned order.
+    let pinnedAt: Date?
+
+    /// Whether the note should remain above the regular sorted notes.
+    var isPinned: Bool {
+        pinnedAt != nil
+    }
 
     init(
         url: URL,
@@ -63,7 +70,8 @@ struct NoteSummary: Identifiable, Equatable {
         tags: [NoteTag] = [],
         attachmentSummary: NoteAttachmentSummary = .empty,
         createdAt: Date,
-        modifiedAt: Date
+        modifiedAt: Date,
+        pinnedAt: Date? = nil
     ) {
         let normalizedURL = url.notraCanonicalFileURL
         id = normalizedURL
@@ -74,6 +82,7 @@ struct NoteSummary: Identifiable, Equatable {
         self.attachmentSummary = attachmentSummary
         self.createdAt = createdAt
         self.modifiedAt = modifiedAt
+        self.pinnedAt = pinnedAt
     }
 }
 

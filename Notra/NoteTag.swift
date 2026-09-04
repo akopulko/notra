@@ -82,9 +82,12 @@ nonisolated struct NoteTag: Equatable, Hashable, Identifiable, Sendable, Codable
 nonisolated struct NoteMetadata: Equatable, Sendable {
     /// Tags in first-seen order after duplicate normalization.
     var tags: [NoteTag]
+    /// Timestamp used to persist pin state and ordering with the TextBundle.
+    var pinnedAt: Date?
 
-    init(tags: [NoteTag] = []) {
+    init(tags: [NoteTag] = [], pinnedAt: Date? = nil) {
         self.tags = Self.unique(tags)
+        self.pinnedAt = pinnedAt
     }
 
     /// Adds a tag and reports whether it changed the metadata.

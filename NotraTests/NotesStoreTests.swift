@@ -129,6 +129,54 @@ struct NotesStoreTests {
         #expect(harness.store.notes.first?.previewText == "#")
     }
 
+    @Test func pinningPersistsOrderingAndEnforcesTheMaximum() async throws {
+        let harness = try makeHarness()
+        defer {
+            harness.cleanup()
+        }
+        for index in 1 ... 6 {
+            _ = try harness.makeNote(markdown: "Note \(index)")
+        }
+
+        await harness.store.loadNotes()
+        let candidates = harness.store.notes
+        for candidate in candidates.prefix(NotePinning.maximumPinnedNotes) {
+            await harness.store.togglePin(for: candidate)
+        }
+
+        let sixthCandidate = try #require(candidates.last)
+        await harness.store.togglePin(for: sixthCandidate)
+
+        #expect(harness.store.notes.filter(\.isPinned).count == NotePinning.maximumPinnedNotes)
+        #expect(harness.store.errorMessage == "You can pin up to \(NotePinning.maximumPinnedNotes) notes.")
+        #expect(try harness.repository.loadNote(at: sixthCandidate.url).metadata.pinnedAt == nil)
+
+        let firstPinned = try #require(harness.store.notes.first)
+        await harness.store.togglePin(for: firstPinned)
+        await harness.store.togglePin(for: sixthCandidate)
+
+        #expect(harness.store.notes.filter(\.isPinned).count == NotePinning.maximumPinnedNotes)
+        #expect(try harness.repository.loadNote(at: sixthCandidate.url).metadata.pinnedAt != nil)
+    }
+
+    @Test func deletingPinnedNoteRemovesItsPersistedPinState() async throws {
+        let harness = try makeHarness()
+        defer {
+            harness.cleanup()
+        }
+        _ = try harness.makeNote(markdown: "Pinned")
+
+        await harness.store.loadNotes()
+        let summary = try #require(harness.store.notes.first)
+        await harness.store.togglePin(for: summary)
+
+        let pinnedSummary = try #require(harness.store.notes.first)
+        #expect(pinnedSummary.isPinned)
+        await harness.store.deleteNotes([pinnedSummary])
+
+        #expect(harness.store.notes.isEmpty)
+    }
+
     @Test func staleTitleSortPreferenceFallsBackToDateEdited() throws {
         let rootURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

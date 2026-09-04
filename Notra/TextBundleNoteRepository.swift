@@ -168,7 +168,8 @@ struct TextBundleNoteRepository {
                     tags: metadata.tags,
                     attachmentSummary: attachmentSummary,
                     createdAt: createdAt,
-                    modifiedAt: modifiedDate(of: url)
+                    modifiedAt: modifiedDate(of: url),
+                    pinnedAt: metadata.pinnedAt
                 )
             }
     }
@@ -233,7 +234,7 @@ struct TextBundleNoteRepository {
         )
     }
 
-    /// Reads Notra tags from metadata, treating missing metadata as an empty tag set.
+    /// Reads Notra metadata, treating missing metadata as an unpinned note without tags.
     func noteMetadata(at noteURL: URL) throws -> NoteMetadata {
         let infoURL = noteURL.appendingPathComponent(Self.infoFilename)
         guard FileManager.default.fileExists(atPath: infoURL.path(percentEncoded: false)) else {
@@ -242,7 +243,7 @@ struct TextBundleNoteRepository {
 
         let data = try Data(contentsOf: infoURL)
         let info = try JSONDecoder().decode(TextBundleInfo.self, from: data)
-        return NoteMetadata(tags: info.notra.tags)
+        return NoteMetadata(tags: info.notra.tags, pinnedAt: info.notra.pinnedAt)
     }
 
     /// Merges normalized Notra metadata into existing JSON so unknown keys survive updates.
@@ -257,6 +258,11 @@ struct TextBundleNoteRepository {
 
         appMetadata["version"] = appMetadata["version"] ?? 1
         appMetadata["tags"] = metadata.tags.map(\.name)
+        if let pinnedAt = metadata.pinnedAt {
+            appMetadata["pinnedAt"] = pinnedAt.timeIntervalSinceReferenceDate
+        } else {
+            appMetadata.removeValue(forKey: "pinnedAt")
+        }
         root[Self.appMetadataKey] = appMetadata
         root["version"] = root["version"] ?? 2
         root["type"] = root["type"] ?? TextBundleInfo.markdownType

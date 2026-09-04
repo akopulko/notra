@@ -42,7 +42,8 @@ struct NoteSortPreference: Equatable {
 
     /// Returns a deterministic order, using preview text and URL as tie breakers.
     func sorted(_ notes: [NoteSummary]) -> [NoteSummary] {
-        notes.sorted { lhs, rhs in
+        let pinnedNotes = NotePinning.sortedPinnedNotes(in: notes)
+        let unpinnedNotes = notes.filter { !$0.isPinned }.sorted { lhs, rhs in
             let result: Bool? = switch field {
             case .dateEdited:
                 compare(lhs.modifiedAt, rhs.modifiedAt, direction: direction)
@@ -54,6 +55,8 @@ struct NoteSortPreference: Equatable {
 
             return result ?? (lhs.url.path.localizedStandardCompare(rhs.url.path) == .orderedAscending)
         }
+
+        return pinnedNotes + unpinnedNotes
     }
 
     private func compare(_ lhs: Date, _ rhs: Date, direction: NoteSortDirection) -> Bool? {
@@ -78,6 +81,32 @@ struct NoteSortPreference: Equatable {
         case .orderedSame:
             nil
         }
+    }
+}
+
+/// Groups pinned notes ahead of regular notes while retaining a stable newest-pin-first order.
+enum NotePinning {
+    /// Limits pinning so the sidebar remains a compact, useful shortcut list.
+    static let maximumPinnedNotes = 5
+
+    /// Returns pinned notes ordered by the most recently recorded pin timestamp.
+    static func sortedPinnedNotes(in notes: [NoteSummary]) -> [NoteSummary] {
+        notes.filter(\.isPinned).sorted { lhs, rhs in
+            guard let lhsPinnedAt = lhs.pinnedAt, let rhsPinnedAt = rhs.pinnedAt else {
+                return lhs.url.path.localizedStandardCompare(rhs.url.path) == .orderedAscending
+            }
+
+            if lhsPinnedAt != rhsPinnedAt {
+                return lhsPinnedAt > rhsPinnedAt
+            }
+
+            return lhs.url.path.localizedStandardCompare(rhs.url.path) == .orderedAscending
+        }
+    }
+
+    /// Moves pinned search results ahead of unpinned results without changing search relevance.
+    static func pinnedFirst(_ notes: [NoteSummary]) -> [NoteSummary] {
+        sortedPinnedNotes(in: notes) + notes.filter { !$0.isPinned }
     }
 }
 
