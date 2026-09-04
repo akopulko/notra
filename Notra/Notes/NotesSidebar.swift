@@ -95,6 +95,12 @@ struct NotesSidebar: View {
                     )
                 }
                 .contextMenu {
+                    NotePinContextMenuButton(note: note, isEditing: isEditing) {
+                        Task {
+                            await store.togglePin(for: note)
+                        }
+                    }
+                    Divider()
                     Button("Share…", systemImage: "square.and.arrow.up") {
                         sharePDF(note)
                     }
@@ -115,6 +121,11 @@ struct NotesSidebar: View {
                         Task {
                             await store.deleteNotes([note])
                         }
+                    }
+                }
+                .notePinSwipeAction(note: note) {
+                    Task {
+                        await store.togglePin(for: note)
                     }
                 }
                 .listRowSeparator(.visible, edges: .bottom)
@@ -159,7 +170,9 @@ struct NotesSidebar: View {
         let notesByBundleName = Dictionary(
             uniqueKeysWithValues: store.notes.map { ($0.url.lastPathComponent, $0) }
         )
-        return searchResultIDs.compactMap { notesByBundleName[$0.lastPathComponent] }
+        return NotePinning.pinnedFirst(
+            searchResultIDs.compactMap { notesByBundleName[$0.lastPathComponent] }
+        )
     }
 
     private var isSearching: Bool {
@@ -360,6 +373,41 @@ struct NotesSidebar: View {
             )
             #endif
         }
+    }
+}
+
+/// Provides the context-menu action that changes one note's persisted pin state.
+private struct NotePinContextMenuButton: View {
+    let note: NoteSummary
+    let isEditing: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(
+            note.isPinned ? "Unpin Note" : "Pin Note",
+            systemImage: note.isPinned ? "pin.slash" : "pin",
+            action: action
+        )
+        .disabled(isEditing)
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func notePinSwipeAction(note: NoteSummary, action: @escaping () -> Void) -> some View {
+        #if os(iOS)
+        swipeActions(edge: .leading) {
+            Button(action: action) {
+                Label(
+                    note.isPinned ? "Unpin" : "Pin",
+                    systemImage: note.isPinned ? "pin.slash" : "pin"
+                )
+            }
+            .tint(note.isPinned ? .orange : .accentColor)
+        }
+        #else
+        self
+        #endif
     }
 }
 

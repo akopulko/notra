@@ -55,16 +55,20 @@ nonisolated struct NotraMetadata: Codable, Equatable {
     let version: Int
     /// Normalized tags attached to the note.
     let tags: [NoteTag]
+    /// Optional timestamp used to keep this note in the pinned group.
+    let pinnedAt: Date?
 
-    init(version: Int = 1, tags: [NoteTag] = []) {
+    init(version: Int = 1, tags: [NoteTag] = [], pinnedAt: Date? = nil) {
         self.version = version
         self.tags = NoteMetadata(tags: tags).tags
+        self.pinnedAt = pinnedAt
     }
 
     /// Coding keys kept explicit so metadata remains compatible with existing bundles.
     enum CodingKeys: String, CodingKey {
         case version
         case tags
+        case pinnedAt
     }
 
     init(from decoder: Decoder) throws {
@@ -72,5 +76,6 @@ nonisolated struct NotraMetadata: Codable, Equatable {
         version = try container.decodeIfPresent(Int.self, forKey: .version) ?? 1
         let decodedTags = try container.decodeIfPresent([NoteTag].self, forKey: .tags) ?? []
         tags = NoteMetadata(tags: decodedTags).tags
+        pinnedAt = try container.decodeIfPresent(Date.self, forKey: .pinnedAt)
     }
 }

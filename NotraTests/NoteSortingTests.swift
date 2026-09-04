@@ -38,6 +38,26 @@ struct NoteSortingTests {
         )
     }
 
+    @Test func keepsPinnedNotesAheadOfUnpinnedSortOrder() {
+        let notes = [
+            makeNote(title: "Alpha", createdAt: 10, modifiedAt: 30, pinnedAt: 10),
+            makeNote(title: "Beta", createdAt: 20, modifiedAt: 20, pinnedAt: 20),
+            makeNote(title: "Gamma", createdAt: 30, modifiedAt: 10),
+            makeNote(title: "Delta", createdAt: 40, modifiedAt: 40)
+        ]
+
+        #expect(
+            NoteSortPreference(field: .dateCreated, direction: .oldestFirst)
+                .sorted(notes)
+                .map(\.previewText) == ["Beta", "Alpha", "Gamma", "Delta"]
+        )
+        #expect(
+            NoteSortPreference(field: .dateEdited, direction: .latestFirst)
+                .sorted(notes)
+                .map(\.previewText) == ["Beta", "Alpha", "Delta", "Gamma"]
+        )
+    }
+
     @Test func sortPreferencePersists() throws {
         let suiteName = "Notra.NoteSortingTests.\(UUID().uuidString)"
         let userDefaults = try #require(UserDefaults(suiteName: suiteName))
@@ -77,12 +97,18 @@ struct NoteSortingTests {
         ]
     }
 
-    private func makeNote(title: String, createdAt: TimeInterval, modifiedAt: TimeInterval) -> NoteSummary {
+    private func makeNote(
+        title: String,
+        createdAt: TimeInterval,
+        modifiedAt: TimeInterval,
+        pinnedAt: TimeInterval? = nil
+    ) -> NoteSummary {
         NoteSummary(
             url: URL(fileURLWithPath: "/tmp/\(title).textbundle"),
             previewText: title,
             createdAt: Date(timeIntervalSince1970: createdAt),
-            modifiedAt: Date(timeIntervalSince1970: modifiedAt)
+            modifiedAt: Date(timeIntervalSince1970: modifiedAt),
+            pinnedAt: pinnedAt.map { Date(timeIntervalSince1970: $0) }
         )
     }
 }

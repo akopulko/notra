@@ -283,6 +283,20 @@ struct NotraStorageTests {
         #expect(summary.tags.map(\.name) == ["Swift", "work"])
     }
 
+    @Test func readsAndWritesPinnedMetadata() throws {
+        let repository = try makeRepository()
+        let note = try repository.createNote()
+        let pinnedAt = Date(timeIntervalSinceReferenceDate: 123_456)
+
+        try repository.updateNoteMetadata(NoteMetadata(pinnedAt: pinnedAt), for: note.url)
+
+        let metadata = try repository.noteMetadata(at: note.url)
+        let summary = try #require(try repository.listNotes().first)
+        #expect(metadata.pinnedAt == pinnedAt)
+        #expect(summary.pinnedAt == pinnedAt)
+        #expect(summary.isPinned)
+    }
+
     @Test func metadataPreventsDuplicateTagsCaseInsensitively() throws {
         let metadata = NoteMetadata(tags: [
             try #require(NoteTag("Swift")),

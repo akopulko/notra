@@ -244,7 +244,7 @@ extension NotesStore {
             try repository.updateNoteMetadata(metadata, for: selectedNote.url)
             self.selectedNote = selectedNote
             selectedNoteTags = metadata.tags
-            applyTags(metadata.tags, toSummaryFor: selectedNote.id)
+            applyMetadata(metadata, toSummaryFor: selectedNote.id)
             selectedNoteBundleSize = repository.totalBundleSize(at: selectedNote.url)
             Task {
                 await indexNote(selectedNote)
@@ -276,12 +276,37 @@ extension NotesStore {
             try repository.updateNoteMetadata(metadata, for: selectedNote.url)
             self.selectedNote = selectedNote
             selectedNoteTags = metadata.tags
-            applyTags(metadata.tags, toSummaryFor: selectedNote.id)
+            applyMetadata(metadata, toSummaryFor: selectedNote.id)
             selectedNoteBundleSize = repository.totalBundleSize(at: selectedNote.url)
             await indexNote(selectedNote)
             AppLog.info("Tag removed; tag=\(tag.name)")
         } catch {
             AppLog.error("Failed to remove tag: \(error.localizedDescription)")
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    /// Pins or unpins a note without changing its Markdown content or current selection.
+    func togglePin(for summary: NoteSummary) async {
+        do {
+            try await saveCurrentNoteIfNeeded()
+            var note = try repository.loadNote(at: summary.url)
+            if note.metadata.pinnedAt == nil, notes.filter(\.isPinned).count >= NotePinning.maximumPinnedNotes {
+                errorMessage = "You can pin up to \(NotePinning.maximumPinnedNotes) notes."
+                return
+            }
+
+            note.metadata.pinnedAt = note.metadata.pinnedAt == nil ? Date() : nil
+            try repository.updateNoteMetadata(note.metadata, for: note.url)
+
+            if selectedNoteID == note.id {
+                selectedNote = note
+                selectedNoteTags = note.metadata.tags
+            }
+            try refreshNotes()
+            AppLog.info("Note pin state changed: \(logName(for: note.url))")
+        } catch {
+            AppLog.error("Failed to update note pin: \(error.localizedDescription)")
             errorMessage = error.localizedDescription
         }
     }
@@ -521,8 +546,8 @@ private extension NotesStore {
         notes = sortPreference.sorted(summaries)
     }
 
-    /// Refreshes row-visible tag metadata immediately after note metadata changes.
-    private func applyTags(_ tags: [NoteTag], toSummaryFor noteID: URL) {
+    /// Refreshes row-visible metadata immediately after a metadata-only note update.
+    private func applyMetadata(_ metadata: NoteMetadata, toSummaryFor noteID: URL) {
         let updatedSummaries = notes.map { summary in
             guard summary.id == noteID else {
                 return summary
@@ -532,10 +557,11 @@ private extension NotesStore {
                 url: summary.url,
                 previewText: summary.previewText,
                 previewFirstLineIsHeading: summary.previewFirstLineIsHeading,
-                tags: tags,
+                tags: metadata.tags,
                 attachmentSummary: summary.attachmentSummary,
                 createdAt: summary.createdAt,
-                modifiedAt: summary.modifiedAt
+                modifiedAt: summary.modifiedAt,
+                pinnedAt: metadata.pinnedAt
             )
         }
         applySortedNotes(updatedSummaries)
