@@ -34,6 +34,13 @@ nonisolated struct NoteTag: Equatable, Hashable, Identifiable, Sendable, Codable
         name = trimmedValue
     }
 
+    /// Accepts the optional hashtag prefix used when people enter tags directly in the inspector.
+    init?(inspectorInput rawValue: String) {
+        let trimmedValue = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        let tagName = trimmedValue.first == "#" ? String(trimmedValue.dropFirst()) : trimmedValue
+        self.init(tagName)
+    }
+
     init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
         let rawValue = try container.decode(String.self)

@@ -6,8 +6,6 @@ import PhotosUI
 
 /// Coordinates the editor, live preview, formatting actions, attachments, tags, and note sharing.
 struct NoteEditorPane: View {
-    /// Keeps animated feedback respectful of the user's accessibility preference.
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Main-actor store supplying the selected note and editor text.
     @Bindable var store: NotesStore
     /// Parent-owned edit/preview mode shared with the sidebar and floating button.
@@ -47,8 +45,6 @@ struct NoteEditorPane: View {
         command: .unorderedList
     )
     @State private var isAttachmentInspectorPresented = false
-    @State private var tagFeedback: NoteTagFeedback?
-    @State private var tagFeedbackDismissTask: Task<Void, Never>?
     @State private var pdfShareState = PDFShareState.idle
     #if os(iOS)
     @State private var selectedImageItem: PhotosPickerItem?
@@ -76,13 +72,6 @@ struct NoteEditorPane: View {
                 removeTag: removeTag
             )
         }
-        .overlay(alignment: tagFeedbackAlignment) {
-            if let tagFeedback {
-                TagFeedbackView(feedback: tagFeedback)
-                    .padding(tagFeedbackPaddingEdges, 24)
-                    .transition(tagFeedbackTransition)
-            }
-        }
         #if os(iOS)
         .overlay(alignment: floatingButtonAlignment) {
             if store.hasSelection {
@@ -102,7 +91,6 @@ struct NoteEditorPane: View {
             isEditing = false
             undoRedoAvailability = .disabled
             pdfShareState = .idle
-            clearTagFeedback()
             if !store.hasSelection {
                 isAttachmentInspectorPresented = false
             }
@@ -143,8 +131,6 @@ struct NoteEditorPane: View {
             undoRequest: undoRequest,
             redoRequest: redoRequest,
             focusFirstLineRequest: editorFocusRequest,
-            commitTag: commitTag,
-            onTagCommitResult: showTagFeedback,
             onUndoRedoAvailabilityChanged: updateUndoRedoAvailability
         )
     }
@@ -295,45 +281,10 @@ private extension NoteEditorPane {
         undoRedoAvailability = availability
     }
 
-    private func commitTag(_ tag: NoteTag) -> NoteTagMutationResult? {
-        store.addTag(tag)
-    }
-
     private func removeTag(_ tag: NoteTag) {
         Task {
             await store.removeTag(tag)
         }
-    }
-
-    private func showTagFeedback(_ result: NoteTagMutationResult) {
-        tagFeedbackDismissTask?.cancel()
-
-        let feedback = switch result {
-        case let .added(tag):
-            NoteTagFeedback(message: "\(tag.prefixedDisplayName) added")
-        case .duplicate:
-            NoteTagFeedback(message: "Tag already added")
-        }
-
-        withAnimation(.easeOut(duration: reduceMotion ? 0.12 : 0.2)) {
-            tagFeedback = feedback
-        }
-
-        tagFeedbackDismissTask = Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(1300))
-            guard !Task.isCancelled else {
-                return
-            }
-            withAnimation(.easeIn(duration: reduceMotion ? 0.12 : 0.2)) {
-                tagFeedback = nil
-            }
-        }
-    }
-
-    private func clearTagFeedback() {
-        tagFeedbackDismissTask?.cancel()
-        tagFeedbackDismissTask = nil
-        tagFeedback = nil
     }
 
     private func sharePDF() {
@@ -520,34 +471,6 @@ private extension NoteEditorPane {
         AttachmentSettings.maximumSizeBytes(for: maximumAttachmentSizeMB)
     }
 
-    private var tagFeedbackAlignment: Alignment {
-        #if os(iOS)
-        .trailing
-        #else
-        .bottom
-        #endif
-    }
-
-    private var tagFeedbackPaddingEdges: Edge.Set {
-        #if os(iOS)
-        .trailing
-        #else
-        .bottom
-        #endif
-    }
-
-    private var tagFeedbackTransition: AnyTransition {
-        if reduceMotion {
-            return .opacity
-        }
-
-        #if os(iOS)
-        return .move(edge: .trailing).combined(with: .opacity)
-        #else
-        return .move(edge: .bottom).combined(with: .opacity)
-        #endif
-    }
-
     private func insertMarkdownReference(
         for kind: TextBundleAssetKind,
         source: String,
@@ -569,36 +492,9 @@ private extension NoteEditorPane {
     }
 }
 
-/// Describes the short-lived result message shown after a tag mutation.
-private struct NoteTagFeedback: Identifiable, Equatable {
-    let id = UUID()
-    let message: String
-}
-
 /// Tracks explicit PDF sharing attempts without preparing large exports on preview load.
 private enum PDFShareState {
     case idle
     case generating
     case failed
-}
-
-/// Presents tag mutation feedback without coupling the editor to alert presentation.
-private struct TagFeedbackView: View {
-    let feedback: NoteTagFeedback
-
-    var body: some View {
-        Label(feedback.message, systemImage: "tag")
-            .font(.callout)
-            .fontWeight(.medium)
-            .lineLimit(1)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(.regularMaterial, in: Capsule())
-            .overlay {
-                Capsule()
-                    .stroke(.secondary.opacity(0.18), lineWidth: 0.5)
-            }
-            .shadow(radius: 8, y: 2)
-            .accessibilityLabel(feedback.message)
-    }
 }

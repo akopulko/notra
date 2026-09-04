@@ -167,21 +167,6 @@ struct MarkdownFormattingTests {
         #expect(cursorOffset(in: result) == 9)
     }
 
-    @Test func hashtagResultRemainsCompatibleWithTagEntryParser() throws {
-        let text = "SwiftUI"
-        let result = MarkdownFormatting.applyHashtagResult(
-            to: text,
-            selection: text.startIndex ..< text.endIndex
-        )
-        let cursorOffset = result.selection.lowerBound.utf16Offset(in: result.text)
-        let entry = try #require(NoteTagEntryParser.entry(
-            in: result.text,
-            selection: MarkdownEditorSelectionSnapshot(lowerOffset: cursorOffset, upperOffset: cursorOffset)
-        ))
-
-        #expect(entry.tag.name == "SwiftUI")
-    }
-
     @Test func boldWithoutSelectionInEmptyDocumentPlacesCursorInsideMarkup() {
         let text = ""
         let result = MarkdownFormatting.applyBoldResult(
