@@ -12,6 +12,7 @@ struct NoteRow: View {
     @Environment(\.colorScheme) private var colorScheme
     let note: NoteSummary
     let sortField: NoteSortField
+    let showsNotePreview: Bool
 
     private let previewLineLimit = 3
 
@@ -51,7 +52,7 @@ struct NoteRow: View {
             let remainingPreviewText = lines.dropFirst().joined(separator: "\n")
             VStack(alignment: .leading, spacing: 2) {
                 titleText(lines.first ?? NoteSummary.emptyPreviewText)
-                if !remainingPreviewText.isEmpty {
+                if showsNotePreview, !remainingPreviewText.isEmpty {
                     Text(verbatim: remainingPreviewText)
                         .font(.body)
                         .foregroundStyle(.secondary)
@@ -62,7 +63,7 @@ struct NoteRow: View {
         } else {
             Text(verbatim: note.previewText)
                 .font(.body)
-                .lineLimit(previewLineLimit)
+                .lineLimit(showsNotePreview ? previewLineLimit : 1)
                 .truncationMode(.tail)
         }
     }

@@ -11,6 +11,8 @@ enum AppearanceSettingKey {
     static let editorFontSize = "appearance.editorFontSize"
     static let previewFontName = "appearance.previewFontName"
     static let previewUsesEditorTheme = "appearance.previewUsesEditorTheme"
+    /// Controls whether note rows include their content preview below the title or first line.
+    static let showsNotePreview = "appearance.showsNotePreview"
 }
 
 /// A selectable installed font family with its regular face as the persisted value.

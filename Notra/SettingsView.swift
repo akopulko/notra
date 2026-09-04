@@ -17,6 +17,8 @@ struct SettingsView: View {
     @AppStorage(AppearanceSettingKey.previewFontName) private var previewFontName = AppearanceFont.defaultName
     /// Whether the Markdown preview follows the editor's selected syntax theme.
     @AppStorage(AppearanceSettingKey.previewUsesEditorTheme) private var previewUsesEditorTheme = true
+    /// Whether note rows include their content preview below the title or first line.
+    @AppStorage(AppearanceSettingKey.showsNotePreview) private var showsNotePreview = true
     /// Maximum attachment size enforced before an import reaches storage.
     @AppStorage(AttachmentSettingKey.maximumSizeMB) private var maximumAttachmentSizeMB =
         AttachmentSettings.defaultMaximumSizeMB
@@ -109,6 +111,7 @@ struct SettingsView: View {
                 editorFontSize: $editorFontSize,
                 previewFontName: $previewFontName,
                 previewUsesEditorTheme: $previewUsesEditorTheme,
+                showsNotePreview: $showsNotePreview,
                 showsHeader: showsHeader
             )
         case .about:
@@ -269,6 +272,7 @@ private struct AppearanceSettingsDetailView: View {
     @Binding var editorFontSize: Double
     @Binding var previewFontName: String
     @Binding var previewUsesEditorTheme: Bool
+    @Binding var showsNotePreview: Bool
     let showsHeader: Bool
 
     var body: some View {
@@ -308,6 +312,7 @@ private struct AppearanceSettingsDetailView: View {
 
             Section {
                 Toggle("Apply Editor Theme Colors to Preview", isOn: $previewUsesEditorTheme)
+                Toggle("Show Note Preview", isOn: $showsNotePreview)
             } header: {
                 Text("Preview")
             }
