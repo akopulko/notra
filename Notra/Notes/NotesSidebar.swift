@@ -14,6 +14,7 @@ struct NotesSidebar: View {
     @State private var isLoadingMoreSearchResults = false
     @State private var exportTask: Task<Void, Never>?
     @AppStorage(AppearanceSettingKey.previewFontName) private var previewFontName = AppearanceFont.defaultName
+    @AppStorage(AppearanceSettingKey.showsNotePreview) private var showsNotePreview = true
     #if os(iOS)
     @State private var isSettingsPresented = false
     #else
@@ -87,7 +88,11 @@ struct NotesSidebar: View {
         List(selection: $store.selectedNoteID) {
             ForEach(visibleNotes) { note in
                 NavigationLink(value: note.id) {
-                    NoteRow(note: note, sortField: store.sortPreference.field)
+                    NoteRow(
+                        note: note,
+                        sortField: store.sortPreference.field,
+                        showsNotePreview: showsNotePreview
+                    )
                 }
                 .contextMenu {
                     Button("Share…", systemImage: "square.and.arrow.up") {
