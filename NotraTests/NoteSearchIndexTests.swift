@@ -70,6 +70,39 @@ struct NoteSearchIndexTests {
         #expect(page.results.map(\.noteID) == [note.url.standardizedFileURL])
     }
 
+    @Test func filtersChecklistTagsAndLinkedAttachments() async throws {
+        let repository = try makeRepository()
+        defer { try? FileManager.default.removeItem(at: repository.rootURL) }
+
+        let checklist = try makeNote(markdown: "Needle\n- [ ] Buy milk", in: repository)
+        let tagged = try makeNote(markdown: "Needle tag", in: repository)
+        try repository.updateNoteMetadata(
+            NoteMetadata(tags: [try #require(NoteTag("planning"))]),
+            for: tagged.url
+        )
+        let attachment = try makeNote(markdown: "Needle attachment\n[File](assets/report.txt)", in: repository)
+        let assetURL = attachment.url
+            .appendingPathComponent(TextBundleNoteRepository.assetsFolder, isDirectory: true)
+            .appendingPathComponent("report.txt")
+        try Data("report".utf8).write(to: assetURL)
+        let plain = try makeNote(markdown: "Needle plain", in: repository)
+
+        let index = makeIndex(for: repository)
+        try await index.synchronize(noteIDs: [checklist.url, tagged.url, attachment.url, plain.url])
+
+        let checklistPage = try await index.search("", filter: .checklists, limit: 50, offset: 0)
+        #expect(checklistPage.results.map(\.noteID) == [checklist.url.standardizedFileURL])
+
+        let taggedPage = try await index.search("", filter: .tags, limit: 50, offset: 0)
+        #expect(taggedPage.results.map(\.noteID) == [tagged.url.standardizedFileURL])
+
+        let attachmentPage = try await index.search("", filter: .attachments, limit: 50, offset: 0)
+        #expect(attachmentPage.results.map(\.noteID) == [attachment.url.standardizedFileURL])
+
+        let typedPage = try await index.search("needle", filter: .checklists, limit: 50, offset: 0)
+        #expect(typedPage.results.map(\.noteID) == [checklist.url.standardizedFileURL])
+    }
+
     @Test func limitsAndPagesResults() async throws {
         let repository = try makeRepository()
         defer { try? FileManager.default.removeItem(at: repository.rootURL) }

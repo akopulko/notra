@@ -481,7 +481,12 @@ extension NotesStore {
     }
 
     /// Queries the ready search index and marks it unavailable when the actor reports failure.
-    func searchNotes(query: String, limit: Int, offset: Int) async -> NoteSearchPage? {
+    func searchNotes(
+        query: String,
+        filter: NoteSearchFilter? = nil,
+        limit: Int,
+        offset: Int
+    ) async -> NoteSearchPage? {
         guard searchStatus == .ready else {
             AppLog.debug(
                 "Skipping note search because index status is \(String(describing: searchStatus)); "
@@ -491,9 +496,10 @@ extension NotesStore {
         }
 
         do {
-            let page = try await searchIndex.search(query, limit: limit, offset: offset)
+            let page = try await searchIndex.search(query, filter: filter, limit: limit, offset: offset)
             AppLog.debug(
                 "Note search completed; queryLength=\(query.count); "
+                    + "filter=\(filter?.rawValue ?? "none"); "
                     + "resultCount=\(page.results.count); hasMore=\(page.hasMore)"
             )
             return page

@@ -160,12 +160,14 @@ struct TextBundleNoteRepository {
                 let markdown = try markdownContent(in: url)
                 let preview = Self.preview(for: markdown)
                 let metadata = summaryMetadata(at: url)
+                let hasChecklist = NoteSearchFilter.hasChecklist(in: markdown)
                 let attachmentSummary = try attachmentSummary(for: url, markdown: markdown)
                 return try NoteSummary(
                     url: url,
                     previewText: preview.text,
                     previewFirstLineIsHeading: preview.firstLineIsHeading,
                     tags: metadata.tags,
+                    hasChecklist: hasChecklist,
                     attachmentSummary: attachmentSummary,
                     createdAt: createdAt,
                     modifiedAt: modifiedDate(of: url),

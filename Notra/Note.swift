@@ -18,7 +18,7 @@ struct NoteAttachmentSummary: Equatable, Sendable {
     let hasLinkedNonImageAttachment: Bool
 
     /// Whether the note row should show any attachment affordance.
-    var showsPaperclip: Bool {
+    nonisolated var showsPaperclip: Bool {
         firstLinkedImageURL != nil || hasLinkedNonImageAttachment
     }
 
@@ -49,6 +49,8 @@ struct NoteSummary: Identifiable, Equatable {
     let previewFirstLineIsHeading: Bool
     /// Tags displayed as one compact metadata line in note rows.
     let tags: [NoteTag]
+    /// Whether the Markdown document contains at least one task-list item.
+    let hasChecklist: Bool
     /// Linked-asset summary used by row icons and thumbnails.
     let attachmentSummary: NoteAttachmentSummary
     /// Bundle creation timestamp used by the date sort.
@@ -68,6 +70,7 @@ struct NoteSummary: Identifiable, Equatable {
         previewText: String,
         previewFirstLineIsHeading: Bool = false,
         tags: [NoteTag] = [],
+        hasChecklist: Bool = false,
         attachmentSummary: NoteAttachmentSummary = .empty,
         createdAt: Date,
         modifiedAt: Date,
@@ -79,6 +82,7 @@ struct NoteSummary: Identifiable, Equatable {
         self.previewText = previewText
         self.previewFirstLineIsHeading = previewFirstLineIsHeading
         self.tags = tags
+        self.hasChecklist = hasChecklist
         self.attachmentSummary = attachmentSummary
         self.createdAt = createdAt
         self.modifiedAt = modifiedAt
@@ -149,7 +153,7 @@ enum MarkdownHeadingLevel: Int, CaseIterable, Hashable {
 }
 
 extension URL {
-    var notraCanonicalFileURL: URL {
+    nonisolated var notraCanonicalFileURL: URL {
         guard isFileURL else {
             return standardizedFileURL
         }

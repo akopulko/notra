@@ -49,7 +49,7 @@ actor SQLiteNoteSearchIndex {
     /// Cache location is deliberately separate from note storage; the index can always be rebuilt.
     private nonisolated static let databaseDirectoryName = "Notra"
     private nonisolated static let databaseFilename = "NoteSearch.sqlite"
-    private nonisolated static let schemaVersion = 2
+    private nonisolated static let schemaVersion = 3
     private nonisolated static let logger = Logger(
         subsystem: Bundle.main.bundleIdentifier ?? "app.notra.Notra",
         category: "SearchIndex"
@@ -159,7 +159,12 @@ actor SQLiteNoteSearchIndex {
     }
 
     /// Executes a ranked FTS query and returns a bounded page for sidebar pagination.
-    func search(_ query: String, limit: Int, offset: Int) async throws -> NoteSearchPage {
+    func search(
+        _ query: String,
+        filter: NoteSearchFilter? = nil,
+        limit: Int,
+        offset: Int
+    ) async throws -> NoteSearchPage {
         guard isReady else {
             logError("Search rejected because index is not ready; queryLength=\(query.count)")
             throw NoteSearchIndexError.notReady
@@ -168,7 +173,7 @@ actor SQLiteNoteSearchIndex {
         let resultLimit = max(1, min(limit, 500))
         let resultOffset = max(0, offset)
         let matchQuery = Self.ftsQuery(from: query)
-        guard !matchQuery.isEmpty else {
+        guard !matchQuery.isEmpty || filter != nil else {
             log("Search ignored empty query; queryLength=\(query.count)")
             return NoteSearchPage(results: [], hasMore: false)
         }
@@ -178,20 +183,43 @@ actor SQLiteNoteSearchIndex {
                 + "limit=\(resultLimit); offset=\(resultOffset)"
         )
 
-        let statement = try prepare(
-            """
-            SELECT note_id, bm25(note_search)
-            FROM note_search
-            WHERE note_search MATCH ?
-            ORDER BY bm25(note_search) ASC, note_id ASC
-            LIMIT ? OFFSET ?
-            """
-        )
+        let filterClause = filter.map { "WHERE metadata.\($0.databaseColumn) = 1" } ?? ""
+        let statement: OpaquePointer
+        if matchQuery.isEmpty {
+            statement = try prepare(
+                """
+                SELECT note_search.note_id, 0.0
+                FROM note_search
+                JOIN note_search_metadata AS metadata ON metadata.note_id = note_search.note_id
+                \(filterClause)
+                ORDER BY note_search.note_id ASC
+                LIMIT ? OFFSET ?
+                """
+            )
+        } else {
+            let scopedFilterClause = filter.map { "AND metadata.\($0.databaseColumn) = 1" } ?? ""
+            statement = try prepare(
+                """
+                SELECT note_search.note_id, bm25(note_search)
+                FROM note_search
+                JOIN note_search_metadata AS metadata ON metadata.note_id = note_search.note_id
+                WHERE note_search MATCH ? \(scopedFilterClause)
+                ORDER BY bm25(note_search) ASC, note_search.note_id ASC
+                LIMIT ? OFFSET ?
+                """
+            )
+        }
         defer { sqlite3_finalize(statement) }
 
-        try bind(matchQuery, to: 1, in: statement)
-        try bind(Int32(resultLimit + 1), to: 2, in: statement)
-        try bind(Int32(resultOffset), to: 3, in: statement)
+        let limitIndex: Int32
+        if matchQuery.isEmpty {
+            limitIndex = 1
+        } else {
+            try bind(matchQuery, to: 1, in: statement)
+            limitIndex = 2
+        }
+        try bind(Int32(resultLimit + 1), to: limitIndex, in: statement)
+        try bind(Int32(resultOffset), to: limitIndex + 1, in: statement)
 
         var results: [NoteSearchResult] = []
         while true {
@@ -286,7 +314,10 @@ private extension SQLiteNoteSearchIndex {
                     note_id TEXT PRIMARY KEY NOT NULL,
                     modified_at REAL NOT NULL,
                     byte_count INTEGER NOT NULL,
-                    tag_hash TEXT NOT NULL
+                    tag_hash TEXT NOT NULL,
+                    has_checklist INTEGER NOT NULL,
+                    has_tags INTEGER NOT NULL,
+                    has_attachments INTEGER NOT NULL
                 )
                 """
             )
@@ -452,6 +483,11 @@ private extension SQLiteNoteSearchIndex {
     func upsert(noteID: String, markdown: String, tags: [NoteTag], metadata: SearchMetadata) throws {
         try delete(noteID: noteID)
         let searchableContent = ([markdown] + tags.map(\.name)).joined(separator: "\n")
+        let hasChecklist = NoteSearchFilter.hasChecklist(in: markdown)
+        let hasAttachments = NoteSearchFilter.hasLinkedAttachment(
+            noteURL: URL(fileURLWithPath: noteID),
+            markdown: markdown
+        )
 
         let insertSearch = try prepare(
             "INSERT INTO note_search (note_id, content) VALUES (?, ?)"
@@ -465,8 +501,9 @@ private extension SQLiteNoteSearchIndex {
 
         let insertMetadata = try prepare(
             """
-            INSERT INTO note_search_metadata (note_id, modified_at, byte_count, tag_hash)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO note_search_metadata (
+                note_id, modified_at, byte_count, tag_hash, has_checklist, has_tags, has_attachments
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
             """
         )
         defer { sqlite3_finalize(insertMetadata) }
@@ -482,6 +519,9 @@ private extension SQLiteNoteSearchIndex {
             throw databaseError()
         }
         try bind(metadata.tagHash, to: 4, in: insertMetadata)
+        try bind(hasChecklist ? 1 : 0, to: 5, in: insertMetadata)
+        try bind(tags.isEmpty ? 0 : 1, to: 6, in: insertMetadata)
+        try bind(hasAttachments ? 1 : 0, to: 7, in: insertMetadata)
         guard sqlite3_step(insertMetadata) == SQLITE_DONE else {
             throw databaseError()
         }
@@ -517,7 +557,7 @@ private extension SQLiteNoteSearchIndex {
     func sourceTags(for noteURL: URL) -> [NoteTag] {
         let infoURL = noteURL.appendingPathComponent(TextBundleNoteRepository.infoFilename)
         guard let data = try? Data(contentsOf: infoURL),
-              let info = try? JSONDecoder().decode(TextBundleInfo.self, from: data)
+              let info = try? JSONDecoder().decode(NotraMetadataEnvelope.self, from: data)
         else {
             return []
         }
@@ -593,5 +633,18 @@ private extension SQLiteNoteSearchIndex {
 
     nonisolated static func tagHash(for tags: [NoteTag]) -> String {
         tags.map(\.normalizedKey).joined(separator: "\u{1F}")
+    }
+}
+
+private extension NoteSearchFilter {
+    nonisolated var databaseColumn: String {
+        switch self {
+        case .checklists:
+            "has_checklist"
+        case .tags:
+            "has_tags"
+        case .attachments:
+            "has_attachments"
+        }
     }
 }

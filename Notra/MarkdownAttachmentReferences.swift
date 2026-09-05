@@ -8,7 +8,7 @@ enum MarkdownAttachmentReferences {
         let range: SourceRange?
     }
 
-    static func linkedURLs(in markdown: String, assetBaseURL: URL) -> Set<URL> {
+    nonisolated static func linkedURLs(in markdown: String, assetBaseURL: URL) -> Set<URL> {
         Set(references(in: markdown).compactMap { reference in
             guard let resolvedURL = resolve(reference.source, assetBaseURL: assetBaseURL),
                   resolvedURL.isFileURL
@@ -43,7 +43,7 @@ enum MarkdownAttachmentReferences {
         return result
     }
 
-    static func resolve(_ source: String?, assetBaseURL: URL?) -> URL? {
+    nonisolated static func resolve(_ source: String?, assetBaseURL: URL?) -> URL? {
         guard let source, !source.isEmpty else {
             return nil
         }
@@ -103,12 +103,12 @@ enum MarkdownAttachmentReferences {
 }
 
 private extension MarkdownAttachmentReferences {
-    static func references(in markdown: String) -> [Reference] {
+    nonisolated static func references(in markdown: String) -> [Reference] {
         let document = Document(parsing: markdown)
         return references(in: document)
     }
 
-    static func references(in markup: any Markup) -> [Reference] {
+    nonisolated static func references(in markup: any Markup) -> [Reference] {
         let ownReferences: [Reference] = if let image = markup as? Markdown.Image {
             [Reference(source: image.source, range: image.range)]
         } else if let link = markup as? Markdown.Link {
