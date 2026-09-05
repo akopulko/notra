@@ -11,6 +11,10 @@ struct NotesSidebar: View {
     @Namespace private var settingsZoom
     @State private var isSearchPresented = false
     @State private var searchFilters: [NoteSearchFilter] = []
+    #if os(macOS)
+    /// Supplies the macOS search field with selectable prefilter tokens.
+    @State private var suggestedSearchFilters = NoteSearchFilter.allCases
+    #endif
     @State private var searchResultIDs: [URL] = []
     @State private var hasMoreSearchResults = false
     @State private var isLoadingMoreSearchResults = false
@@ -41,18 +45,24 @@ struct NotesSidebar: View {
                 }
                 DefaultToolbarItem(kind: .search, placement: .automatic)
             }
+            #if os(macOS)
+            .searchable(
+                text: $searchText,
+                tokens: $searchFilters,
+                suggestedTokens: $suggestedSearchFilters,
+                isPresented: searchPresentation,
+                prompt: "Search Notes",
+                token: searchToken
+            )
+            #else
             .searchable(
                 text: $searchText,
                 tokens: $searchFilters,
                 isPresented: searchPresentation,
-                prompt: "Search Notes"
-            ) { filter in
-                Label {
-                    Text(filter.title)
-                } icon: {
-                    Image(systemName: filter.systemImage)
-                }
-            }
+                prompt: "Search Notes",
+                token: searchToken
+            )
+            #endif
             #if os(iOS)
             .sheet(isPresented: $isSettingsPresented) {
                 SettingsView()
@@ -89,6 +99,9 @@ struct NotesSidebar: View {
                 if filters.count > 1, let filter = filters.last {
                     searchFilters = [filter]
                 }
+                #if os(macOS)
+                suggestedSearchFilters = NoteSearchFilter.allCases.filter { $0 != filters.last }
+                #endif
             }
             .task(id: "\(trimmedSearchText)|\(selectedSearchFilter?.rawValue ?? "none")|\(String(describing: store.searchStatus))") {
                 await refreshSearchResults()
@@ -104,6 +117,14 @@ struct NotesSidebar: View {
         .matchedTransitionSource(id: "settings", in: settingsZoom)
     }
     #endif
+
+    private func searchToken(for filter: NoteSearchFilter) -> some View {
+        Label {
+            Text(filter.title)
+        } icon: {
+            Image(systemName: filter.systemImage)
+        }
+    }
 
     private var notesList: some View {
         let groups = visibleNoteGroups

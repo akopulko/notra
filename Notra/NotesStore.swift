@@ -240,12 +240,7 @@ extension NotesStore {
         do {
             var metadata = selectedNote.metadata
             let inserted = metadata.add(tag)
-            selectedNote.metadata = metadata
-            try repository.updateNoteMetadata(metadata, for: selectedNote.url)
-            self.selectedNote = selectedNote
-            selectedNoteTags = metadata.tags
-            applyMetadata(metadata, toSummaryFor: selectedNote.id)
-            selectedNoteBundleSize = repository.totalBundleSize(at: selectedNote.url)
+            try saveSelectedNoteMetadata(metadata, in: &selectedNote)
             Task {
                 await indexNote(selectedNote)
             }
@@ -272,12 +267,7 @@ extension NotesStore {
         do {
             var metadata = selectedNote.metadata
             metadata.remove(tag)
-            selectedNote.metadata = metadata
-            try repository.updateNoteMetadata(metadata, for: selectedNote.url)
-            self.selectedNote = selectedNote
-            selectedNoteTags = metadata.tags
-            applyMetadata(metadata, toSummaryFor: selectedNote.id)
-            selectedNoteBundleSize = repository.totalBundleSize(at: selectedNote.url)
+            try saveSelectedNoteMetadata(metadata, in: &selectedNote)
             await indexNote(selectedNote)
             AppLog.info("Tag removed; tag=\(tag.name)")
         } catch {
@@ -517,6 +507,16 @@ extension NotesStore {
 }
 
 private extension NotesStore {
+    /// Commits metadata-only edits and immediately updates every selected-note projection.
+    private func saveSelectedNoteMetadata(_ metadata: NoteMetadata, in note: inout Note) throws {
+        note.metadata = metadata
+        try repository.updateNoteMetadata(metadata, for: note.url)
+        selectedNote = note
+        selectedNoteTags = metadata.tags
+        applyMetadata(metadata, toSummaryFor: note.id)
+        selectedNoteBundleSize = repository.totalBundleSize(at: note.url)
+    }
+
     /// Loads a note by stable URL, then refreshes all selected-note projections.
     private func selectNote(id: URL) throws {
         let note = try repository.loadNote(at: id)
