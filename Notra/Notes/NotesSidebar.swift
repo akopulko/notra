@@ -87,55 +87,29 @@ struct NotesSidebar: View {
     #endif
 
     private var notesList: some View {
-        List(selection: $store.selectedNoteID) {
-            ForEach(visibleNotes) { note in
-                NavigationLink(value: note.id) {
-                    NoteRow(
-                        note: note,
-                        sortField: store.sortPreference.field,
-                        showsNotePreview: showsNotePreview
-                    )
-                }
-                .contextMenu {
-                    NotePinContextMenuButton(note: note, isEditing: isEditing) {
-                        Task {
-                            await store.togglePin(for: note)
-                        }
-                    }
-                    Divider()
-                    Button("Share…", systemImage: "square.and.arrow.up") {
-                        sharePDF(note)
-                    }
-                    .disabled(isEditing)
-                    #if os(macOS)
-                    Menu("Export…", systemImage: "arrow.forward.folder.fill") {
-                        Button("PDF") {
-                            exportPDF(note)
-                        }
-                        Button("Markdown") {
-                            exportMarkdown(note)
-                        }
-                    }
-                    .disabled(isEditing)
-                    #endif
-                    Divider()
-                    Button("Delete", systemImage: "trash", role: .destructive) {
-                        requestNoteDeletion([note])
-                    }
-                }
-                .notePinSwipeAction(note: note) {
-                    Task {
-                        await store.togglePin(for: note)
-                    }
-                }
-                .noteDeletionSwipeAction {
-                    requestNoteDeletion([note])
-                }
-                .listRowSeparator(.visible, edges: .bottom)
+        let groups = visibleNoteGroups
+
+        return List(selection: $store.selectedNoteID) {
+            if !groups.pinned.isEmpty {
+                noteSection(
+                    title: LocalizedStringResource(
+                        "Pinned",
+                        comment: "Sidebar section containing pinned notes."
+                    ),
+                    notes: groups.pinned
+                )
             }
-            #if os(macOS)
-            .onDelete(perform: requestNoteDeletionForOffsets)
-            #endif
+
+            if !groups.notes.isEmpty {
+                noteSection(
+                    title: LocalizedStringResource(
+                        "Notes",
+                        comment: "Sidebar section containing unpinned notes."
+                    ),
+                    notes: groups.notes
+                )
+            }
+
             if isSearching, hasMoreSearchResults {
                 loadMoreRow
             }
@@ -179,6 +153,12 @@ struct NotesSidebar: View {
         return NotePinning.pinnedFirst(
             searchResultIDs.compactMap { notesByBundleName[$0.lastPathComponent] }
         )
+    }
+
+    /// Partitions the already ordered list so each section preserves its existing sort semantics.
+    private var visibleNoteGroups: (pinned: [NoteSummary], notes: [NoteSummary]) {
+        let notes = visibleNotes
+        return (notes.filter(\.isPinned), notes.filter { !$0.isPinned })
     }
 
     private var isSearching: Bool {
@@ -383,6 +363,68 @@ struct NotesSidebar: View {
 }
 
 private extension NotesSidebar {
+    func noteSection(title: LocalizedStringResource, notes: [NoteSummary]) -> some View {
+        Section {
+            ForEach(notes) { note in
+                noteRow(note)
+            }
+            #if os(macOS)
+            .onDelete { offsets in
+                requestNoteDeletionForOffsets(offsets, in: notes)
+            }
+            #endif
+        } header: {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+        }
+    }
+
+    func noteRow(_ note: NoteSummary) -> some View {
+        NavigationLink(value: note.id) {
+            NoteRow(
+                note: note,
+                sortField: store.sortPreference.field,
+                showsNotePreview: showsNotePreview
+            )
+        }
+        .contextMenu {
+            NotePinContextMenuButton(note: note, isEditing: isEditing) {
+                Task {
+                    await store.togglePin(for: note)
+                }
+            }
+            Divider()
+            Button("Share…", systemImage: "square.and.arrow.up") {
+                sharePDF(note)
+            }
+            .disabled(isEditing)
+            #if os(macOS)
+            Menu("Export…", systemImage: "arrow.forward.folder.fill") {
+                Button("PDF") {
+                    exportPDF(note)
+                }
+                Button("Markdown") {
+                    exportMarkdown(note)
+                }
+            }
+            .disabled(isEditing)
+            #endif
+            Divider()
+            Button("Delete", systemImage: "trash", role: .destructive) {
+                requestNoteDeletion([note])
+            }
+        }
+        .notePinSwipeAction(note: note) {
+            Task {
+                await store.togglePin(for: note)
+            }
+        }
+        .noteDeletionSwipeAction {
+            requestNoteDeletion([note])
+        }
+        .listRowSeparator(.visible, edges: .bottom)
+    }
+
     /// Defers every user-facing deletion entry point to one confirmation dialog.
     func requestNoteDeletion(_ summaries: [NoteSummary]) {
         guard !summaries.isEmpty, pendingDeletion == nil else {
@@ -392,8 +434,8 @@ private extension NotesSidebar {
         pendingDeletion = NoteDeletionRequest(summaries: summaries)
     }
 
-    func requestNoteDeletionForOffsets(_ offsets: IndexSet) {
-        requestNoteDeletion(offsets.map { visibleNotes[$0] })
+    func requestNoteDeletionForOffsets(_ offsets: IndexSet, in notes: [NoteSummary]) {
+        requestNoteDeletion(offsets.map { notes[$0] })
     }
 }
 

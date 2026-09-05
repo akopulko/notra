@@ -82,6 +82,27 @@ private struct MarkdownWebView: NSViewRepresentable {
         context.coordinator.update(document: document, in: webView)
     }
 }
+
+/// Removes WebKit's page reload command from the read-only Markdown preview menu.
+private final class MarkdownPreviewWebView: WKWebView {
+    override func willOpenMenu(_ menu: NSMenu, with event: NSEvent) {
+        super.willOpenMenu(menu, with: event)
+        // WebKit owns the target and may use private selectors, so retain the
+        // visible-title check that its generated menu exposes consistently.
+        for item in menu.items where isReloadItem(item) {
+            menu.removeItem(item)
+        }
+    }
+
+    private func isReloadItem(_ item: NSMenuItem) -> Bool {
+        if item.title.localizedCaseInsensitiveCompare("Reload") == .orderedSame {
+            return true
+        }
+        return item.action.map {
+            NSStringFromSelector($0).localizedCaseInsensitiveContains("reload")
+        } == true
+    }
+}
 #endif
 
 /// Owns WebKit delegates and local-resource policy for both SwiftUI platform wrappers.
@@ -100,7 +121,11 @@ private final class Coordinator: NSObject, WKNavigationDelegate {
     func makeWebView() -> WKWebView {
         let configuration = WKWebViewConfiguration()
         configuration.setURLSchemeHandler(assetHandler, forURLScheme: MarkdownWebAssetHandler.scheme)
+        #if os(macOS)
+        let webView = MarkdownPreviewWebView(frame: .zero, configuration: configuration)
+        #else
         let webView = WKWebView(frame: .zero, configuration: configuration)
+        #endif
         webView.navigationDelegate = self
         #if os(iOS)
         webView.isOpaque = false

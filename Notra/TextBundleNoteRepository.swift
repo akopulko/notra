@@ -159,7 +159,7 @@ struct TextBundleNoteRepository {
                     .creationDate ?? .distantPast
                 let markdown = try markdownContent(in: url)
                 let preview = Self.preview(for: markdown)
-                let metadata = (try? noteMetadata(at: url)) ?? NoteMetadata()
+                let metadata = summaryMetadata(at: url)
                 let attachmentSummary = try attachmentSummary(for: url, markdown: markdown)
                 return try NoteSummary(
                     url: url,
@@ -182,7 +182,7 @@ struct TextBundleNoteRepository {
 
         let textURL = url.appendingPathComponent(Self.textFilename)
         let markdown = try String(contentsOf: textURL, encoding: .utf8)
-        let metadata = (try? noteMetadata(at: url)) ?? NoteMetadata()
+        let metadata = try noteMetadata(at: url)
         let createdAt = try url.resourceValues(forKeys: [.creationDateKey])
             .creationDate ?? .distantPast
         _ = Document(parsing: markdown)
@@ -242,8 +242,18 @@ struct TextBundleNoteRepository {
         }
 
         let data = try Data(contentsOf: infoURL)
-        let info = try JSONDecoder().decode(TextBundleInfo.self, from: data)
+        let info = try JSONDecoder().decode(NotraMetadataEnvelope.self, from: data)
         return NoteMetadata(tags: info.notra.tags, pinnedAt: info.notra.pinnedAt)
+    }
+
+    /// Keeps damaged notes discoverable while recording why their metadata could not be read.
+    private func summaryMetadata(at noteURL: URL) -> NoteMetadata {
+        do {
+            return try noteMetadata(at: noteURL)
+        } catch {
+            AppLog.error("Failed to read note metadata: \(String(describing: error))")
+            return NoteMetadata()
+        }
     }
 
     /// Merges normalized Notra metadata into existing JSON so unknown keys survive updates.
@@ -254,6 +264,8 @@ struct TextBundleNoteRepository {
 
         let infoURL = noteURL.appendingPathComponent(Self.infoFilename)
         var root = try metadataJSONObject(at: infoURL)
+        // Refuse to overwrite unreadable Notra metadata with an empty in-memory fallback.
+        _ = try noteMetadata(at: noteURL)
         var appMetadata = root[Self.appMetadataKey] as? [String: Any] ?? [:]
 
         appMetadata["version"] = appMetadata["version"] ?? 1

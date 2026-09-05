@@ -297,6 +297,55 @@ struct NotraStorageTests {
         #expect(summary.isPinned)
     }
 
+    @Test(arguments: ["true", "false", "unexpected"])
+    func importedFieldsDoNotInvalidatePinsOrTags(transient: String) throws {
+        let repository = try makeRepository()
+        let note = try repository.createNote()
+        let infoURL = note.url.appendingPathComponent("info.json")
+        let original: [String: Any] = [
+            "transient": transient,
+            "version": "2",
+            "creatorIdentifier": "External.App",
+            "External.App": ["futureField": [1, 2, 3]]
+        ]
+        try JSONSerialization.data(withJSONObject: original).write(to: infoURL)
+        #expect(try repository.loadNote(at: note.url).metadata.pinnedAt == nil)
+
+        let metadata = NoteMetadata(
+            tags: [try #require(NoteTag("Example"))],
+            pinnedAt: Date(timeIntervalSinceReferenceDate: 123_456)
+        )
+        try repository.updateNoteMetadata(metadata, for: note.url)
+        #expect(try repository.loadNote(at: note.url).metadata == metadata)
+        let summary = try #require(try repository.listNotes().first)
+        #expect(summary.isPinned)
+        #expect(summary.tags == metadata.tags)
+
+        let saved = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: infoURL)) as? [String: Any])
+        #expect(saved["transient"] as? String == transient)
+        #expect(saved["version"] as? String == "2")
+        #expect(saved["External.App"] as? [String: [Int]] == ["futureField": [1, 2, 3]])
+
+        try repository.updateNoteMetadata(NoteMetadata(tags: metadata.tags), for: note.url)
+        #expect(try repository.loadNote(at: note.url).metadata.pinnedAt == nil)
+        #expect(try repository.listNotes().first?.isPinned == false)
+    }
+
+    @Test func corruptNotraMetadataCannotBeSilentlyOverwritten() throws {
+        let repository = try makeRepository()
+        let note = try repository.createNote()
+        let infoURL = note.url.appendingPathComponent("info.json")
+        let original = Data(#"{"app.notra.Notra":{"pinnedAt":"invalid"}}"#.utf8)
+        try original.write(to: infoURL)
+
+        #expect(throws: (any Error).self) { try repository.loadNote(at: note.url) }
+        #expect(throws: (any Error).self) {
+            try repository.updateNoteMetadata(NoteMetadata(), for: note.url)
+        }
+        #expect(try Data(contentsOf: infoURL) == original)
+        #expect(try repository.listNotes().count == 1)
+    }
+
     @Test func metadataPreventsDuplicateTagsCaseInsensitively() throws {
         let metadata = NoteMetadata(tags: [
             try #require(NoteTag("Swift")),
