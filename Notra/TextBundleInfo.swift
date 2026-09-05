@@ -49,6 +49,16 @@ nonisolated struct TextBundleInfo: Codable, Equatable {
     }
 }
 
+/// Reads only our namespace so unrelated fields from other apps cannot invalidate pins or tags.
+nonisolated struct NotraMetadataEnvelope: Decodable {
+    let notra: NotraMetadata
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: TextBundleInfo.CodingKeys.self)
+        notra = try container.decodeIfPresent(NotraMetadata.self, forKey: .notra) ?? NotraMetadata()
+    }
+}
+
 /// Stores Notra's versioned tag metadata nested inside the TextBundle info document.
 nonisolated struct NotraMetadata: Codable, Equatable {
     /// Version for the Notra metadata payload, independent of the outer TextBundle version.
