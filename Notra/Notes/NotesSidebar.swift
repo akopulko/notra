@@ -366,7 +366,7 @@ private extension NotesSidebar {
     func noteSection(title: LocalizedStringResource, notes: [NoteSummary]) -> some View {
         Section {
             ForEach(notes) { note in
-                noteRow(note)
+                noteRow(note, showsBottomSeparator: note.id != notes.last?.id)
             }
             #if os(macOS)
             .onDelete { offsets in
@@ -379,7 +379,7 @@ private extension NotesSidebar {
         }
     }
 
-    func noteRow(_ note: NoteSummary) -> some View {
+    func noteRow(_ note: NoteSummary, showsBottomSeparator: Bool) -> some View {
         NavigationLink(value: note.id) {
             NoteRow(
                 note: note,
@@ -422,7 +422,10 @@ private extension NotesSidebar {
         .noteDeletionSwipeAction {
             requestNoteDeletion([note])
         }
-        .listRowSeparator(.visible, edges: .bottom)
+        .listRowSeparator(
+            showsBottomSeparator ? .visible : .hidden,
+            edges: .bottom
+        )
     }
 
     /// Defers every user-facing deletion entry point to one confirmation dialog.
