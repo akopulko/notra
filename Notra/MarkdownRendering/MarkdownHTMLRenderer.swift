@@ -24,6 +24,9 @@ struct MarkdownHTMLRenderer {
     private var assets: [String: URL] = [:]
     private var attachments: [String: URL] = [:]
     private var includedImageURLs = Set<URL>()
+    private var headingAnchorCounts: [String: Int] = [:]
+    private var headingAnchorIDs: [String: String] = [:]
+    private var headingAnchorsBySlug: [String: String] = [:]
     private var nextResourceID = 0
 
     init(style: MarkdownStyle, mode: MarkdownHTMLRenderMode, context: MarkdownRenderContext) {
@@ -34,6 +37,10 @@ struct MarkdownHTMLRenderer {
 
     /// Builds a full document so WebKit owns one continuous selection and print layout surface.
     mutating func render(_ document: NotraMarkdownDocument) -> MarkdownHTMLDocument {
+        headingAnchorCounts.removeAll(keepingCapacity: true)
+        headingAnchorIDs.removeAll(keepingCapacity: true)
+        headingAnchorsBySlug.removeAll(keepingCapacity: true)
+        indexHeadingAnchors(in: document.blocks)
         let content = document.blocks.map { render($0) }.joined(separator: "\n")
         let body = mode == .pdf ? "<main class=\"pdf-content\">\(content)</main>" : content
         let head = "<meta charset=\"utf-8\">\(viewportMetadata)\(stylesheet)"
@@ -167,9 +174,10 @@ private extension MarkdownHTMLRenderer {
         switch block {
         case let .paragraph(_, inlines):
             return "<p>\(render(inlines))</p>"
-        case let .heading(_, level, inlines):
+        case let .heading(id, level, inlines):
             let safeLevel = min(max(level, 1), 6)
-            return "<h\(safeLevel)>\(render(inlines))</h\(safeLevel)>"
+            let anchor = headingAnchorIDs[id] ?? headingSlug(for: plainText(inlines))
+            return "<h\(safeLevel) id=\"\(anchor)\">\(render(inlines))</h\(safeLevel)>"
         case let .unorderedList(_, items):
             return "<ul>\(items.map { render($0) }.joined())</ul>"
         case let .orderedList(_, start, items):
@@ -226,6 +234,73 @@ private extension MarkdownHTMLRenderer {
         inlines.map { render($0) }.joined()
     }
 
+    mutating func headingAnchorID(for inlines: [MarkdownInline]) -> String {
+        let base = headingSlug(for: plainText(inlines))
+        let occurrence = headingAnchorCounts[base, default: 0]
+        headingAnchorCounts[base] = occurrence + 1
+        return occurrence == 0 ? base : "\(base)-\(occurrence)"
+    }
+
+    mutating func indexHeadingAnchors(in blocks: [MarkdownBlock]) {
+        for block in blocks {
+            switch block {
+            case let .heading(id, _, inlines):
+                let anchor = headingAnchorID(for: inlines)
+                headingAnchorIDs[id] = anchor
+                headingAnchorsBySlug[anchor] = anchor
+            case let .unorderedList(_, items),
+                 let .orderedList(_, _, items):
+                for item in items {
+                    indexHeadingAnchors(in: item.blocks)
+                }
+            case let .blockQuote(_, nestedBlocks):
+                indexHeadingAnchors(in: nestedBlocks)
+            case .paragraph, .codeBlock, .table, .horizontalRule:
+                break
+            }
+        }
+    }
+
+    func headingSlug(for text: String) -> String {
+        var slug = ""
+        var pendingSeparator = false
+
+        for character in text.lowercased() {
+            if character.isLetter || character.isNumber {
+                if pendingSeparator, !slug.isEmpty {
+                    slug.append("-")
+                }
+                slug.append(character)
+                pendingSeparator = false
+            } else if character == "-" || character == "_" {
+                slug.append(character)
+                pendingSeparator = false
+            } else if character.isWhitespace {
+                pendingSeparator = true
+            }
+        }
+
+        return slug.isEmpty ? "section" : slug
+    }
+
+    func plainText(_ inlines: [MarkdownInline]) -> String {
+        inlines.map { inline in
+            switch inline {
+            case let .text(text), let .code(text):
+                text
+            case let .strong(children),
+                 let .emphasis(children),
+                 let .strikethrough(children),
+                 let .link(_, _, children):
+                plainText(children)
+            case let .image(_, _, alt):
+                alt
+            case .softBreak, .lineBreak:
+                " "
+            }
+        }.joined()
+    }
+
     mutating func render(_ inline: MarkdownInline) -> String {
         switch inline {
         case let .text(text):
@@ -239,7 +314,7 @@ private extension MarkdownHTMLRenderer {
         case let .code(code):
             "<code class=\"inline-code\">\(escape(code))</code>"
         case let .link(destination, _, children):
-            renderLink(destination: destination, children: children)
+            renderLink(destination: canonicalAnchorDestination(destination), children: children)
         case let .image(source, _, alt):
             renderImage(source: source, alt: alt)
         case .softBreak:
@@ -263,6 +338,20 @@ private extension MarkdownHTMLRenderer {
             return render(children)
         }
         return "<a href=\"\(escapeAttribute(url.absoluteString))\">\(render(children))</a>"
+    }
+
+    func canonicalAnchorDestination(_ destination: String) -> String {
+        guard destination.hasPrefix("#") else {
+            return destination
+        }
+
+        let encodedFragment = String(destination.dropFirst())
+        let fragment = encodedFragment.removingPercentEncoding ?? encodedFragment
+        let slug = headingSlug(for: fragment)
+        guard let anchor = headingAnchorsBySlug[slug] else {
+            return destination
+        }
+        return "#\(anchor)"
     }
 
     func isPDFAssetLink(_ destination: String) -> Bool {
@@ -367,7 +456,10 @@ private extension MarkdownHTMLRenderer {
     }
 
     func isAttachment(_ url: URL) -> Bool {
-        let values = try? url.resourceValues(forKeys: [.contentTypeKey])
+        let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .contentTypeKey])
+        guard values?.isRegularFile == true else {
+            return false
+        }
         let contentType = values?.contentType ?? UTType(filenameExtension: url.pathExtension)
         return TextBundleAssetKind(contentType: contentType, filename: url.lastPathComponent) == .attachment
     }

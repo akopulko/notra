@@ -76,6 +76,51 @@ struct MarkdownRenderingTests {
         #expect(imageIndex < afterIndex)
     }
 
+    @Test func htmlRendererCreatesMatchingHeadingAnchors() {
+        let document = SwiftMarkdownParser().parse("""
+        [First section](#first-section)
+        [Equipment](#Equipment)
+
+        # First section
+
+        [Duplicate section](#first-section-1)
+
+        ## First section
+
+        ## Equipment
+        """)
+        var renderer = MarkdownHTMLRenderer(
+            style: .notra(previewFontName: AppearanceFont.defaultName),
+            mode: .preview,
+            context: MarkdownRenderContext(
+                noteURL: nil,
+                assetBaseURL: URL(fileURLWithPath: "/tmp/example.textbundle/assets", isDirectory: true)
+            )
+        )
+
+        let html = renderer.render(document).html
+
+        #expect(html.contains("<a href=\"#first-section\">First section</a>"))
+        #expect(html.contains("<a href=\"#equipment\">Equipment</a>"))
+        #expect(!html.contains("notra-attachment://attachment/"))
+        #expect(html.contains("<h1 id=\"first-section\">First section</h1>"))
+        #expect(html.contains("<h2 id=\"first-section-1\">First section</h2>"))
+        #expect(html.contains("<h2 id=\"equipment\">Equipment</h2>"))
+    }
+
+    @Test func htmlRendererNormalisesHeadingAnchorText() {
+        let document = SwiftMarkdownParser().parse("# API & Usage!")
+        var renderer = MarkdownHTMLRenderer(
+            style: .notra(previewFontName: AppearanceFont.defaultName),
+            mode: .preview,
+            context: .empty
+        )
+
+        let html = renderer.render(document).html
+
+        #expect(html.contains("<h1 id=\"api-usage\">API &amp; Usage!</h1>"))
+    }
+
     @Test func checkedTaskCheckboxesUseThePreviewItalicColour() {
         let document = SwiftMarkdownParser().parse("- [x] Done")
         var darkRenderer = MarkdownHTMLRenderer(
