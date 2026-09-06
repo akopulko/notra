@@ -48,67 +48,18 @@ struct TextBundleNoteRepository {
     nonisolated static let assetsFolder = "assets"
     nonisolated static let appMetadataKey = "app.notra.Notra"
 
-    /// Root directory containing note bundles; iCloud and local roots use the same layout below it.
+    /// Root directory containing note bundles for the selected storage location.
     let rootURL: URL
-    /// Records whether the root is backed by iCloud so the UI can describe the storage location.
-    let isUsingICloud: Bool
+    /// The location represented by `rootURL`, retained for settings and inspector descriptions.
+    let storageLocation: NoteStorageLocation
 
     init(rootURL: URL, isUsingICloud: Bool = false) {
         self.rootURL = rootURL
-        self.isUsingICloud = isUsingICloud
+        storageLocation = isUsingICloud ? .iCloud : .localStore
     }
 
-    /// Chooses iCloud when configured and available, otherwise prepares the platform's local directory.
-    static func production(fileManager: FileManager = .default) -> TextBundleNoteRepository {
-        let iCloudURL = iCloudContainerIdentifier.flatMap(fileManager.url(forUbiquityContainerIdentifier:))
-        if let iCloudURL {
-            let documentsURL = iCloudURL.appendingPathComponent("Documents", isDirectory: true)
-            let repository = TextBundleNoteRepository(rootURL: documentsURL, isUsingICloud: true)
-            do {
-                try repository.prepareStorage()
-                AppLog.info("Using iCloud note storage")
-                return repository
-            } catch {
-                AppLog.error("Failed to prepare iCloud note storage: \(error.localizedDescription)")
-            }
-        } else if iCloudContainerIdentifier != nil {
-            AppLog.warning("iCloud note storage is configured but unavailable; using local note storage")
-        }
-
-        let rootURL = localRootURL(fileManager: fileManager) ?? fileManager.temporaryDirectory
-        let repository = TextBundleNoteRepository(rootURL: rootURL, isUsingICloud: false)
-
-        do {
-            try repository.prepareStorage()
-            AppLog.info("Using local note storage")
-        } catch {
-            AppLog.error("Failed to prepare note storage: \(error.localizedDescription)")
-        }
-
-        return repository
-    }
-
-    private static var iCloudContainerIdentifier: String? {
-        guard let value = Bundle.main.object(
-            forInfoDictionaryKey: "NotraICloudContainerIdentifier"
-        ) as? String else {
-            return nil
-        }
-
-        let trimmedValue = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmedValue.isEmpty ? nil : trimmedValue
-    }
-
-    private static func localRootURL(fileManager: FileManager) -> URL? {
-        guard let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else {
-            return nil
-        }
-
-        #if os(iOS)
-        return documentsURL
-        #else
-        return documentsURL.appendingPathComponent("Notra", isDirectory: true)
-        #endif
+    var isUsingICloud: Bool {
+        storageLocation == .iCloud
     }
 
     /// Creates the repository root before any directory enumeration or bundle creation.

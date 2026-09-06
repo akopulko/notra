@@ -65,7 +65,7 @@ struct NotesSidebar: View {
             #endif
             #if os(iOS)
             .sheet(isPresented: $isSettingsPresented) {
-                SettingsView()
+                SettingsView(store: store)
             }
             #else
             .fileExporter(
@@ -155,6 +155,7 @@ struct NotesSidebar: View {
             }
         }
         .listStyle(.sidebar)
+        .disabled(store.isChangingStorage)
         #if os(iOS)
         .toolbarTitleDisplayMode(.inline)
         #endif

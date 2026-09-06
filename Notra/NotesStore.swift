@@ -8,13 +8,31 @@ import UniformTypeIdentifiers
 final class NotesStore {
     /// The repository is the single source of truth for note and TextBundle mutations.
     @ObservationIgnored
-    private let repository: TextBundleNoteRepository
+    private var repository: TextBundleNoteRepository
+    /// Creates and prepares a repository before a location change becomes visible in the UI.
+    @ObservationIgnored
+    private let repositoryFactory: (NoteStorageLocation) throws -> TextBundleNoteRepository
+    /// Loads summaries from a prepared target repository before it replaces the current state.
+    @ObservationIgnored
+    private let repositoryNotesLoader: (TextBundleNoteRepository) throws -> [NoteSummary]
+    /// Keeps availability checks injectable for storage-setting tests.
+    @ObservationIgnored
+    private let iCloudAvailability: () -> Bool
+    /// Injectable autosave suspension used to make transition races deterministic in tests.
+    @ObservationIgnored
+    private let autosavePause: @Sendable () async -> Void
+    /// Signals completion of deferred work so tests can coordinate cancellation without timing delays.
+    @ObservationIgnored
+    private let autosaveCompletion: @Sendable () async -> Void
     /// Search is actor-isolated because SQLite access must not run on the main actor.
     @ObservationIgnored
     private let searchIndex: SQLiteNoteSearchIndex
     /// Persists the user's sidebar ordering independently from note storage.
     @ObservationIgnored
     private var sortPreferenceStorage: NoteSortPreferenceStorage
+    /// Persists only successful user-initiated storage changes.
+    @ObservationIgnored
+    private var storagePreferenceStorage: NoteStoragePreferenceStorage
 
     /// Lightweight rows kept in sidebar order; full note bodies are loaded only for selection.
     var notes: [NoteSummary] = []
@@ -36,6 +54,10 @@ final class NotesStore {
     var sortPreference: NoteSortPreference
     /// Normalized tags from the selected note, kept separate for tag controls.
     var selectedNoteTags: [NoteTag] = []
+    /// The currently loaded directory, reflected by the Notes Location picker.
+    var storageLocation: NoteStorageLocation
+    /// Prevents concurrent storage transitions from racing repository state.
+    var isChangingStorage = false
 
     /// Editable in-memory note; this is intentionally separate from the lightweight summary list.
     private var selectedNote: Note?
@@ -45,16 +67,43 @@ final class NotesStore {
     /// Cancellable background synchronization for the SQLite search index.
     @ObservationIgnored
     private var searchIndexTask: Task<Void, Never>?
+    /// Monotonic identity for the repository whose state is currently published.
+    @ObservationIgnored
+    private var repositoryGeneration: UInt64 = 0
+    /// Serialises index operations with generation invalidation so old work cannot run after a switch.
+    @ObservationIgnored
+    private let searchIndexGate = SearchIndexGenerationGate()
 
     init(
         repository: TextBundleNoteRepository = .production(),
         sortPreferenceStorage: NoteSortPreferenceStorage = .standard,
-        searchIndex: SQLiteNoteSearchIndex? = nil
+        searchIndex: SQLiteNoteSearchIndex? = nil,
+        storagePreferenceStorage: NoteStoragePreferenceStorage = .standard,
+        repositoryFactory: @escaping (NoteStorageLocation) throws -> TextBundleNoteRepository = {
+            try TextBundleNoteRepository.repository(for: $0)
+        },
+        repositoryNotesLoader: @escaping (TextBundleNoteRepository) throws -> [NoteSummary] = {
+            try $0.listNotes()
+        },
+        iCloudAvailability: @escaping () -> Bool = {
+            TextBundleNoteRepository.isICloudAvailable()
+        },
+        autosavePause: @escaping @Sendable () async -> Void = {
+            try? await Task.sleep(for: .milliseconds(500))
+        },
+        autosaveCompletion: @escaping @Sendable () async -> Void = {}
     ) {
         self.repository = repository
+        self.repositoryFactory = repositoryFactory
+        self.repositoryNotesLoader = repositoryNotesLoader
+        self.iCloudAvailability = iCloudAvailability
+        self.autosavePause = autosavePause
+        self.autosaveCompletion = autosaveCompletion
         self.searchIndex = searchIndex ?? SQLiteNoteSearchIndex.production()
         self.sortPreferenceStorage = sortPreferenceStorage
+        self.storagePreferenceStorage = storagePreferenceStorage
         sortPreference = sortPreferenceStorage.preference
+        storageLocation = repository.storageLocation
         AppLog.info("Initialized notes store with \(repository.storageDescription)")
     }
 
@@ -89,6 +138,55 @@ final class NotesStore {
         repository.rootURL.path
     }
 
+    /// Determines whether the iCloud choice can be selected in Settings on this device.
+    var isICloudStorageAvailable: Bool {
+        iCloudAvailability()
+    }
+
+    /// Saves pending edits and then switches to the independent note location.
+    func changeStorageLocation(to location: NoteStorageLocation) async {
+        guard location != storageLocation, !isChangingStorage else {
+            return
+        }
+
+        guard location != .iCloud || isICloudStorageAvailable else {
+            errorMessage = NoteRepositoryError.storageUnavailable.localizedDescription
+            return
+        }
+
+        isChangingStorage = true
+        isLoading = true
+        let previousGeneration = repositoryGeneration
+        repositoryGeneration &+= 1
+        cancelDeferredWork()
+        searchIndexTask?.cancel()
+        await searchIndexGate.advance(to: repositoryGeneration)
+        defer {
+            isChangingStorage = false
+            isLoading = false
+        }
+
+        do {
+            try await saveCurrentNoteIfNeeded(generation: previousGeneration)
+            let replacementRepository = try repositoryFactory(location)
+            let replacementNotes = try sortPreference.sorted(repositoryNotesLoader(replacementRepository))
+
+            repository = replacementRepository
+            storageLocation = location
+            selectedNoteID = nil
+            clearSelection()
+            notes = replacementNotes
+            searchStatus = .notReady
+            storagePreferenceStorage.location = location
+            startSearchIndexSynchronization()
+            AppLog.info("Changed note storage to \(replacementRepository.storageDescription)")
+        } catch {
+            startSearchIndexSynchronization()
+            AppLog.error("Failed to change note storage: \(error.localizedDescription)")
+            errorMessage = error.localizedDescription
+        }
+    }
+
     /// Projects current unsaved editor text into the inspector's derived statistics.
     var selectedNoteInfo: NoteInfo? {
         guard let summary = selectedNoteSummary else {
@@ -105,6 +203,9 @@ final class NotesStore {
 
     /// Loads sidebar summaries, restores platform-appropriate selection, and starts index sync.
     func loadNotes() async {
+        guard canMutateNotes else {
+            return
+        }
         AppLog.info("Loading notes from \(repository.storageDescription)")
         isLoading = true
         defer { isLoading = false }
@@ -129,14 +230,26 @@ final class NotesStore {
 
     /// Creates, selects, and immediately indexes a new TextBundle with the requested starting content.
     func createNote(initialMarkdown: String = "") async {
+        guard canMutateNotes else {
+            return
+        }
         AppLog.info("Creating note")
+        let generation = repositoryGeneration
         do {
             let note = try repository.createNote(initialMarkdown: initialMarkdown)
             try refreshNotes()
             try select(note)
-            await indexNote(note)
+            guard await indexNote(note, generation: generation) else {
+                return
+            }
+            guard isCurrentRepository(generation) else {
+                return
+            }
             AppLog.info("Created note: \(logName(for: note.url))")
         } catch {
+            guard isCurrentRepository(generation) else {
+                return
+            }
             AppLog.error("Failed to create note: \(error.localizedDescription)")
             errorMessage = error.localizedDescription
         }
@@ -161,19 +274,28 @@ final class NotesStore {
 
     /// Deletes summaries, repairs selection, and removes their search entries.
     func deleteNotes(_ summaries: [NoteSummary]) async {
+        guard canMutateNotes else {
+            return
+        }
         guard !summaries.isEmpty else {
             AppLog.debug("Ignoring empty delete request")
             return
         }
 
         AppLog.info("Deleting \(summaries.count) notes")
+        let generation = repositoryGeneration
         do {
             cancelDeferredWork()
             let nextSelectionID = replacementSelectionID(afterDeleting: summaries)
             for summary in summaries {
                 try repository.delete(summary)
-                await removeFromSearchIndex(noteID: summary.id)
+                guard await removeFromSearchIndex(noteID: summary.id, generation: generation) else {
+                    return
+                }
                 AppLog.info("Deleted note: \(logName(for: summary.url))")
+            }
+            guard isCurrentRepository(generation) else {
+                return
             }
             try refreshNotes()
             if let selectedNote, summaries.contains(where: { $0.id == selectedNote.id }) {
@@ -186,6 +308,9 @@ final class NotesStore {
             }
             AppLog.info("Delete completed; remaining notes: \(notes.count)")
         } catch {
+            guard isCurrentRepository(generation) else {
+                return
+            }
             AppLog.error("Failed to delete notes: \(error.localizedDescription)")
             errorMessage = error.localizedDescription
         }
@@ -193,6 +318,9 @@ final class NotesStore {
 
     /// Saves the previous note before loading the newly selected note from storage.
     func selectionChanged() async {
+        guard canMutateNotes else {
+            return
+        }
         guard let selectedNoteID else {
             AppLog.info("Clearing note selection")
             clearSelection()
@@ -200,10 +328,17 @@ final class NotesStore {
         }
 
         AppLog.info("Changing selection to \(logName(for: selectedNoteID))")
+        let generation = repositoryGeneration
         do {
-            try await saveCurrentNoteIfNeeded()
+            try await saveCurrentNoteIfNeeded(generation: generation)
+            guard isCurrentRepository(generation) else {
+                return
+            }
             try selectNote(id: selectedNoteID)
         } catch {
+            guard isCurrentRepository(generation) else {
+                return
+            }
             AppLog.error("Failed to change selection: \(error.localizedDescription)")
             errorMessage = error.localizedDescription
         }
@@ -211,6 +346,9 @@ final class NotesStore {
 
     /// Updates the in-memory note, attachment link badges, and deferred persistence state.
     func updateEditorText(_ newText: String) {
+        guard canMutateNotes else {
+            return
+        }
         editorText = newText
         selectedNote?.markdown = newText
         refreshAttachmentLinkStates()
@@ -219,7 +357,14 @@ final class NotesStore {
 
     /// Flushes pending edits before creating an immutable snapshot for an exporter.
     func exportPayload(for summary: NoteSummary) async throws -> NoteExportPayload {
-        try await saveCurrentNoteIfNeeded()
+        guard canMutateNotes else {
+            throw NoteRepositoryError.storageUnavailable
+        }
+        let generation = repositoryGeneration
+        try await saveCurrentNoteIfNeeded(generation: generation)
+        guard isCurrentRepository(generation) else {
+            throw NoteRepositoryError.storageUnavailable
+        }
         let note = try repository.loadNote(at: summary.url)
         return NoteExportPayload(
             markdown: note.markdown,
@@ -232,17 +377,24 @@ final class NotesStore {
 extension NotesStore {
     /// Persists a normalized tag and updates the selected note's index entry.
     func addTag(_ tag: NoteTag) -> NoteTagMutationResult? {
+        guard canMutateNotes else {
+            return nil
+        }
         guard var selectedNote else {
             AppLog.debug("Ignoring tag add because no note is selected")
             return nil
         }
 
         do {
+            let generation = repositoryGeneration
             var metadata = selectedNote.metadata
             let inserted = metadata.add(tag)
             try saveSelectedNoteMetadata(metadata, in: &selectedNote)
-            Task {
-                await indexNote(selectedNote)
+            Task { [weak self, selectedNote, generation] in
+                guard let self, isCurrentRepository(generation) else {
+                    return
+                }
+                _ = await indexNote(selectedNote, generation: generation)
             }
             AppLog.info("Tag \(inserted ? "added" : "already exists"); tag=\(tag.name)")
             return inserted ? .added(tag) : .duplicate(tag)
@@ -255,6 +407,9 @@ extension NotesStore {
 
     /// Removes a matching tag from metadata, storage, the inspector, and search index.
     func removeTag(_ tag: NoteTag) async {
+        guard canMutateNotes else {
+            return
+        }
         guard var selectedNote else {
             AppLog.debug("Ignoring tag removal because no note is selected")
             return
@@ -264,13 +419,22 @@ extension NotesStore {
             return
         }
 
+        let generation = repositoryGeneration
         do {
             var metadata = selectedNote.metadata
             metadata.remove(tag)
             try saveSelectedNoteMetadata(metadata, in: &selectedNote)
-            await indexNote(selectedNote)
+            guard await indexNote(selectedNote, generation: generation) else {
+                return
+            }
+            guard isCurrentRepository(generation) else {
+                return
+            }
             AppLog.info("Tag removed; tag=\(tag.name)")
         } catch {
+            guard isCurrentRepository(generation) else {
+                return
+            }
             AppLog.error("Failed to remove tag: \(error.localizedDescription)")
             errorMessage = error.localizedDescription
         }
@@ -278,8 +442,15 @@ extension NotesStore {
 
     /// Pins or unpins a note without changing its Markdown content or current selection.
     func togglePin(for summary: NoteSummary) async {
+        guard canMutateNotes else {
+            return
+        }
+        let generation = repositoryGeneration
         do {
-            try await saveCurrentNoteIfNeeded()
+            try await saveCurrentNoteIfNeeded(generation: generation)
+            guard isCurrentRepository(generation) else {
+                return
+            }
             var note = try repository.loadNote(at: summary.url)
             if note.metadata.pinnedAt == nil, notes.filter(\.isPinned).count >= NotePinning.maximumPinnedNotes {
                 errorMessage = "You can pin up to \(NotePinning.maximumPinnedNotes) notes."
@@ -296,6 +467,9 @@ extension NotesStore {
             try refreshNotes()
             AppLog.info("Note pin state changed: \(logName(for: note.url))")
         } catch {
+            guard isCurrentRepository(generation) else {
+                return
+            }
             AppLog.error("Failed to update note pin: \(error.localizedDescription)")
             errorMessage = error.localizedDescription
         }
@@ -307,6 +481,9 @@ extension NotesStore {
         originalFilename: String = "image",
         maximumByteCount: Int64? = nil
     ) throws -> ImportedTextBundleAsset {
+        guard canMutateNotes else {
+            throw NoteRepositoryError.storageUnavailable
+        }
         guard let selectedNote else {
             AppLog.warning("Ignoring image import because no note is selected")
             throw NoteRepositoryError.noteNotFound
@@ -341,6 +518,9 @@ extension NotesStore {
         from url: URL,
         maximumByteCount: Int64
     ) throws -> ImportedTextBundleAsset {
+        guard canMutateNotes else {
+            throw NoteRepositoryError.storageUnavailable
+        }
         guard let selectedNote else {
             AppLog.warning("Ignoring attachment import because no note is selected")
             throw NoteRepositoryError.noteNotFound
@@ -364,6 +544,9 @@ extension NotesStore {
 
     /// Removes an asset and, when linked, removes its Markdown references first.
     func deleteAttachment(_ attachment: TextBundleAsset) async {
+        guard canMutateNotes else {
+            return
+        }
         guard let selectedNote else {
             AppLog.debug("Ignoring attachment delete because no note is selected")
             return
@@ -375,6 +558,7 @@ extension NotesStore {
         }
 
         AppLog.info("Deleting attachment; name=\(attachment.filename); linked=\(attachment.isLinked)")
+        let generation = repositoryGeneration
         cancelDeferredWork()
 
         do {
@@ -393,14 +577,25 @@ extension NotesStore {
                 try repository.save(updatedNote)
                 self.selectedNote = updatedNote
                 editorText = updatedMarkdown
-                await indexNote(updatedNote)
+                guard await indexNote(updatedNote, generation: generation) else {
+                    return
+                }
+                guard isCurrentRepository(generation) else {
+                    return
+                }
             }
 
+            guard isCurrentRepository(generation) else {
+                return
+            }
             try repository.deleteAttachment(attachment.url, from: selectedNote.url)
             try refreshNotes()
             try refreshAttachments()
             AppLog.info("Attachment deletion completed; name=\(attachment.filename)")
         } catch {
+            guard isCurrentRepository(generation) else {
+                return
+            }
             do {
                 try refreshAttachments()
             } catch {
@@ -451,8 +646,12 @@ extension NotesStore {
 
     /// Cancels a deferred save and writes the current note before an explicit lifecycle boundary.
     func saveNow() async {
+        guard canMutateNotes else {
+            return
+        }
         AppLog.info("Saving current note immediately")
         saveTask?.cancel()
+        let generation = repositoryGeneration
         guard let selectedNote else {
             AppLog.debug("Ignoring save request because no note is selected")
             return
@@ -460,11 +659,22 @@ extension NotesStore {
 
         do {
             try repository.save(selectedNote)
-            await indexNote(selectedNote)
+            guard isCurrentRepository(generation) else {
+                return
+            }
+            guard await indexNote(selectedNote, generation: generation) else {
+                return
+            }
+            guard isCurrentRepository(generation) else {
+                return
+            }
             selectedNoteBundleSize = repository.totalBundleSize(at: selectedNote.url)
             try refreshNotes()
             AppLog.info("Saved note: \(logName(for: selectedNote.url))")
         } catch {
+            guard isCurrentRepository(generation) else {
+                return
+            }
             AppLog.error("Failed to save note: \(error.localizedDescription)")
             errorMessage = error.localizedDescription
         }
@@ -477,6 +687,10 @@ extension NotesStore {
         limit: Int,
         offset: Int
     ) async -> NoteSearchPage? {
+        guard canMutateNotes else {
+            return nil
+        }
+        let generation = repositoryGeneration
         guard searchStatus == .ready else {
             AppLog.debug(
                 "Skipping note search because index status is \(String(describing: searchStatus)); "
@@ -486,7 +700,14 @@ extension NotesStore {
         }
 
         do {
-            let page = try await searchIndex.search(query, filter: filter, limit: limit, offset: offset)
+            guard let page = try await searchIndexGate.run(for: generation, operation: {
+                try await self.searchIndex.search(query, filter: filter, limit: limit, offset: offset)
+            }) else {
+                return nil
+            }
+            guard isCurrentRepository(generation) else {
+                return nil
+            }
             AppLog.debug(
                 "Note search completed; queryLength=\(query.count); "
                     + "filter=\(filter?.rawValue ?? "none"); "
@@ -494,6 +715,9 @@ extension NotesStore {
             )
             return page
         } catch {
+            guard isCurrentRepository(generation) else {
+                return nil
+            }
             AppLog.error("Note search failed: \(error.localizedDescription)")
             searchStatus = .unavailable
             return nil
@@ -502,6 +726,9 @@ extension NotesStore {
 
     /// Rebuilds the search index from all current summaries after a user-requested retry.
     func retrySearchIndex() {
+        guard canMutateNotes else {
+            return
+        }
         startSearchIndexSynchronization(rebuild: true)
     }
 }
@@ -628,36 +855,46 @@ private extension NotesStore {
     /// Cancels work whose result would be stale after selection or deletion changes.
     private func cancelDeferredWork() {
         saveTask?.cancel()
+        saveTask = nil
     }
 
     /// Starts one cancellable index operation and reports completion back on the main actor.
     private func startSearchIndexSynchronization(rebuild: Bool = false) {
         searchIndexTask?.cancel()
         searchStatus = .indexing
+        let generation = repositoryGeneration
         let noteIDs = notes.map(\.id)
         AppLog.info(
             "Starting note search index \(rebuild ? "rebuild" : "synchronization"); "
                 + "noteCount=\(noteIDs.count)"
         )
         let index = searchIndex
-        searchIndexTask = Task { [weak self, index] in
+        let gate = searchIndexGate
+        searchIndexTask = Task { [weak self, index, gate] in
             do {
-                if rebuild {
-                    try await index.rebuild(noteIDs: noteIDs)
-                } else {
-                    try await index.synchronize(noteIDs: noteIDs)
-                }
-
-                guard !Task.isCancelled else {
+                guard try await (gate.run(for: generation) {
+                    if rebuild {
+                        try await index.rebuild(noteIDs: noteIDs)
+                    } else {
+                        try await index.synchronize(noteIDs: noteIDs)
+                    }
+                }) != nil else {
                     return
                 }
-                self?.markSearchIndexReady()
+
+                guard !Task.isCancelled, let self, isCurrentRepository(generation) else {
+                    return
+                }
+                markSearchIndexReady()
             } catch is CancellationError {
                 return
             } catch {
+                guard !Task.isCancelled, let self, isCurrentRepository(generation) else {
+                    return
+                }
                 let operation = rebuild ? "rebuild" : "synchronize"
                 AppLog.error("Failed to \(operation) note search index: \(error.localizedDescription)")
-                self?.markSearchIndexUnavailable()
+                markSearchIndexUnavailable()
             }
         }
     }
@@ -675,23 +912,62 @@ private extension NotesStore {
     }
 
     /// Upserts one note's Markdown and tags into the actor-owned full-text index.
-    private func indexNote(_ note: Note) async {
+    private func indexNote(_ note: Note, generation: UInt64) async -> Bool {
+        guard isCurrentRepository(generation) else {
+            return false
+        }
+
+        let noteID = note.url
+        let markdown = note.markdown
+        let tags = note.metadata.tags
         do {
-            try await searchIndex.index(noteID: note.url, markdown: note.markdown, tags: note.metadata.tags)
-            AppLog.debug("Indexed changed note: \(logName(for: note.url))")
+            guard try await (searchIndexGate.run(for: generation, operation: {
+                try await self.searchIndex.index(noteID: noteID, markdown: markdown, tags: tags)
+            })) != nil else {
+                return false
+            }
+            guard isCurrentRepository(generation) else {
+                return false
+            }
+            AppLog.debug("Indexed changed note: \(logName(for: noteID))")
+            return true
+        } catch is CancellationError {
+            return false
         } catch {
-            AppLog.error("Failed to index note \(logName(for: note.url)): \(error.localizedDescription)")
+            guard isCurrentRepository(generation) else {
+                return false
+            }
+            AppLog.error("Failed to index note \(logName(for: noteID)): \(error.localizedDescription)")
             searchStatus = .unavailable
+            return false
         }
     }
 
     /// Removes one note from the actor-owned index without affecting its TextBundle.
-    private func removeFromSearchIndex(noteID: URL) async {
+    private func removeFromSearchIndex(noteID: URL, generation: UInt64) async -> Bool {
+        guard isCurrentRepository(generation) else {
+            return false
+        }
+
         do {
-            try await searchIndex.remove(noteID: noteID)
+            guard try await (searchIndexGate.run(for: generation, operation: {
+                try await self.searchIndex.remove(noteID: noteID)
+            })) != nil else {
+                return false
+            }
+            guard isCurrentRepository(generation) else {
+                return false
+            }
+            return true
+        } catch is CancellationError {
+            return false
         } catch {
+            guard isCurrentRepository(generation) else {
+                return false
+            }
             AppLog.error("Failed to remove note from search index: \(error.localizedDescription)")
             searchStatus = .unavailable
+            return false
         }
     }
 
@@ -718,7 +994,7 @@ private extension NotesStore {
         return nil
     }
 
-    private func saveCurrentNoteIfNeeded() async throws {
+    private func saveCurrentNoteIfNeeded(generation: UInt64) async throws {
         saveTask?.cancel()
         guard var selectedNote else {
             return
@@ -726,7 +1002,13 @@ private extension NotesStore {
 
         selectedNote.markdown = editorText
         try repository.save(selectedNote)
-        await indexNote(selectedNote)
+        guard isCurrentRepository(generation) else {
+            return
+        }
+        _ = await indexNote(selectedNote, generation: generation)
+        guard isCurrentRepository(generation) else {
+            return
+        }
         selectedNoteBundleSize = repository.totalBundleSize(at: selectedNote.url)
         AppLog.info("Saved current note before state transition: \(logName(for: selectedNote.url))")
     }
@@ -738,29 +1020,63 @@ private extension NotesStore {
         }
 
         let noteName = logName(for: selectedNote.url)
-        let index = searchIndex
-        saveTask = Task { [repository, noteName, index] in
-            try? await Task.sleep(for: .milliseconds(500))
-            guard !Task.isCancelled else {
+        let generation = repositoryGeneration
+        let repository = repository
+        let autosavePause = autosavePause
+        let autosaveCompletion = autosaveCompletion
+        saveTask = Task { [weak self] in
+            defer {
+                Task {
+                    await autosaveCompletion()
+                }
+            }
+            guard !Task.isCancelled, let self, isCurrentRepository(generation) else {
+                return
+            }
+            await autosavePause()
+            guard !Task.isCancelled, isCurrentRepository(generation) else {
                 return
             }
             do {
                 try repository.save(selectedNote)
-                try await index.index(
-                    noteID: selectedNote.url,
-                    markdown: selectedNote.markdown,
-                    tags: selectedNote.metadata.tags
-                )
+                guard !Task.isCancelled, isCurrentRepository(generation) else {
+                    return
+                }
+                guard await indexNote(selectedNote, generation: generation) else {
+                    return
+                }
+                guard !Task.isCancelled, isCurrentRepository(generation) else {
+                    return
+                }
                 let bundleSize = repository.totalBundleSize(at: selectedNote.url)
                 let reloadedNotes = try repository.listNotes()
-                self.applySortedNotes(reloadedNotes)
-                self.selectedNoteBundleSize = bundleSize
+                guard !Task.isCancelled, isCurrentRepository(generation) else {
+                    return
+                }
+                applySortedNotes(reloadedNotes)
+                selectedNoteBundleSize = bundleSize
                 AppLog.debug("Autosaved note: \(noteName)")
             } catch {
+                guard !Task.isCancelled, isCurrentRepository(generation) else {
+                    return
+                }
                 AppLog.error("Autosave failed: \(error.localizedDescription)")
-                self.errorMessage = error.localizedDescription
+                errorMessage = error.localizedDescription
             }
         }
+    }
+
+    private func isCurrentRepository(_ generation: UInt64) -> Bool {
+        repositoryGeneration == generation
+    }
+
+    /// Rejects note commands while the storage transition owns the repository boundary.
+    private var canMutateNotes: Bool {
+        guard !isChangingStorage else {
+            AppLog.debug("Ignoring note command during storage transition")
+            return false
+        }
+        return true
     }
 
     private func logName(for url: URL?) -> String {
@@ -769,5 +1085,43 @@ private extension NotesStore {
         }
 
         return url.deletingPathExtension().lastPathComponent
+    }
+}
+
+/// Prevents an old index operation from overlapping the state replacement of a storage switch.
+private actor SearchIndexGenerationGate {
+    private var generation: UInt64 = 0
+    private var activeOperations = 0
+    private var idleWaiters: [CheckedContinuation<Void, Never>] = []
+
+    func advance(to generation: UInt64) async {
+        self.generation = generation
+        guard activeOperations > 0 else {
+            return
+        }
+
+        await withCheckedContinuation { continuation in
+            idleWaiters.append(continuation)
+        }
+    }
+
+    func run<T: Sendable>(
+        for generation: UInt64,
+        operation: @escaping @Sendable () async throws -> T
+    ) async throws -> T? {
+        guard self.generation == generation else {
+            return nil
+        }
+
+        activeOperations += 1
+        defer {
+            activeOperations -= 1
+            if activeOperations == 0 {
+                let waiters = idleWaiters
+                idleWaiters.removeAll()
+                waiters.forEach { $0.resume() }
+            }
+        }
+        return try await operation()
     }
 }
