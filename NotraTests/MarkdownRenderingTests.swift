@@ -59,6 +59,68 @@ struct MarkdownRenderingTests {
         #expect(html.contains("class=\"code-constant\" style=\"color:#f7768e\">true</span>"))
     }
 
+    @Test func htmlRendererPreservesInlineImageOrder() throws {
+        let document = SwiftMarkdownParser().parse("Before ![Image](https://example.com/image.png) After")
+        var renderer = MarkdownHTMLRenderer(
+            style: .notra(previewFontName: AppearanceFont.defaultName),
+            mode: .pdf,
+            context: .empty
+        )
+
+        let html = renderer.render(document).html
+        let beforeIndex = try #require(html.range(of: "Before ")?.lowerBound)
+        let imageIndex = try #require(html.range(of: "<img class=\"markdown-image\"")?.lowerBound)
+        let afterIndex = try #require(html.range(of: " After")?.lowerBound)
+
+        #expect(beforeIndex < imageIndex)
+        #expect(imageIndex < afterIndex)
+    }
+
+    @Test func htmlRendererCreatesMatchingHeadingAnchors() {
+        let document = SwiftMarkdownParser().parse("""
+        [First section](#first-section)
+        [Equipment](#Equipment)
+
+        # First section
+
+        [Duplicate section](#first-section-1)
+
+        ## First section
+
+        ## Equipment
+        """)
+        var renderer = MarkdownHTMLRenderer(
+            style: .notra(previewFontName: AppearanceFont.defaultName),
+            mode: .preview,
+            context: MarkdownRenderContext(
+                noteURL: nil,
+                assetBaseURL: URL(fileURLWithPath: "/tmp/example.textbundle/assets", isDirectory: true)
+            )
+        )
+
+        let html = renderer.render(document).html
+
+        #expect(html.contains("<a href=\"#first-section\">First section</a>"))
+        #expect(html.contains("<a href=\"#equipment\">Equipment</a>"))
+        #expect(!html.contains("notra-attachment://attachment/"))
+        #expect(html.contains("<h1 id=\"first-section\">First section</h1>"))
+        #expect(html.contains("<h2 id=\"first-section-1\">First section</h2>"))
+        #expect(html.contains("<h2 id=\"equipment\">Equipment</h2>"))
+    }
+
+    @Test func htmlRendererNormalisesHeadingAnchorText() {
+        let document = SwiftMarkdownParser().parse("# API & Usage!")
+        var renderer = MarkdownHTMLRenderer(
+            style: .notra(previewFontName: AppearanceFont.defaultName),
+            mode: .preview,
+            context: .empty
+        )
+
+        let html = renderer.render(document).html
+
+        #expect(html.contains("<h1 id=\"api-usage\">API &amp; Usage!</h1>"))
+    }
+
     @Test func checkedTaskCheckboxesUseThePreviewItalicColour() {
         let document = SwiftMarkdownParser().parse("- [x] Done")
         var darkRenderer = MarkdownHTMLRenderer(
@@ -234,7 +296,7 @@ struct MarkdownRenderingTests {
         let noteURL = URL(fileURLWithPath: "/tmp/example.textbundle", isDirectory: true)
         let context = MarkdownRenderContext.textBundle(noteURL: noteURL)
         let resolved = try #require(
-            MarkdownImageView.resolvedURL(for: "assets/example.jpg", context: context)
+            MarkdownAttachmentReferences.resolve("assets/example.jpg", assetBaseURL: context.assetBaseURL)
         )
 
         #expect(resolved == noteURL.appendingPathComponent("assets/example.jpg"))
@@ -245,9 +307,9 @@ struct MarkdownRenderingTests {
         let noteURL = URL(fileURLWithPath: "/tmp/example.textbundle", isDirectory: true)
         let context = MarkdownRenderContext.textBundle(noteURL: noteURL)
 
-        #expect(MarkdownImageView.resolvedURL(for: "../outside.jpg", context: context) == nil)
-        #expect(MarkdownImageView.resolvedURL(for: "assets/../outside.jpg", context: context) == nil)
-        #expect(MarkdownImageView.resolvedURL(for: "assets/%2e%2e/outside.jpg", context: context) == nil)
+        #expect(MarkdownAttachmentReferences.resolve("../outside.jpg", assetBaseURL: context.assetBaseURL) == nil)
+        #expect(MarkdownAttachmentReferences.resolve("assets/../outside.jpg", assetBaseURL: context.assetBaseURL) == nil)
+        #expect(MarkdownAttachmentReferences.resolve("assets/%2e%2e/outside.jpg", assetBaseURL: context.assetBaseURL) == nil)
     }
 
     @Test

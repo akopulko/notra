@@ -4,7 +4,7 @@ import SwiftUI
 struct ContentView: View {
     /// Shared store bound into both columns of the split view.
     @Bindable var store: NotesStore
-    /// Controls whether the sidebar/detail columns are visible on compact layouts.
+    /// Lets the system manage sidebar visibility while the split view has regular width.
     @State private var columnVisibility: NavigationSplitViewVisibility = .automatic
     /// Chooses which split-view column receives compact-width navigation.
     @State private var preferredCompactColumn: NavigationSplitViewColumn = .sidebar
@@ -12,6 +12,10 @@ struct ContentView: View {
     @State private var searchText = ""
     /// Toggles the editor/preview mode on the detail column.
     @State private var isEditing = false
+    /// Keeps inspector presentation at the split-view boundary, shared by every platform.
+    @State private var isAttachmentInspectorPresented = false
+    /// Carries an inspector insertion into the editor, which consumes and clears the request.
+    @State private var attachmentToInsert: TextBundleAsset?
     /// Monotonic request that moves focus into a newly created note.
     @State private var editorFocusRequest = 0
     /// Monotonic request carrying a selected imported attachment into the editor.
@@ -38,16 +42,33 @@ struct ContentView: View {
             NoteEditorPane(
                 store: store,
                 isEditing: $isEditing,
+                isAttachmentInspectorPresented: $isAttachmentInspectorPresented,
+                attachmentToInsert: $attachmentToInsert,
                 editorFocusRequest: editorFocusRequest,
                 createNote: createNote,
                 attachmentSelectionRequest: attachmentSelectionRequest,
                 requestAttachmentSelection: presentAttachmentFileImporter
             )
         }
+        .navigationSplitViewStyle(.prominentDetail)
+        // Placing the inspector outside the split view preserves its system sidebar navigation.
+        // An inspector on the detail content can hide the sidebar toggle on iPadOS 26.
+        .inspector(isPresented: $isAttachmentInspectorPresented) {
+            AttachmentInspectorView(
+                store: store,
+                isEditing: isEditing,
+                insertAttachment: { attachmentToInsert = $0 },
+                removeTag: removeTag
+            )
+        }
         .task {
             await store.loadNotes()
         }
         .onChange(of: store.selectedNoteID) {
+            attachmentToInsert = nil
+            if !store.hasSelection {
+                isAttachmentInspectorPresented = false
+            }
             Task {
                 await store.selectionChanged()
             }
@@ -60,6 +81,13 @@ struct ContentView: View {
             Text(store.errorMessage ?? "")
         }
         .modifier(attachmentFileImporter)
+    }
+
+    /// Routes inspector tag changes through the same store used by the sidebar and editor.
+    private func removeTag(_ tag: NoteTag) {
+        Task {
+            await store.removeTag(tag)
+        }
     }
 
     /// Adapts the store's optional error into the Boolean binding expected by `alert`.

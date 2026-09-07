@@ -2,10 +2,11 @@ import Foundation
 @testable import Notra
 import Testing
 
-@MainActor
 /// Exercises store selection, saving, deletion, import, and search synchronization behavior.
+@MainActor
 struct NotesStoreTests {
-    @Test func deletingSelectedNoteSelectsPreviousNote() async throws {
+    @Test
+    func `deleting selected note selects previous note`() async throws {
         let harness = try makeHarness()
         defer {
             harness.cleanup()
@@ -26,7 +27,8 @@ struct NotesStoreTests {
         #expect(harness.store.selectedNoteID == alpha.id)
     }
 
-    @Test func deletingFirstSelectedNoteSelectsNextNote() async throws {
+    @Test
+    func `deleting first selected note selects next note`() async throws {
         let harness = try makeHarness()
         defer {
             harness.cleanup()
@@ -45,7 +47,8 @@ struct NotesStoreTests {
         #expect(harness.store.selectedNoteID == beta.id)
     }
 
-    @Test func autosaveRefreshesNoteOrder() async throws {
+    @Test
+    func `autosave refreshes note order`() async throws {
         let harness = try makeHarness()
         defer {
             harness.cleanup()
@@ -64,7 +67,7 @@ struct NotesStoreTests {
 
         harness.store.updateEditorText("# Edited")
 
-        for _ in 0 ..< 60 {
+        for _ in 0..<60 {
             try await Task.sleep(for: .milliseconds(100))
             if harness.store.notes.first?.id == alpha.id {
                 break
@@ -75,7 +78,8 @@ struct NotesStoreTests {
         #expect(harness.store.notes.first?.previewText == "Edited")
     }
 
-    @Test func contentSearchFindsBodyBeyondPreviewLine() async throws {
+    @Test
+    func `content search finds body beyond preview line`() async throws {
         let harness = try makeHarness()
         defer {
             harness.cleanup()
@@ -84,7 +88,7 @@ struct NotesStoreTests {
         let note = try harness.makeNote(markdown: "Visible preview\n\nNeedle in body")
 
         await harness.store.loadNotes()
-        for _ in 0 ..< 50 {
+        for _ in 0..<50 {
             if harness.store.searchStatus == .ready {
                 break
             }
@@ -97,7 +101,8 @@ struct NotesStoreTests {
         #expect(page.results.map(\.noteID) == [note.url.standardizedFileURL])
     }
 
-    @Test func deletingOnlySelectedNoteClearsEditorState() async throws {
+    @Test
+    func `deleting only selected note clears editor state`() async throws {
         let harness = try makeHarness()
         defer {
             harness.cleanup()
@@ -116,7 +121,8 @@ struct NotesStoreTests {
         #expect(harness.store.editorText.isEmpty)
     }
 
-    @Test func creatingNoteUsesInitialMarkdown() async throws {
+    @Test
+    func `creating note uses initial markdown`() async throws {
         let harness = try makeHarness()
         defer {
             harness.cleanup()
@@ -129,12 +135,249 @@ struct NotesStoreTests {
         #expect(harness.store.notes.first?.previewText == "#")
     }
 
-    @Test func pinningPersistsOrderingAndEnforcesTheMaximum() async throws {
+    @Test
+    func `changing storage saves edits and isolates search results`() async throws {
+        let localRootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let iCloudRootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer {
+            try? FileManager.default.removeItem(at: localRootURL)
+            try? FileManager.default.removeItem(at: iCloudRootURL)
+        }
+
+        let localRepository = TextBundleNoteRepository(rootURL: localRootURL)
+        let iCloudRepository = TextBundleNoteRepository(rootURL: iCloudRootURL, isUsingICloud: true)
+        try localRepository.prepareStorage()
+        try iCloudRepository.prepareStorage()
+        let localNote = try localRepository.createNote(initialMarkdown: "Local note")
+        let iCloudNote = try iCloudRepository.createNote(initialMarkdown: "iCloud note")
+
+        let suiteName = "Notra.NotesStoreStorageTests.\(UUID().uuidString)"
+        let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+        defer {
+            userDefaults.removePersistentDomain(forName: suiteName)
+        }
+        let store = NotesStore(
+            repository: localRepository,
+            sortPreferenceStorage: NoteSortPreferenceStorage(userDefaults: userDefaults),
+            searchIndex: SQLiteNoteSearchIndex(
+                databaseURL: localRootURL.appendingPathComponent("search.sqlite")
+            ),
+            storagePreferenceStorage: NoteStoragePreferenceStorage(userDefaults: userDefaults),
+            repositoryFactory: { location in
+                switch location {
+                case .iCloud:
+                    iCloudRepository
+                case .localStore:
+                    localRepository
+                }
+            },
+            iCloudAvailability: { true }
+        )
+
+        await store.loadNotes()
+        store.selectedNoteID = localNote.id
+        await store.selectionChanged()
+        store.updateEditorText("Saved local note")
+
+        await store.changeStorageLocation(to: .iCloud)
+
+        #expect(try localRepository.loadNote(at: localNote.url).markdown == "Saved local note")
+        #expect(store.notes.map(\.id) == [iCloudNote.id])
+        #expect(store.selectedNoteID == nil)
+        #expect(store.storageLocation == .iCloud)
+        #expect(NoteStoragePreferenceStorage(userDefaults: userDefaults).location == .iCloud)
+
+        for _ in 0..<50 {
+            if store.searchStatus == .ready {
+                break
+            }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        let oldLocationResults = try #require(
+            await store.searchNotes(query: "Saved local", limit: 50, offset: 0)
+        )
+        let newLocationResults = try #require(
+            await store.searchNotes(query: "iCloud", limit: 50, offset: 0)
+        )
+        #expect(oldLocationResults.results.isEmpty)
+        #expect(newLocationResults.results.map(\.noteID) == [iCloudNote.url.standardizedFileURL])
+    }
+
+    @Test
+    func `failed storage change retains state and does not persist preference`() async throws {
         let harness = try makeHarness()
         defer {
             harness.cleanup()
         }
-        for index in 1 ... 6 {
+        let note = try harness.makeNote(markdown: "Existing note")
+        await harness.store.loadNotes()
+        harness.store.selectedNoteID = note.id
+        await harness.store.selectionChanged()
+
+        await harness.store.changeStorageLocation(to: .iCloud)
+
+        #expect(harness.store.storageLocation == .localStore)
+        #expect(harness.store.selectedNoteID == note.id)
+        #expect(harness.store.notes.map(\.id) == [note.id])
+        #expect(NoteStoragePreferenceStorage(userDefaults: harness.userDefaults).location == nil)
+    }
+
+    @Test
+    func `failed storage factory retains state and does not persist preference`() async throws {
+        let harness = try makeHarness()
+        defer {
+            harness.cleanup()
+        }
+        let note = try harness.makeNote(markdown: "Existing note")
+        await harness.store.loadNotes()
+        harness.store.selectedNoteID = note.id
+        await harness.store.selectionChanged()
+
+        let store = NotesStore(
+            repository: harness.repository,
+            sortPreferenceStorage: NoteSortPreferenceStorage(userDefaults: harness.userDefaults),
+            searchIndex: SQLiteNoteSearchIndex(
+                databaseURL: harness.repository.rootURL.appendingPathComponent("factory-search.sqlite")
+            ),
+            storagePreferenceStorage: NoteStoragePreferenceStorage(userDefaults: harness.userDefaults),
+            repositoryFactory: { _ in
+                throw NoteRepositoryError.storageUnavailable
+            },
+            iCloudAvailability: { true }
+        )
+        await store.loadNotes()
+        store.selectedNoteID = note.id
+        await store.selectionChanged()
+
+        await store.changeStorageLocation(to: .iCloud)
+
+        #expect(store.storageLocation == .localStore)
+        #expect(store.selectedNoteID == note.id)
+        #expect(store.notes.map(\.id) == [note.id])
+        #expect(NoteStoragePreferenceStorage(userDefaults: harness.userDefaults).location == nil)
+    }
+
+    @Test
+    func `failed storage listing retains state and does not persist preference`() async throws {
+        let harness = try makeHarness()
+        defer {
+            harness.cleanup()
+        }
+        let note = try harness.makeNote(markdown: "Existing note")
+        await harness.store.loadNotes()
+        harness.store.selectedNoteID = note.id
+        await harness.store.selectionChanged()
+
+        let iCloudRootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer {
+            try? FileManager.default.removeItem(at: iCloudRootURL)
+        }
+        let iCloudRepository = TextBundleNoteRepository(rootURL: iCloudRootURL, isUsingICloud: true)
+        try iCloudRepository.prepareStorage()
+        let store = NotesStore(
+            repository: harness.repository,
+            sortPreferenceStorage: NoteSortPreferenceStorage(userDefaults: harness.userDefaults),
+            searchIndex: SQLiteNoteSearchIndex(
+                databaseURL: harness.repository.rootURL.appendingPathComponent("listing-search.sqlite")
+            ),
+            storagePreferenceStorage: NoteStoragePreferenceStorage(userDefaults: harness.userDefaults),
+            repositoryFactory: { _ in iCloudRepository },
+            repositoryNotesLoader: { _ in
+                throw NoteRepositoryError.storageUnavailable
+            },
+            iCloudAvailability: { true }
+        )
+        await store.loadNotes()
+        store.selectedNoteID = note.id
+        await store.selectionChanged()
+
+        await store.changeStorageLocation(to: .iCloud)
+
+        #expect(store.storageLocation == .localStore)
+        #expect(store.selectedNoteID == note.id)
+        #expect(store.notes.map(\.id) == [note.id])
+        #expect(NoteStoragePreferenceStorage(userDefaults: harness.userDefaults).location == nil)
+    }
+
+    @Test
+    func `stale autosave cannot overwrite successfully switched storage`() async throws {
+        let localRootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let iCloudRootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer {
+            try? FileManager.default.removeItem(at: localRootURL)
+            try? FileManager.default.removeItem(at: iCloudRootURL)
+        }
+
+        let localRepository = TextBundleNoteRepository(rootURL: localRootURL)
+        let iCloudRepository = TextBundleNoteRepository(rootURL: iCloudRootURL, isUsingICloud: true)
+        try localRepository.prepareStorage()
+        try iCloudRepository.prepareStorage()
+        let localNote = try localRepository.createNote(initialMarkdown: "Local note")
+        let iCloudNote = try iCloudRepository.createNote(initialMarkdown: "iCloud note")
+        let autosaveGate = AutosavePauseGate()
+        let suiteName = "Notra.NotesStoreAutosaveRaceTests.\(UUID().uuidString)"
+        let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+        defer {
+            userDefaults.removePersistentDomain(forName: suiteName)
+        }
+        let store = NotesStore(
+            repository: localRepository,
+            sortPreferenceStorage: NoteSortPreferenceStorage(userDefaults: userDefaults),
+            searchIndex: SQLiteNoteSearchIndex(
+                databaseURL: localRootURL.appendingPathComponent("search.sqlite")
+            ),
+            storagePreferenceStorage: NoteStoragePreferenceStorage(userDefaults: userDefaults),
+            repositoryFactory: { location in
+                switch location {
+                case .iCloud:
+                    iCloudRepository
+                case .localStore:
+                    localRepository
+                }
+            },
+            iCloudAvailability: { true },
+            autosavePause: {
+                await autosaveGate.pause()
+            },
+            autosaveCompletion: {
+                await autosaveGate.markCompleted()
+            }
+        )
+
+        await store.loadNotes()
+        store.selectedNoteID = localNote.id
+        await store.selectionChanged()
+        store.updateEditorText("Old repository edit")
+        await autosaveGate.waitUntilEntered()
+
+        await store.changeStorageLocation(to: .iCloud)
+
+        #expect(store.storageLocation == .iCloud)
+        #expect(store.notes.map(\.id) == [iCloudNote.id])
+        #expect(store.selectedNoteID == nil)
+        #expect(try iCloudRepository.loadNote(at: iCloudNote.url).markdown == "iCloud note")
+
+        await autosaveGate.release()
+        await autosaveGate.waitUntilCompleted()
+
+        #expect(store.notes.map(\.id) == [iCloudNote.id])
+        #expect(store.selectedNoteID == nil)
+        #expect(try iCloudRepository.loadNote(at: iCloudNote.url).markdown == "iCloud note")
+        #expect(try localRepository.loadNote(at: localNote.url).markdown == "Old repository edit")
+    }
+
+    @Test
+    func `pinning persists ordering and enforces the maximum`() async throws {
+        let harness = try makeHarness()
+        defer {
+            harness.cleanup()
+        }
+        for index in 1...6 {
             _ = try harness.makeNote(markdown: "Note \(index)")
         }
 
@@ -159,7 +402,8 @@ struct NotesStoreTests {
         #expect(try harness.repository.loadNote(at: sixthCandidate.url).metadata.pinnedAt != nil)
     }
 
-    @Test func deletingPinnedNoteRemovesItsPersistedPinState() async throws {
+    @Test
+    func `deleting pinned note removes its persisted pin state`() async throws {
         let harness = try makeHarness()
         defer {
             harness.cleanup()
@@ -177,7 +421,8 @@ struct NotesStoreTests {
         #expect(harness.store.notes.isEmpty)
     }
 
-    @Test func staleTitleSortPreferenceFallsBackToDateEdited() throws {
+    @Test
+    func `stale title sort preference falls back to date edited`() throws {
         let rootURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: rootURL, withIntermediateDirectories: true)
@@ -198,7 +443,8 @@ struct NotesStoreTests {
         #expect(store.sortPreference == NoteSortPreference(field: .dateEdited, direction: .oldestFirst))
     }
 
-    @Test func deletingLinkedAttachmentRemovesAllMarkdownReferences() async throws {
+    @Test
+    func `deleting linked attachment removes all markdown references`() async throws {
         let harness = try makeHarness()
         defer {
             harness.cleanup()
@@ -224,7 +470,8 @@ struct NotesStoreTests {
         #expect(!FileManager.default.fileExists(atPath: note.url.appendingPathComponent(source).path))
     }
 
-    @Test func addingTagUpdatesMetadataWithoutChangingMarkdown() async throws {
+    @Test
+    func `adding tag updates metadata without changing markdown`() async throws {
         let harness = try makeHarness()
         defer {
             harness.cleanup()
@@ -246,7 +493,8 @@ struct NotesStoreTests {
         #expect(harness.store.notes.first { $0.id == note.id }?.tags.map(\.name) == ["Swift"])
     }
 
-    @Test func addingDuplicateTagDoesNotDuplicateMetadata() async throws {
+    @Test
+    func `adding duplicate tag does not duplicate metadata`() async throws {
         let harness = try makeHarness()
         defer {
             harness.cleanup()
@@ -266,7 +514,8 @@ struct NotesStoreTests {
         #expect(harness.store.selectedNoteTags.map(\.name) == ["Swift"])
     }
 
-    @Test func removingTagUpdatesMetadataWithoutChangingMarkdown() async throws {
+    @Test
+    func `removing tag updates metadata without changing markdown`() async throws {
         let harness = try makeHarness()
         defer {
             harness.cleanup()
@@ -309,7 +558,8 @@ struct NotesStoreTests {
             store: NotesStore(
                 repository: repository,
                 sortPreferenceStorage: sortStorage,
-                searchIndex: searchIndex
+                searchIndex: searchIndex,
+                iCloudAvailability: { false }
             ),
             userDefaults: userDefaults,
             suiteName: suiteName
@@ -336,5 +586,53 @@ private struct NotesStoreHarness {
 
     func cleanup() {
         userDefaults.removePersistentDomain(forName: suiteName)
+    }
+}
+
+private actor AutosavePauseGate {
+    private var entered = false
+    private var entryWaiter: CheckedContinuation<Void, Never>?
+    private var releaseWaiter: CheckedContinuation<Void, Never>?
+    private var completed = false
+    private var completionWaiter: CheckedContinuation<Void, Never>?
+
+    func pause() async {
+        entered = true
+        entryWaiter?.resume()
+        entryWaiter = nil
+        await withCheckedContinuation { continuation in
+            releaseWaiter = continuation
+        }
+    }
+
+    func waitUntilEntered() async {
+        guard !entered else {
+            return
+        }
+
+        await withCheckedContinuation { continuation in
+            entryWaiter = continuation
+        }
+    }
+
+    func release() {
+        releaseWaiter?.resume()
+        releaseWaiter = nil
+    }
+
+    func markCompleted() {
+        completed = true
+        completionWaiter?.resume()
+        completionWaiter = nil
+    }
+
+    func waitUntilCompleted() async {
+        guard !completed else {
+            return
+        }
+
+        await withCheckedContinuation { continuation in
+            completionWaiter = continuation
+        }
     }
 }

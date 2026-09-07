@@ -2,6 +2,8 @@ import SwiftUI
 
 /// Hosts the settings navigation shell and platform-specific appearance controls.
 struct SettingsView: View {
+    @Bindable var store: NotesStore
+
     #if os(iOS)
     @Environment(\.dismiss) private var dismiss
     #endif
@@ -97,6 +99,7 @@ struct SettingsView: View {
         switch category {
         case .general:
             GeneralSettingsDetailView(
+                store: store,
                 startNewNoteWith: $startNewNoteWith,
                 maximumAttachmentSizeMB: $maximumAttachmentSizeMB,
                 showsNotePreview: $showsNotePreview,
@@ -210,6 +213,7 @@ private struct SettingsHeaderView: View {
 
 /// Contains general storage, attachment, and behavior preferences.
 private struct GeneralSettingsDetailView: View {
+    @Bindable var store: NotesStore
     @Binding var startNewNoteWith: String
     @Binding var maximumAttachmentSizeMB: Int
     @Binding var showsNotePreview: Bool
@@ -220,6 +224,26 @@ private struct GeneralSettingsDetailView: View {
             if showsHeader {
                 SettingsHeaderView(category: .general)
                     .settingsHeaderFormRow()
+            }
+
+            Section {
+                Picker("Notes Location", selection: storageLocationBinding) {
+                    ForEach(NoteStorageLocation.allCases) { location in
+                        Text(location.title)
+                            .tag(location)
+                            .disabled(location == .iCloud && !store.isICloudStorageAvailable)
+                    }
+                }
+                .disabled(store.isChangingStorage)
+                #if os(macOS)
+                .pickerStyle(.menu)
+                #else
+                .pickerStyle(.navigationLink)
+                #endif
+            } header: {
+                Text("Notes")
+            } footer: {
+                Text("Choose where notes are stored. Changing location does not move existing notes.")
             }
 
             Section {
@@ -234,8 +258,6 @@ private struct GeneralSettingsDetailView: View {
                 #else
                 .pickerStyle(.navigationLink)
                 #endif
-            } header: {
-                Text("Notes")
             } footer: {
                 Text("Choose whether new notes begin with a title heading or an empty document.")
             }
@@ -269,6 +291,16 @@ private struct GeneralSettingsDetailView: View {
             AttachmentSettings.clampedMaximumSizeMB(maximumAttachmentSizeMB)
         } set: { newValue in
             maximumAttachmentSizeMB = AttachmentSettings.clampedMaximumSizeMB(newValue)
+        }
+    }
+
+    private var storageLocationBinding: Binding<NoteStorageLocation> {
+        Binding {
+            store.storageLocation
+        } set: { location in
+            Task {
+                await store.changeStorageLocation(to: location)
+            }
         }
     }
 }
@@ -444,5 +476,5 @@ private extension Bundle {
 }
 
 #Preview {
-    SettingsView()
+    SettingsView(store: NotesStore(repository: TextBundleNoteRepository(rootURL: .temporaryDirectory)))
 }

@@ -80,29 +80,3 @@ struct MarkdownStyle: Equatable {
 extension EnvironmentValues {
     @Entry var markdownStyle: MarkdownStyle = .notra(previewFontName: AppearanceFont.defaultName)
 }
-
-extension EnvironmentValues {
-    @Entry var secondaryBackgroundFill: BackgroundFill = .regular
-}
-
-/// Represents the background fill used by Markdown views and export surfaces.
-enum BackgroundFill {
-    case regular
-    case thin
-    case printable
-    case clear
-
-    @ViewBuilder
-    var view: some View {
-        switch self {
-        case .regular:
-            Rectangle().fill(.regularMaterial)
-        case .thin:
-            Rectangle().fill(.thinMaterial)
-        case .printable:
-            Rectangle().fill(Color(red: 0.94, green: 0.94, blue: 0.94))
-        case .clear:
-            Color.clear
-        }
-    }
-}

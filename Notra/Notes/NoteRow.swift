@@ -1,4 +1,3 @@
-import ImageIO
 import SwiftUI
 
 #if os(iOS)
@@ -214,27 +213,12 @@ private actor NoteRowThumbnailLoader {
         }
 
         let image = await Task.detached(priority: .utility) {
-            Self.makeThumbnail(for: url)
+            ImageThumbnailDecoder.decode(from: url, maximumPixelSize: 96)
         }.value
 
         if let image {
             cache[url] = image
         }
         return image
-    }
-
-    private static func makeThumbnail(for url: URL) -> CGImage? {
-        let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
-        guard let source = CGImageSourceCreateWithURL(url as CFURL, sourceOptions) else {
-            return nil
-        }
-
-        let thumbnailOptions = [
-            kCGImageSourceCreateThumbnailFromImageAlways: true,
-            kCGImageSourceCreateThumbnailWithTransform: true,
-            kCGImageSourceShouldCacheImmediately: true,
-            kCGImageSourceThumbnailMaxPixelSize: 96
-        ] as CFDictionary
-        return CGImageSourceCreateThumbnailAtIndex(source, 0, thumbnailOptions)
     }
 }

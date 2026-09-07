@@ -1,4 +1,3 @@
-import ImageIO
 import SwiftUI
 
 #if os(macOS)
@@ -412,19 +411,8 @@ private struct AttachmentThumbnailView: View {
 
     private func loadImage() async -> Image? {
         let imageURL = url
-        let cgImage: CGImage? = await Task.detached(priority: .utility) { () -> CGImage? in
-            let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
-            guard let source = CGImageSourceCreateWithURL(imageURL as CFURL, sourceOptions) else {
-                return nil
-            }
-
-            let options: [CFString: Any] = [
-                kCGImageSourceCreateThumbnailFromImageAlways: true,
-                kCGImageSourceCreateThumbnailWithTransform: true,
-                kCGImageSourceThumbnailMaxPixelSize: 192,
-                kCGImageSourceShouldCacheImmediately: true
-            ]
-            return CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
+        let cgImage = await Task.detached(priority: .utility) {
+            ImageThumbnailDecoder.decode(from: imageURL, maximumPixelSize: 192)
         }.value
 
         guard !Task.isCancelled, let cgImage else {

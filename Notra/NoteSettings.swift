@@ -3,6 +3,7 @@ import Foundation
 /// Stable UserDefaults keys for note creation preferences.
 enum NoteSettingKey {
     static let startNewNoteWith = "notes.startNewNoteWith"
+    static let storageLocation = "notes.storageLocation"
 }
 
 /// User-selectable templates for the initial Markdown written into newly created notes.

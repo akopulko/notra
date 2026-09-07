@@ -25,7 +25,7 @@ struct NotraApp: App {
 
         #if os(macOS)
         Settings {
-            SettingsView()
+            SettingsView(store: store)
         }
         #endif
     }

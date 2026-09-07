@@ -10,6 +10,10 @@ struct NoteEditorPane: View {
     @Bindable var store: NotesStore
     /// Parent-owned edit/preview mode shared with the sidebar and floating button.
     @Binding var isEditing: Bool
+    /// The split-view shell owns inspector presentation so native sidebar controls remain available.
+    @Binding var isAttachmentInspectorPresented: Bool
+    /// An existing asset selected for insertion in the shell's inspector.
+    @Binding var attachmentToInsert: TextBundleAsset?
     /// Monotonic focus request emitted after creating a note.
     let editorFocusRequest: Int
     /// Parent callback used by the empty-selection create button.
@@ -43,7 +47,6 @@ struct NoteEditorPane: View {
         id: 0,
         command: .unorderedList
     )
-    @State private var isAttachmentInspectorPresented = false
     @State private var pdfShareState = PDFShareState.idle
     #if os(iOS)
     @State private var selectedImageItem: PhotosPickerItem?
@@ -63,14 +66,6 @@ struct NoteEditorPane: View {
             }
         }
         .scrollEdgeEffectStyle(.soft, for: .top)
-        .inspector(isPresented: $isAttachmentInspectorPresented) {
-            AttachmentInspectorView(
-                store: store,
-                isEditing: isEditing,
-                insertAttachment: insertAttachment,
-                removeTag: removeTag
-            )
-        }
         #if os(iOS)
         .overlay(alignment: floatingButtonAlignment) {
             if store.hasSelection {
@@ -86,13 +81,17 @@ struct NoteEditorPane: View {
         .onChange(of: attachmentSelectionRequest) {
             importAttachmentFromSelectionRequest()
         }
+        .onChange(of: attachmentToInsert) {
+            guard let attachment = attachmentToInsert else {
+                return
+            }
+            attachmentToInsert = nil
+            insertAttachment(attachment)
+        }
         .onChange(of: store.selectedNoteID) {
             isEditing = false
             undoRedoAvailability = .disabled
             pdfShareState = .idle
-            if !store.hasSelection {
-                isAttachmentInspectorPresented = false
-            }
         }
         .onChange(of: isEditing) {
             pdfShareState = .idle
@@ -277,12 +276,6 @@ private extension NoteEditorPane {
 
     private func updateUndoRedoAvailability(_ availability: EditorUndoRedoAvailability) {
         undoRedoAvailability = availability
-    }
-
-    private func removeTag(_ tag: NoteTag) {
-        Task {
-            await store.removeTag(tag)
-        }
     }
 
     private func sharePDF() {

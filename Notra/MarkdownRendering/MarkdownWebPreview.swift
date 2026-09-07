@@ -121,6 +121,13 @@ private final class Coordinator: NSObject, WKNavigationDelegate {
     func makeWebView() -> WKWebView {
         let configuration = WKWebViewConfiguration()
         configuration.setURLSchemeHandler(assetHandler, forURLScheme: MarkdownWebAssetHandler.scheme)
+        configuration.userContentController.addUserScript(
+            WKUserScript(
+                source: Self.anchorNavigationScript,
+                injectionTime: .atDocumentEnd,
+                forMainFrameOnly: true
+            )
+        )
         #if os(macOS)
         let webView = MarkdownPreviewWebView(frame: .zero, configuration: configuration)
         #else
@@ -141,6 +148,20 @@ private final class Coordinator: NSObject, WKNavigationDelegate {
         return webView
     }
 
+    /// WebKit normalises fragment URLs loaded from an in-memory document, so
+    /// resolve same-note links in the document before navigation delegates see them.
+    private static let anchorNavigationScript = """
+    document.addEventListener('click', function(event) {
+        const link = event.target.closest('a[href^="#"]');
+        if (!link) return;
+        const anchor = decodeURIComponent(link.getAttribute('href').slice(1));
+        const target = document.getElementById(anchor);
+        if (!target) return;
+        event.preventDefault();
+        target.scrollIntoView({ block: 'start', inline: 'nearest' });
+    });
+    """
+
     func update(document: MarkdownHTMLDocument, in webView: WKWebView) {
         assetHandler.update(document.assets)
         attachments = document.attachments
@@ -152,7 +173,7 @@ private final class Coordinator: NSObject, WKNavigationDelegate {
     }
 
     func webView(
-        _: WKWebView,
+        _ webView: WKWebView,
         decidePolicyFor navigationAction: WKNavigationAction,
         decisionHandler: @escaping @MainActor @Sendable (WKNavigationActionPolicy) -> Void
     ) {
@@ -160,6 +181,12 @@ private final class Coordinator: NSObject, WKNavigationDelegate {
               let url = navigationAction.request.url
         else {
             decisionHandler(.allow)
+            return
+        }
+
+        if let anchor = inDocumentAnchor(for: url) {
+            scroll(to: anchor, in: webView)
+            decisionHandler(.cancel)
             return
         }
 
@@ -171,6 +198,32 @@ private final class Coordinator: NSObject, WKNavigationDelegate {
 
         openURL(url)
         decisionHandler(.cancel)
+    }
+
+    private func inDocumentAnchor(for url: URL) -> String? {
+        guard let fragment = url.fragment,
+              !fragment.isEmpty,
+              url.scheme == nil || url.absoluteString.hasPrefix("about:blank#")
+        else {
+            return nil
+        }
+
+        return fragment.removingPercentEncoding ?? fragment
+    }
+
+    private func scroll(to anchor: String, in webView: WKWebView) {
+        guard let data = try? JSONEncoder().encode(anchor),
+              let anchorLiteral = String(data: data, encoding: .utf8)
+        else {
+            return
+        }
+
+        // loadHTMLString gives the preview an about:blank URL. Scrolling the
+        // element directly is reliable across both WebKit platform wrappers.
+        webView.evaluateJavaScript(
+            "document.getElementById(\(anchorLiteral))?.scrollIntoView({ block: 'start', inline: 'nearest' });",
+            completionHandler: nil
+        )
     }
 
     private func attachmentURL(for url: URL) -> URL? {
