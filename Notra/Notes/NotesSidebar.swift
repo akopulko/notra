@@ -159,8 +159,6 @@ struct NotesSidebar: View {
         #if os(iOS)
         .toolbarTitleDisplayMode(.inline)
         #endif
-        .scrollContentBackground(.hidden)
-        .background(.ultraThinMaterial)
         .overlay {
             ZStack(alignment: .top) {
                 if store.notes.isEmpty, !store.isLoading {
