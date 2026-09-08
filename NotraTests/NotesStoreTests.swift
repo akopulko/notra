@@ -79,6 +79,27 @@ struct NotesStoreTests {
     }
 
     @Test
+    func `preview task toggle updates selected markdown and persists`() async throws {
+        let harness = try makeHarness()
+        defer {
+            harness.cleanup()
+        }
+        let note = try harness.makeNote(markdown: "- [ ] Complete this task")
+
+        await harness.store.loadNotes()
+        harness.store.selectedNoteID = note.id
+        await harness.store.selectionChanged()
+        harness.store.toggleTask(
+            MarkdownTaskMarker(line: 1, column: 3, state: .unchecked),
+            to: .checked
+        )
+
+        #expect(harness.store.editorText == "- [x] Complete this task")
+        await harness.store.saveNow()
+        #expect(try harness.repository.loadNote(at: note.url).markdown == "- [x] Complete this task")
+    }
+
+    @Test
     func `content search finds body beyond preview line`() async throws {
         let harness = try makeHarness()
         defer {

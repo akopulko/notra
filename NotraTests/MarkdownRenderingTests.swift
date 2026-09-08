@@ -366,6 +366,10 @@ struct MarkdownRenderingTests {
         }
 
         #expect(items.map(\.taskState) == [.unchecked, .checked])
+        #expect(items.map(\.taskMarker) == [
+            MarkdownTaskMarker(line: 1, column: 3, state: .unchecked),
+            MarkdownTaskMarker(line: 2, column: 3, state: .checked)
+        ])
     }
 
     @Test
@@ -382,8 +386,8 @@ struct MarkdownRenderingTests {
 
         let html = renderer.render(document).html
 
-        #expect(html.contains("<li class=\"task-item\"><input class=\"task-checkbox\" type=\"checkbox\" disabled><span>test 1</span></li>"))
-        #expect(html.contains("<li class=\"task-item\"><input class=\"task-checkbox\" type=\"checkbox\" checked disabled><span>test 2</span></li>"))
+        #expect(html.contains("<li class=\"task-item\"><input class=\"task-checkbox\" type=\"checkbox\" data-notra-task-line=\"1\" data-notra-task-column=\"3\" data-notra-task-state=\"unchecked\"><span>test 1</span></li>"))
+        #expect(html.contains("<li class=\"task-item\"><input class=\"task-checkbox\" type=\"checkbox\" checked data-notra-task-line=\"2\" data-notra-task-column=\"3\" data-notra-task-state=\"checked\"><span>test 2</span></li>"))
         #expect(!html.contains("<li><input type=\"checkbox\""))
     }
 
@@ -603,6 +607,7 @@ struct MarkdownRenderingTests {
                 MarkdownListItem(
                     id: "nested-item",
                     taskState: nil,
+                    taskMarker: nil,
                     blocks: [
                         .paragraph(id: "nested-paragraph", [.text("Nested")])
                     ]
@@ -617,6 +622,7 @@ struct MarkdownRenderingTests {
                         MarkdownListItem(
                             id: "item",
                             taskState: .unchecked,
+                            taskMarker: nil,
                             blocks: [
                                 .paragraph(id: "paragraph", [.text("Item")]),
                                 nestedList

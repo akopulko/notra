@@ -355,6 +355,21 @@ final class NotesStore {
         scheduleSave()
     }
 
+    /// Applies a preview checkbox change through the same Markdown update and deferred-save path as editing.
+    func toggleTask(_ marker: MarkdownTaskMarker, to state: MarkdownTaskState) {
+        guard canMutateNotes,
+              let updatedMarkdown = MarkdownFormatting.togglingTask(
+                  in: editorText,
+                  marker: marker,
+                  to: state
+              )
+        else {
+            return
+        }
+
+        updateEditorText(updatedMarkdown)
+    }
+
     /// Flushes pending edits before creating an immutable snapshot for an exporter.
     func exportPayload(for summary: NoteSummary) async throws -> NoteExportPayload {
         guard canMutateNotes else {

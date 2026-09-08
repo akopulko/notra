@@ -66,6 +66,8 @@ enum MarkdownInline: Equatable, Sendable {
 struct MarkdownListItem: Equatable, Identifiable, Sendable {
     let id: String
     let taskState: MarkdownTaskState?
+    /// The exact Markdown marker rendered as this task checkbox, when source coordinates are available.
+    let taskMarker: MarkdownTaskMarker?
     let blocks: [MarkdownBlock]
 }
 
@@ -73,6 +75,13 @@ struct MarkdownListItem: Equatable, Identifiable, Sendable {
 enum MarkdownTaskState: Equatable, Sendable {
     case checked
     case unchecked
+}
+
+/// Identifies a task marker by its one-based UTF-8 source position.
+struct MarkdownTaskMarker: Equatable, Sendable {
+    let line: Int
+    let column: Int
+    let state: MarkdownTaskState
 }
 
 /// A normalized table with alignment metadata and renderable rows.

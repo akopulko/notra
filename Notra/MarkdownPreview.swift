@@ -17,13 +17,15 @@ struct MarkdownPreview: View {
     let markdown: String
     let context: MarkdownRenderContext
     var tags: [NoteTag] = []
+    let toggleTask: (MarkdownTaskMarker, MarkdownTaskState) -> Void
 
     var body: some View {
         MarkdownWebPreview(
             markdown: markdown,
             context: context,
             style: previewStyle,
-            openAttachment: openAttachment
+            openAttachment: openAttachment,
+            toggleTask: toggleTask
         )
         .overlay(alignment: .bottom) {
             if !tags.isEmpty {

@@ -171,6 +171,34 @@ enum MarkdownFormatting {
         return resultReplacingLineRange(lineRange, in: text, with: replacement)
     }
 
+    /// Toggles one rendered task marker while preserving every other source byte in the note.
+    static func togglingTask(
+        in text: String,
+        marker: MarkdownTaskMarker,
+        to state: MarkdownTaskState
+    ) -> String? {
+        guard marker.state != state else {
+            return nil
+        }
+
+        var bytes = Array(text.utf8)
+        guard let offset = taskMarkerOffset(in: bytes, marker: marker),
+              bytes[offset] == 91,
+              bytes[offset + 2] == 93,
+              taskState(for: bytes[offset + 1]) == marker.state
+        else {
+            return nil
+        }
+
+        bytes[offset + 1] = switch state {
+        case .checked:
+            120
+        case .unchecked:
+            32
+        }
+        return String(bytes: bytes, encoding: .utf8)
+    }
+
     /// Replaces heading syntax on each selected line with the requested level.
     static func applyHeadingResult(
         level: MarkdownHeadingLevel,
@@ -368,6 +396,41 @@ enum MarkdownFormatting {
 }
 
 private extension MarkdownFormatting {
+    /// Resolves a one-based UTF-8 task location without converting Unicode source to character offsets.
+    static func taskMarkerOffset(in bytes: [UInt8], marker: MarkdownTaskMarker) -> Int? {
+        guard marker.line > 0, marker.column > 0 else {
+            return nil
+        }
+
+        var line = 1
+        var lineStart = 0
+        while line < marker.line {
+            guard let newlineOffset = bytes[lineStart...].firstIndex(of: 10) else {
+                return nil
+            }
+            lineStart = newlineOffset + 1
+            line += 1
+        }
+
+        let offset = lineStart + marker.column - 1
+        guard offset + 2 < bytes.count else {
+            return nil
+        }
+        return offset
+    }
+
+    /// Converts the ASCII task-marker byte into the corresponding Markdown task state.
+    static func taskState(for byte: UInt8) -> MarkdownTaskState? {
+        switch byte {
+        case 32:
+            .unchecked
+        case 88, 120:
+            .checked
+        default:
+            nil
+        }
+    }
+
     /// Applies task syntax to one line while preserving existing task markers and bare list markers.
     static func resultPrefixingTodoContainingLine(
         in text: String,

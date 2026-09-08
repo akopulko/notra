@@ -540,6 +540,24 @@ struct MarkdownFormattingTests {
         }
     }
 
+    @Test func previewTaskToggleUpdatesOnlyTheRecordedMarker() {
+        let text = "- [ ] First\n  - [x] 😀 Nested\r\n- [ ] First"
+        let marker = MarkdownTaskMarker(line: 2, column: 5, state: .checked)
+
+        let toggled = MarkdownFormatting.togglingTask(in: text, marker: marker, to: .unchecked)
+
+        #expect(toggled == "- [ ] First\n  - [ ] 😀 Nested\r\n- [ ] First")
+    }
+
+    @Test func previewTaskToggleRejectsStaleMarkerState() {
+        let text = "- [x] Done"
+        let marker = MarkdownTaskMarker(line: 1, column: 3, state: .unchecked)
+
+        let toggled = MarkdownFormatting.togglingTask(in: text, marker: marker, to: .checked)
+
+        #expect(toggled == nil)
+    }
+
     @Test func todoPreservesIndentedUncheckedTaskWithEmptySelection() {
         let text = "  - [ ] Item"
         let cursor = text.endIndex

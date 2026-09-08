@@ -17,6 +17,7 @@ struct MarkdownWebPreview: View {
     let context: MarkdownRenderContext
     let style: MarkdownStyle
     let openAttachment: (URL) -> Void
+    let toggleTask: (MarkdownTaskMarker, MarkdownTaskState) -> Void
 
     var body: some View {
         Group {
@@ -29,7 +30,8 @@ struct MarkdownWebPreview: View {
                     openURL: { url in
                         openURL(url)
                     },
-                    openAttachment: openAttachment
+                    openAttachment: openAttachment,
+                    toggleTask: toggleTask
                 )
             }
         }
@@ -51,9 +53,10 @@ private struct MarkdownWebView: UIViewRepresentable {
     let document: MarkdownHTMLDocument
     let openURL: (URL) -> Void
     let openAttachment: (URL) -> Void
+    let toggleTask: (MarkdownTaskMarker, MarkdownTaskState) -> Void
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(openURL: openURL, openAttachment: openAttachment)
+        Coordinator(openURL: openURL, openAttachment: openAttachment, toggleTask: toggleTask)
     }
 
     func makeUIView(context: Context) -> WKWebView {
@@ -63,15 +66,22 @@ private struct MarkdownWebView: UIViewRepresentable {
     func updateUIView(_ webView: WKWebView, context: Context) {
         context.coordinator.update(document: document, in: webView)
     }
+
+    static func dismantleUIView(_ webView: WKWebView, coordinator _: Coordinator) {
+        webView.configuration.userContentController.removeScriptMessageHandler(
+            forName: Coordinator.taskToggleMessageName
+        )
+    }
 }
 #else
 private struct MarkdownWebView: NSViewRepresentable {
     let document: MarkdownHTMLDocument
     let openURL: (URL) -> Void
     let openAttachment: (URL) -> Void
+    let toggleTask: (MarkdownTaskMarker, MarkdownTaskState) -> Void
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(openURL: openURL, openAttachment: openAttachment)
+        Coordinator(openURL: openURL, openAttachment: openAttachment, toggleTask: toggleTask)
     }
 
     func makeNSView(context: Context) -> WKWebView {
@@ -80,6 +90,12 @@ private struct MarkdownWebView: NSViewRepresentable {
 
     func updateNSView(_ webView: WKWebView, context: Context) {
         context.coordinator.update(document: document, in: webView)
+    }
+
+    static func dismantleNSView(_ webView: WKWebView, coordinator _: Coordinator) {
+        webView.configuration.userContentController.removeScriptMessageHandler(
+            forName: Coordinator.taskToggleMessageName
+        )
     }
 }
 
@@ -106,16 +122,26 @@ private final class MarkdownPreviewWebView: WKWebView {
 #endif
 
 /// Owns WebKit delegates and local-resource policy for both SwiftUI platform wrappers.
-private final class Coordinator: NSObject, WKNavigationDelegate {
+private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
     private let assetHandler = MarkdownWebAssetHandler()
     private let openURL: (URL) -> Void
     private let openAttachment: (URL) -> Void
+    private let toggleTask: (MarkdownTaskMarker, MarkdownTaskState) -> Void
     private var renderedHTML: String?
     private var attachments: [String: URL] = [:]
+    private var documentGeneration = 0
+    private var pendingScrollOffset: Double?
 
-    init(openURL: @escaping (URL) -> Void, openAttachment: @escaping (URL) -> Void) {
+    static let taskToggleMessageName = "notraTaskToggle"
+
+    init(
+        openURL: @escaping (URL) -> Void,
+        openAttachment: @escaping (URL) -> Void,
+        toggleTask: @escaping (MarkdownTaskMarker, MarkdownTaskState) -> Void
+    ) {
         self.openURL = openURL
         self.openAttachment = openAttachment
+        self.toggleTask = toggleTask
     }
 
     func makeWebView() -> WKWebView {
@@ -128,6 +154,14 @@ private final class Coordinator: NSObject, WKNavigationDelegate {
                 forMainFrameOnly: true
             )
         )
+        configuration.userContentController.addUserScript(
+            WKUserScript(
+                source: Self.taskCheckboxScript,
+                injectionTime: .atDocumentEnd,
+                forMainFrameOnly: true
+            )
+        )
+        configuration.userContentController.add(self, name: Self.taskToggleMessageName)
         #if os(macOS)
         let webView = MarkdownPreviewWebView(frame: .zero, configuration: configuration)
         #else
@@ -162,6 +196,26 @@ private final class Coordinator: NSObject, WKNavigationDelegate {
     });
     """
 
+    /// Passes only validated task-checkbox state changes from the generated document to Swift.
+    private static let taskCheckboxScript = """
+    document.addEventListener('change', function(event) {
+        const checkbox = event.target;
+        if (!(checkbox instanceof HTMLInputElement)) return;
+        if (!checkbox.matches('input.task-checkbox[data-notra-task-line][data-notra-task-column][data-notra-task-state]')) return;
+        const line = Number(checkbox.dataset.notraTaskLine);
+        const column = Number(checkbox.dataset.notraTaskColumn);
+        const wasChecked = checkbox.dataset.notraTaskState === 'checked';
+        if (!Number.isInteger(line) || line < 1 || !Number.isInteger(column) || column < 1) return;
+        window.webkit.messageHandlers.notraTaskToggle.postMessage({
+            line: line,
+            column: column,
+            wasChecked: wasChecked,
+            isChecked: checkbox.checked
+        });
+        checkbox.dataset.notraTaskState = checkbox.checked ? 'checked' : 'unchecked';
+    });
+    """
+
     func update(document: MarkdownHTMLDocument, in webView: WKWebView) {
         assetHandler.update(document.assets)
         attachments = document.attachments
@@ -169,7 +223,46 @@ private final class Coordinator: NSObject, WKNavigationDelegate {
             return
         }
         renderedHTML = document.html
-        webView.loadHTMLString(document.html, baseURL: nil)
+        documentGeneration += 1
+        let generation = documentGeneration
+        webView.evaluateJavaScript("window.scrollY") { [weak self, weak webView] value, _ in
+            guard let self, let webView, generation == documentGeneration else {
+                return
+            }
+            pendingScrollOffset = (value as? NSNumber)?.doubleValue
+            webView.loadHTMLString(document.html, baseURL: nil)
+        }
+    }
+
+    func webView(_ webView: WKWebView, didFinish _: WKNavigation?) {
+        guard let pendingScrollOffset else {
+            return
+        }
+        self.pendingScrollOffset = nil
+        // The restored offset keeps a checkbox interaction in the same reading position after re-rendering.
+        // WebKit ignores out-of-range values when content becomes shorter.
+        webView.evaluateJavaScript("window.scrollTo(0, \(pendingScrollOffset));", completionHandler: nil)
+    }
+
+    func userContentController(_: WKUserContentController, didReceive message: WKScriptMessage) {
+        guard message.name == Self.taskToggleMessageName,
+              let body = message.body as? [String: Any],
+              let line = body["line"] as? Int,
+              let column = body["column"] as? Int,
+              let wasChecked = body["wasChecked"] as? Bool,
+              let isChecked = body["isChecked"] as? Bool,
+              line > 0,
+              column > 0
+        else {
+            return
+        }
+
+        let marker = MarkdownTaskMarker(
+            line: line,
+            column: column,
+            state: wasChecked ? .checked : .unchecked
+        )
+        toggleTask(marker, isChecked ? .checked : .unchecked)
     }
 
     func webView(

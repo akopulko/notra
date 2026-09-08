@@ -136,7 +136,8 @@ struct NoteEditorPane: View {
         MarkdownPreview(
             markdown: store.editorText,
             context: .textBundle(noteURL: store.selectedNoteURL),
-            tags: store.selectedNoteTags
+            tags: store.selectedNoteTags,
+            toggleTask: store.toggleTask
         )
     }
 

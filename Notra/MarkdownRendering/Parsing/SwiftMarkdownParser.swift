@@ -26,8 +26,9 @@ struct SwiftMarkdownParser {
     /// Converts swift-markdown nodes recursively while retaining deterministic IDs from `path`.
     nonisolated func parseSwiftMarkdown(_ markdown: String, path: String) -> NotraMarkdownDocument {
         let document = Document(parsing: markdown)
+        let taskMarkerLocator = MarkdownTaskMarkerLocator(markdown: markdown)
         return NotraMarkdownDocument(
-            blocks: blocks(in: document, path: path),
+            blocks: blocks(in: document, path: path, taskMarkerLocator: taskMarkerLocator),
             compactParagraphIDs: compactParagraphIDs(in: document, path: path),
             spacedListIDs: spacedListIDs(in: document, path: path)
         )
@@ -70,13 +71,25 @@ struct SwiftMarkdownParser {
         return result
     }
 
-    private nonisolated func blocks(in markup: any Markup, path: String) -> [MarkdownBlock] {
+    private nonisolated func blocks(
+        in markup: any Markup,
+        path: String,
+        taskMarkerLocator: MarkdownTaskMarkerLocator
+    ) -> [MarkdownBlock] {
         markup.children.enumerated().compactMap { offset, child in
-            block(from: child, path: "\(path).\(offset)")
+            block(
+                from: child,
+                path: "\(path).\(offset)",
+                taskMarkerLocator: taskMarkerLocator
+            )
         }
     }
 
-    private nonisolated func block(from markup: any Markup, path: String) -> MarkdownBlock? {
+    private nonisolated func block(
+        from markup: any Markup,
+        path: String,
+        taskMarkerLocator: MarkdownTaskMarkerLocator
+    ) -> MarkdownBlock? {
         if let htmlBlock = markup as? HTMLBlock {
             return .paragraph(id: path, [.text(htmlBlock.rawHTML)])
         }
@@ -90,19 +103,25 @@ struct SwiftMarkdownParser {
         }
 
         if let unorderedList = markup as? UnorderedList {
-            return .unorderedList(id: path, items: listItems(in: unorderedList, path: path))
+            return .unorderedList(
+                id: path,
+                items: listItems(in: unorderedList, path: path, taskMarkerLocator: taskMarkerLocator)
+            )
         }
 
         if let orderedList = markup as? OrderedList {
             return .orderedList(
                 id: path,
                 start: Int(orderedList.startIndex),
-                items: listItems(in: orderedList, path: path)
+                items: listItems(in: orderedList, path: path, taskMarkerLocator: taskMarkerLocator)
             )
         }
 
         if let blockQuote = markup as? BlockQuote {
-            return .blockQuote(id: path, blocks: blocks(in: blockQuote, path: path))
+            return .blockQuote(
+                id: path,
+                blocks: blocks(in: blockQuote, path: path, taskMarkerLocator: taskMarkerLocator)
+            )
         }
 
         if let codeBlock = markup as? CodeBlock {
@@ -121,16 +140,27 @@ struct SwiftMarkdownParser {
         return fallback.isEmpty ? nil : .paragraph(id: path, fallback)
     }
 
-    private nonisolated func listItems(in list: any Markup, path: String) -> [MarkdownListItem] {
+    private nonisolated func listItems(
+        in list: any Markup,
+        path: String,
+        taskMarkerLocator: MarkdownTaskMarkerLocator
+    ) -> [MarkdownListItem] {
         list.children.enumerated().compactMap { offset, child in
             guard let item = child as? ListItem else {
                 return nil
             }
 
+            let taskState = taskState(for: item.checkbox)
+
             return MarkdownListItem(
                 id: "\(path).item.\(offset)",
-                taskState: taskState(for: item.checkbox),
-                blocks: blocks(in: item, path: "\(path).item.\(offset)")
+                taskState: taskState,
+                taskMarker: taskMarkerLocator.marker(for: item, state: taskState),
+                blocks: blocks(
+                    in: item,
+                    path: "\(path).item.\(offset)",
+                    taskMarkerLocator: taskMarkerLocator
+                )
             )
         }
     }
@@ -252,5 +282,55 @@ struct SwiftMarkdownParser {
             return plainText(in: child)
         }
         .joined()
+    }
+}
+
+/// Finds task markers in the original UTF-8 Markdown source without depending on task text.
+private struct MarkdownTaskMarkerLocator: Sendable {
+    private let lines: [[UInt8]]
+
+    nonisolated init(markdown: String) {
+        lines = markdown.utf8.split(separator: 10, omittingEmptySubsequences: false).map(Array.init)
+    }
+
+    nonisolated func marker(for item: ListItem, state: MarkdownTaskState?) -> MarkdownTaskMarker? {
+        guard let state,
+              let range = item.range,
+              lines.indices.contains(range.lowerBound.line - 1)
+        else {
+            return nil
+        }
+
+        let line = lines[range.lowerBound.line - 1]
+        let start = max(range.lowerBound.column - 1, 0)
+        guard start < line.count else {
+            return nil
+        }
+
+        for offset in start..<max(start, line.count - 2) {
+            guard line[offset] == 91, line[offset + 2] == 93 else {
+                continue
+            }
+
+            let markerState: MarkdownTaskState? = switch line[offset + 1] {
+            case 32:
+                .unchecked
+            case 88, 120:
+                .checked
+            default:
+                nil
+            }
+            guard markerState == state else {
+                continue
+            }
+
+            return MarkdownTaskMarker(
+                line: range.lowerBound.line,
+                column: offset + 1,
+                state: state
+            )
+        }
+
+        return nil
     }
 }
