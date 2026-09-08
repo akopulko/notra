@@ -64,12 +64,18 @@ final class NotesStore {
     /// Debounced save task cancelled whenever selection or an immediate save takes precedence.
     @ObservationIgnored
     private var saveTask: Task<Void, Never>?
+    /// Owns disk-bound editor writes so the main actor remains available for typing and rendering.
+    @ObservationIgnored
+    private let autosaveWorker = NoteAutosaveWorker()
     /// Cancellable background synchronization for the SQLite search index.
     @ObservationIgnored
     private var searchIndexTask: Task<Void, Never>?
     /// Monotonic identity for the repository whose state is currently published.
     @ObservationIgnored
     private var repositoryGeneration: UInt64 = 0
+    /// Monotonic editor identity used to discard save work superseded by newer typing.
+    @ObservationIgnored
+    private var editorRevision: UInt64 = 0
     /// Serialises index operations with generation invalidation so old work cannot run after a switch.
     @ObservationIgnored
     private let searchIndexGate = SearchIndexGenerationGate()
@@ -286,6 +292,7 @@ final class NotesStore {
         let generation = repositoryGeneration
         do {
             cancelDeferredWork()
+            await autosaveWorker.finishPendingWrites()
             let nextSelectionID = replacementSelectionID(afterDeleting: summaries)
             for summary in summaries {
                 try repository.delete(summary)
@@ -344,14 +351,13 @@ final class NotesStore {
         }
     }
 
-    /// Updates the in-memory note, attachment link badges, and deferred persistence state.
+    /// Records a user edit without invalidating selection-dependent views or parsing attachments per keystroke.
     func updateEditorText(_ newText: String) {
-        guard canMutateNotes else {
+        guard canMutateNotes, newText != editorText else {
             return
         }
         editorText = newText
-        selectedNote?.markdown = newText
-        refreshAttachmentLinkStates()
+        editorRevision &+= 1
         scheduleSave()
     }
 
@@ -577,6 +583,7 @@ extension NotesStore {
         cancelDeferredWork()
 
         do {
+            await autosaveWorker.finishPendingWrites()
             var updatedNote = selectedNote
             if attachment.isLinked {
                 let assetBaseURL = selectedNote.url.appendingPathComponent(
@@ -589,7 +596,7 @@ extension NotesStore {
                     assetBaseURL: assetBaseURL
                 )
                 updatedNote.markdown = updatedMarkdown
-                try repository.save(updatedNote)
+                try await autosaveWorker.save(markdown: updatedNote.markdown, at: updatedNote.url)
                 self.selectedNote = updatedNote
                 editorText = updatedMarkdown
                 guard await indexNote(updatedNote, generation: generation) else {
@@ -667,13 +674,14 @@ extension NotesStore {
         AppLog.info("Saving current note immediately")
         saveTask?.cancel()
         let generation = repositoryGeneration
-        guard let selectedNote else {
+        guard var selectedNote else {
             AppLog.debug("Ignoring save request because no note is selected")
             return
         }
 
         do {
-            try repository.save(selectedNote)
+            selectedNote.markdown = editorText
+            try await autosaveWorker.save(markdown: selectedNote.markdown, at: selectedNote.url)
             guard isCurrentRepository(generation) else {
                 return
             }
@@ -685,6 +693,16 @@ extension NotesStore {
             }
             selectedNoteBundleSize = repository.totalBundleSize(at: selectedNote.url)
             try refreshNotes()
+            let assetBaseURL = selectedNote.url.appendingPathComponent(
+                TextBundleNoteRepository.assetsFolder,
+                isDirectory: true
+            )
+            applyAttachmentLinkStates(
+                linkedURLs: MarkdownAttachmentReferences.linkedURLs(
+                    in: selectedNote.markdown,
+                    assetBaseURL: assetBaseURL
+                )
+            )
             AppLog.info("Saved note: \(logName(for: selectedNote.url))")
         } catch {
             guard isCurrentRepository(generation) else {
@@ -844,27 +862,22 @@ private extension NotesStore {
         selectedNoteBundleSize = repository.totalBundleSize(at: selectedNote.url)
     }
 
-    /// Recomputes only attachment link badges after an editor text change.
-    private func refreshAttachmentLinkStates() {
-        guard let selectedNote, !attachments.isEmpty else {
+    /// Publishes attachment link badges after the deferred save has parsed the final idle text.
+    private func applyAttachmentLinkStates(linkedURLs: Set<URL>) {
+        guard !attachments.isEmpty else {
             return
         }
-
-        let assetBaseURL = selectedNote.url.appendingPathComponent(
-            TextBundleNoteRepository.assetsFolder,
-            isDirectory: true
-        )
-        let linkedURLs = MarkdownAttachmentReferences.linkedURLs(
-            in: editorText,
-            assetBaseURL: assetBaseURL
-        )
-        attachments = attachments.map { attachment in
+        let updatedAttachments = attachments.map { attachment in
             TextBundleAsset(
                 url: attachment.url,
                 contentType: attachment.contentType,
                 isLinked: linkedURLs.contains(attachment.url.notraCanonicalFileURL)
             )
         }
+        guard updatedAttachments != attachments else {
+            return
+        }
+        attachments = updatedAttachments
     }
 
     /// Cancels work whose result would be stale after selection or deletion changes.
@@ -1016,7 +1029,7 @@ private extension NotesStore {
         }
 
         selectedNote.markdown = editorText
-        try repository.save(selectedNote)
+        try await autosaveWorker.save(markdown: selectedNote.markdown, at: selectedNote.url)
         guard isCurrentRepository(generation) else {
             return
         }
@@ -1030,12 +1043,15 @@ private extension NotesStore {
 
     private func scheduleSave() {
         saveTask?.cancel()
-        guard let selectedNote else {
+        guard var noteToSave = selectedNote else {
             return
         }
 
-        let noteName = logName(for: selectedNote.url)
+        noteToSave.markdown = editorText
+        let noteName = logName(for: noteToSave.url)
+        let noteID = noteToSave.id
         let generation = repositoryGeneration
+        let revision = editorRevision
         let repository = repository
         let autosavePause = autosavePause
         let autosaveCompletion = autosaveCompletion
@@ -1053,23 +1069,37 @@ private extension NotesStore {
                 return
             }
             do {
-                try repository.save(selectedNote)
-                guard !Task.isCancelled, isCurrentRepository(generation) else {
+                try await autosaveWorker.save(markdown: noteToSave.markdown, at: noteToSave.url)
+                guard !Task.isCancelled,
+                      isCurrentRepository(generation),
+                      editorRevision == revision,
+                      selectedNoteID == noteID
+                else {
                     return
                 }
-                guard await indexNote(selectedNote, generation: generation) else {
+                guard await indexNote(noteToSave, generation: generation) else {
                     return
                 }
-                guard !Task.isCancelled, isCurrentRepository(generation) else {
+                guard !Task.isCancelled,
+                      isCurrentRepository(generation),
+                      editorRevision == revision,
+                      selectedNoteID == noteID
+                else {
                     return
                 }
-                let bundleSize = repository.totalBundleSize(at: selectedNote.url)
-                let reloadedNotes = try repository.listNotes()
-                guard !Task.isCancelled, isCurrentRepository(generation) else {
-                    return
-                }
-                applySortedNotes(reloadedNotes)
-                selectedNoteBundleSize = bundleSize
+                let assetBaseURL = noteToSave.url.appendingPathComponent(
+                    TextBundleNoteRepository.assetsFolder,
+                    isDirectory: true
+                )
+                let summaries = try repository.listNotes()
+                applySortedNotes(summaries)
+                selectedNoteBundleSize = repository.totalBundleSize(at: noteToSave.url)
+                applyAttachmentLinkStates(
+                    linkedURLs: MarkdownAttachmentReferences.linkedURLs(
+                        in: noteToSave.markdown,
+                        assetBaseURL: assetBaseURL
+                    )
+                )
                 AppLog.debug("Autosaved note: \(noteName)")
             } catch {
                 guard !Task.isCancelled, isCurrentRepository(generation) else {

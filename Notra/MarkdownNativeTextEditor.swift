@@ -194,12 +194,18 @@ extension MarkdownNativeTextEditor {
         private var lastTheme: MarkdownTheme?
         private var pendingProgrammaticSelection: MarkdownEditorSelectionSnapshot?
         private var pendingTextEdit: MarkdownTextEdit?
+        private var highlightTask: Task<Void, Never>?
+        private var highlightGeneration = 0
 
         init(parent: MarkdownNativeTextEditor) {
             self.parent = parent
             super.init()
             configureTextView()
             wireBridge()
+        }
+
+        deinit {
+            highlightTask?.cancel()
         }
 
         /// Applies pending text, font, theme, selection, and undo-state changes to UIKit.
@@ -346,15 +352,7 @@ extension MarkdownNativeTextEditor {
             lastText = newText
             let edit = pendingTextEdit
             pendingTextEdit = nil
-            if let changedRange = cache.updateText(newText, edit: edit) {
-                cache.applyColors(
-                    theme: parent.theme,
-                    font: currentFont,
-                    baseColor: parent.theme.editor.normalText.platformColor,
-                    to: textView.textStorage,
-                    lines: changedRange
-                )
-            }
+            scheduleHighlight(for: newText, edit: edit)
             parent.text = newText
             updateUndoRedoAvailability()
         }
@@ -365,6 +363,7 @@ extension MarkdownNativeTextEditor {
                 return
             }
 
+            cancelDeferredHighlight()
             lastText = newText
             cache.setText(newText)
             textView.text = newText
@@ -439,6 +438,7 @@ extension MarkdownNativeTextEditor {
         }
 
         private func refreshHighlight() {
+            cancelDeferredHighlight()
             guard !cache.isEmpty else {
                 return
             }
@@ -453,6 +453,37 @@ extension MarkdownNativeTextEditor {
             )
             lastFont = font
             lastTheme = parent.theme
+        }
+
+        /// Coalesces native typing so syntax parsing cannot consume every input event.
+        private func scheduleHighlight(for text: String, edit: MarkdownTextEdit?) {
+            highlightTask?.cancel()
+            highlightGeneration &+= 1
+            let generation = highlightGeneration
+            highlightTask = Task { [weak self] in
+                try? await Task.sleep(for: .milliseconds(75))
+                guard !Task.isCancelled,
+                      let self,
+                      generation == highlightGeneration,
+                      let changedRange = cache.updateText(text, edit: edit)
+                else {
+                    return
+                }
+
+                cache.applyColors(
+                    theme: parent.theme,
+                    font: currentFont,
+                    baseColor: parent.theme.editor.normalText.platformColor,
+                    to: textView.textStorage,
+                    lines: changedRange
+                )
+            }
+        }
+
+        private func cancelDeferredHighlight() {
+            highlightTask?.cancel()
+            highlightTask = nil
+            highlightGeneration &+= 1
         }
 
         private func setSelection(_ selection: MarkdownEditorSelectionSnapshot) {
@@ -540,6 +571,8 @@ extension MarkdownNativeTextEditor {
         private var lastTheme: MarkdownTheme?
         private var pendingProgrammaticSelection: MarkdownEditorSelectionSnapshot?
         private var pendingTextEdit: MarkdownTextEdit?
+        private var highlightTask: Task<Void, Never>?
+        private var highlightGeneration = 0
 
         init(parent: MarkdownNativeTextEditor) {
             self.parent = parent
@@ -547,6 +580,10 @@ extension MarkdownNativeTextEditor {
             configureTextView()
             configureScrollView()
             wireBridge()
+        }
+
+        deinit {
+            highlightTask?.cancel()
         }
 
         /// Applies pending text, font, theme, selection, and undo-state changes to AppKit.
@@ -713,9 +750,7 @@ extension MarkdownNativeTextEditor {
             lastText = newText
             let edit = pendingTextEdit
             pendingTextEdit = nil
-            if let changedRange = cache.updateText(newText, edit: edit), let storage = textView.textStorage {
-                applyHighlight(to: storage, lines: changedRange)
-            }
+            scheduleHighlight(for: newText, edit: edit)
             parent.text = newText
             updateUndoRedoAvailability()
         }
@@ -726,6 +761,7 @@ extension MarkdownNativeTextEditor {
                 return
             }
 
+            cancelDeferredHighlight()
             lastText = newText
             cache.setText(newText)
             textView.string = newText
@@ -798,6 +834,7 @@ extension MarkdownNativeTextEditor {
         }
 
         private func refreshHighlight() {
+            cancelDeferredHighlight()
             guard !cache.isEmpty, let storage = textView.textStorage else {
                 return
             }
@@ -806,6 +843,32 @@ extension MarkdownNativeTextEditor {
             applyHighlight(to: storage, lines: 0..<cache.count)
             lastFont = font
             lastTheme = parent.theme
+        }
+
+        /// Coalesces native typing so syntax parsing cannot consume every input event.
+        private func scheduleHighlight(for text: String, edit: MarkdownTextEdit?) {
+            highlightTask?.cancel()
+            highlightGeneration &+= 1
+            let generation = highlightGeneration
+            highlightTask = Task { [weak self] in
+                try? await Task.sleep(for: .milliseconds(75))
+                guard !Task.isCancelled,
+                      let self,
+                      generation == highlightGeneration,
+                      let storage = textView.textStorage,
+                      let changedRange = cache.updateText(text, edit: edit)
+                else {
+                    return
+                }
+
+                applyHighlight(to: storage, lines: changedRange)
+            }
+        }
+
+        private func cancelDeferredHighlight() {
+            highlightTask?.cancel()
+            highlightTask = nil
+            highlightGeneration &+= 1
         }
 
         private func applyHighlight(to storage: NSMutableAttributedString, lines: Range<Int>) {
