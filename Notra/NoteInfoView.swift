@@ -19,12 +19,6 @@ struct NoteInfoView: View {
                 infoRow("Characters") {
                     numberValue(info.statistics.characterCount)
                 }
-                infoRow("Lines") {
-                    numberValue(info.statistics.lineCount)
-                }
-                infoRow("Reading Time") {
-                    valueText("\(info.statistics.readingTimeMinutes.formatted(.number)) min")
-                }
             }
 
             infoGroup(title: "Dates") {
@@ -37,7 +31,7 @@ struct NoteInfoView: View {
             }
 
             infoGroup(title: "File") {
-                infoRow("Where") {
+                infoRow("Location") {
                     valueText(info.location)
                 }
                 infoRow("File") {
