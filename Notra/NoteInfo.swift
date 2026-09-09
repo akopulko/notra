@@ -7,12 +7,12 @@ struct NoteStatistics: Equatable, Sendable {
     /// Number of Swift characters in the Markdown body.
     let characterCount: Int
 
-    init(markdown: String) {
+    nonisolated init(markdown: String) {
         wordCount = Self.countWords(in: markdown)
         characterCount = markdown.count
     }
 
-    private static func countWords(in markdown: String) -> Int {
+    private nonisolated static func countWords(in markdown: String) -> Int {
         var count = 0
         markdown.enumerateSubstrings(
             in: markdown.startIndex..<markdown.endIndex,
@@ -45,7 +45,17 @@ struct NoteInfo: Equatable, Sendable {
     }
 
     init(summary: NoteSummary, markdown: String, location: String, byteCount: Int64) {
-        statistics = NoteStatistics(markdown: markdown)
+        self.init(
+            summary: summary,
+            statistics: NoteStatistics(markdown: markdown),
+            location: location,
+            byteCount: byteCount
+        )
+    }
+
+    /// Creates inspector metadata from independently maintained content statistics.
+    init(summary: NoteSummary, statistics: NoteStatistics, location: String, byteCount: Int64) {
+        self.statistics = statistics
         createdAt = summary.createdAt
         modifiedAt = summary.modifiedAt
         self.location = location

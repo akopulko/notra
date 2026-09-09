@@ -103,28 +103,31 @@ struct TextBundleNoteRepository {
             options: [.skipsHiddenFiles]
         )
 
-        return try urls
-            .filter { $0.pathExtension == Self.bundleExtension }
-            .map { url in
-                let createdAt = try url.resourceValues(forKeys: [.creationDateKey])
-                    .creationDate ?? .distantPast
-                let markdown = try markdownContent(in: url)
-                let preview = Self.preview(for: markdown)
-                let metadata = summaryMetadata(at: url)
-                let hasChecklist = NoteSearchFilter.hasChecklist(in: markdown)
-                let attachmentSummary = try attachmentSummary(for: url, markdown: markdown)
-                return try NoteSummary(
-                    url: url,
-                    previewText: preview.text,
-                    previewFirstLineIsHeading: preview.firstLineIsHeading,
-                    tags: metadata.tags,
-                    hasChecklist: hasChecklist,
-                    attachmentSummary: attachmentSummary,
-                    createdAt: createdAt,
-                    modifiedAt: modifiedDate(of: url),
-                    pinnedAt: metadata.pinnedAt
-                )
-            }
+        let noteURLs = urls.filter { $0.pathExtension == Self.bundleExtension }
+        return try noteURLs.map(summary(for:))
+    }
+
+    /// Derives the sidebar projection for one bundle without enumerating the whole notes library.
+    func summary(for url: URL) throws -> NoteSummary {
+        let createdAt = try url.resourceValues(forKeys: [.creationDateKey])
+            .creationDate ?? .distantPast
+        let markdown = try markdownContent(in: url)
+        let preview = Self.preview(for: markdown)
+        let metadata = summaryMetadata(at: url)
+        let hasChecklist = NoteSearchFilter.hasChecklist(in: markdown)
+        let attachmentSummary = try attachmentSummary(for: url, markdown: markdown)
+        let modifiedAt = try modifiedDate(of: url)
+        return NoteSummary(
+            url: url,
+            previewText: preview.text,
+            previewFirstLineIsHeading: preview.firstLineIsHeading,
+            tags: metadata.tags,
+            hasChecklist: hasChecklist,
+            attachmentSummary: attachmentSummary,
+            createdAt: createdAt,
+            modifiedAt: modifiedAt,
+            pinnedAt: metadata.pinnedAt
+        )
     }
 
     /// Loads Markdown and Notra metadata from one TextBundle into an editable note value.

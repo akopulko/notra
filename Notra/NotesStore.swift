@@ -40,6 +40,8 @@ final class NotesStore {
     var attachments: [TextBundleAsset] = []
     /// File size of the selected bundle, used by the attachment inspector.
     var selectedNoteBundleSize: Int64 = 0
+    /// Debounced content statistics so inspector rendering does not parse Markdown on each keystroke.
+    var selectedNoteStatistics = NoteStatistics(markdown: "")
     /// Stable URL identity of the note selected by the split view.
     var selectedNoteID: URL?
     /// Current editor text, which may be newer than the last persisted note on disk.
@@ -64,6 +66,12 @@ final class NotesStore {
     /// Debounced save task cancelled whenever selection or an immediate save takes precedence.
     @ObservationIgnored
     private var saveTask: Task<Void, Never>?
+    /// Cancels stale statistics calculations while the user is still typing.
+    @ObservationIgnored
+    private var statisticsTask: Task<Void, Never>?
+    /// Owns Markdown statistics work independently from text entry and autosave.
+    @ObservationIgnored
+    private let statisticsWorker = NoteStatisticsWorker()
     /// Owns disk-bound editor writes so the main actor remains available for typing and rendering.
     @ObservationIgnored
     private let autosaveWorker = NoteAutosaveWorker()
@@ -201,7 +209,7 @@ final class NotesStore {
 
         return NoteInfo(
             summary: summary,
-            markdown: editorText,
+            statistics: selectedNoteStatistics,
             location: repository.noteLocationDescription,
             byteCount: selectedNoteBundleSize
         )
@@ -358,6 +366,7 @@ final class NotesStore {
         }
         editorText = newText
         editorRevision &+= 1
+        scheduleStatisticsUpdate(for: newText, revision: editorRevision)
         scheduleSave()
     }
 
@@ -789,6 +798,7 @@ private extension NotesStore {
         selectedNoteID = note.id
         selectedNote = note
         editorText = note.markdown
+        selectedNoteStatistics = NoteStatistics(markdown: note.markdown)
         selectedNoteTags = note.metadata.tags
         try refreshAttachments()
     }
@@ -800,6 +810,7 @@ private extension NotesStore {
         attachments = []
         selectedNoteTags = []
         selectedNoteBundleSize = 0
+        selectedNoteStatistics = NoteStatistics(markdown: "")
     }
 
     /// Rebuilds sidebar summaries from storage and applies the current sort preference.
@@ -810,6 +821,17 @@ private extension NotesStore {
     /// Applies the current order to an already-loaded summary collection.
     private func applySortedNotes(_ summaries: [NoteSummary]) {
         notes = sortPreference.sorted(summaries)
+    }
+
+    /// Replaces only the row affected by a text save, preserving the rest of the loaded library.
+    private func applySavedSummary(_ summary: NoteSummary) {
+        guard let index = notes.firstIndex(where: { $0.id == summary.id }) else {
+            return
+        }
+
+        var updatedSummaries = notes
+        updatedSummaries[index] = summary
+        applySortedNotes(updatedSummaries)
     }
 
     /// Refreshes row-visible metadata immediately after a metadata-only note update.
@@ -884,6 +906,31 @@ private extension NotesStore {
     private func cancelDeferredWork() {
         saveTask?.cancel()
         saveTask = nil
+        statisticsTask?.cancel()
+        statisticsTask = nil
+    }
+
+    /// Calculates inspector-only statistics after typing has settled, outside the input callback.
+    private func scheduleStatisticsUpdate(for markdown: String, revision: UInt64) {
+        statisticsTask?.cancel()
+        let worker = statisticsWorker
+        statisticsTask = Task { [weak self, worker] in
+            do {
+                try await Task.sleep(for: .milliseconds(300))
+            } catch {
+                return
+            }
+
+            let statistics = await worker.statistics(for: markdown)
+            guard !Task.isCancelled,
+                  let self,
+                  editorRevision == revision
+            else {
+                return
+            }
+
+            selectedNoteStatistics = statistics
+        }
     }
 
     /// Starts one cancellable index operation and reports completion back on the main actor.
@@ -1087,19 +1134,20 @@ private extension NotesStore {
                 else {
                     return
                 }
-                let assetBaseURL = noteToSave.url.appendingPathComponent(
-                    TextBundleNoteRepository.assetsFolder,
-                    isDirectory: true
-                )
-                let summaries = try repository.listNotes()
-                applySortedNotes(summaries)
-                selectedNoteBundleSize = repository.totalBundleSize(at: noteToSave.url)
-                applyAttachmentLinkStates(
-                    linkedURLs: MarkdownAttachmentReferences.linkedURLs(
-                        in: noteToSave.markdown,
-                        assetBaseURL: assetBaseURL
+                let savedSummary = try repository.summary(for: noteToSave.url)
+                applySavedSummary(savedSummary)
+                if !attachments.isEmpty {
+                    let assetBaseURL = noteToSave.url.appendingPathComponent(
+                        TextBundleNoteRepository.assetsFolder,
+                        isDirectory: true
                     )
-                )
+                    applyAttachmentLinkStates(
+                        linkedURLs: MarkdownAttachmentReferences.linkedURLs(
+                            in: noteToSave.markdown,
+                            assetBaseURL: assetBaseURL
+                        )
+                    )
+                }
                 AppLog.debug("Autosaved note: \(noteName)")
             } catch {
                 guard !Task.isCancelled, isCurrentRepository(generation) else {
