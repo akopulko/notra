@@ -112,6 +112,17 @@ struct ContentView: View {
 
             requestExport(note, request.action)
         }
+        .sheet(isPresented: $commands.isKeyboardShortcutsPresented) {
+            NavigationStack {
+                KeyboardShortcutsView()
+            }
+            #if os(macOS)
+            .frame(minWidth: 620, idealWidth: 720, minHeight: 540, idealHeight: 640)
+            #else
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
+            #endif
+        }
         .alert("Notra", isPresented: errorBinding) {
             Button("OK") {
                 store.errorMessage = nil

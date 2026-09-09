@@ -45,6 +45,8 @@ final class NotraCommandContext {
     private(set) var newNoteRequestID = 0
     private(set) var attachmentRequestID = 0
     private(set) var exportRequest: NoteExportRequest?
+    /// Presents the shortcuts reference for the active scene.
+    var isKeyboardShortcutsPresented = false
     var shareState = NoteShareState.idle
 
     init(store: NotesStore) {
@@ -107,6 +109,10 @@ final class NotraCommandContext {
 
         let id = (exportRequest?.id ?? 0) + 1
         exportRequest = NoteExportRequest(id: id, action: action)
+    }
+
+    func showKeyboardShortcuts() {
+        isKeyboardShortcutsPresented = true
     }
 
     private func requestEditorCommand(_ command: NoteEditorCommand) {
@@ -221,7 +227,10 @@ struct NotraCommands: Commands {
 
         CommandGroup(after: .help) {
             Button("Notra Help") {}
-            Button("Keyboard Shortcuts") {}
+            Button("Keyboard Shortcuts") {
+                context?.showKeyboardShortcuts()
+            }
+            .keyboardShortcut("/", modifiers: .command)
         }
     }
 

@@ -78,4 +78,13 @@ struct NotraCommandsTests {
         #expect(!context.isEditing)
         #expect(context.editorFocusRequestID == 1)
     }
+
+    @Test func keyboardShortcutsCommandRequestsPresentation() async {
+        let store = NotesStore(repository: TextBundleNoteRepository(rootURL: .temporaryDirectory))
+        let context = NotraCommandContext(store: store)
+
+        #expect(!context.isKeyboardShortcutsPresented)
+        context.showKeyboardShortcuts()
+        #expect(context.isKeyboardShortcutsPresented)
+    }
 }

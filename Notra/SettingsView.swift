@@ -40,9 +40,19 @@ struct SettingsView: View {
     #if os(iOS)
     private var iOSSettingsView: some View {
         NavigationStack {
-            List(SettingsCategory.allCases) { category in
-                NavigationLink(value: category) {
-                    SettingsCategoryRow(category: category)
+            List {
+                ForEach(SettingsCategory.allCases) { category in
+                    NavigationLink(value: category) {
+                        SettingsCategoryRow(category: category)
+                    }
+                }
+
+                Section {
+                    NavigationLink {
+                        KeyboardShortcutsView()
+                    } label: {
+                        Label("Keyboard Shortcuts", systemImage: "keyboard")
+                    }
                 }
             }
             .settingsCategoryListStyle()
