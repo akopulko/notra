@@ -22,6 +22,9 @@ struct NotraApp: App {
         .windowResizability(.contentMinSize)
         .windowToolbarStyle(.unified(showsTitle: false))
         #endif
+        .commands {
+            NotraCommands()
+        }
 
         #if os(macOS)
         Settings {

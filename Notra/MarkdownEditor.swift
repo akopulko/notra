@@ -14,6 +14,7 @@ struct MarkdownEditor: View {
     let headingFormattingRequest: MarkdownHeadingFormattingRequest
     let boldFormattingRequest: Int
     let italicFormattingRequest: Int
+    let strikethroughFormattingRequest: Int
     let codeFormattingRequest: Int
     let linkFormattingRequest: Int
     let tableFormattingRequest: Int
@@ -23,6 +24,8 @@ struct MarkdownEditor: View {
     let undoRequest: Int
     let redoRequest: Int
     let focusFirstLineRequest: Int
+    /// Focuses the native editor without changing its current selection.
+    let focusEditorRequest: Int
     let onUndoRedoAvailabilityChanged: (EditorUndoRedoAvailability) -> Void
 
     @State private var bridge = MarkdownTextEditorBridge()
@@ -35,7 +38,8 @@ struct MarkdownEditor: View {
             fontSize: editorFontSize,
             theme: MarkdownTheme.preferred(for: colorScheme),
             bridge: bridge,
-            selectionStore: selectionStore
+            selectionStore: selectionStore,
+            focusEditorRequest: focusEditorRequest
         )
         .accessibilityLabel("Note editor")
         .onChange(of: colorScheme) {
@@ -49,6 +53,9 @@ struct MarkdownEditor: View {
         }
         .onChange(of: italicFormattingRequest) {
             applyItalicFormatting()
+        }
+        .onChange(of: strikethroughFormattingRequest) {
+            applyStrikethroughFormatting()
         }
         .onChange(of: codeFormattingRequest) {
             applyCodeFormatting()
@@ -77,16 +84,7 @@ struct MarkdownEditor: View {
         .onChange(of: focusFirstLineRequest) {
             focusFirstLine()
         }
-        .onAppear {
-            bridge.applyFormattingCommand = applyFormattingCommand
-            bridge.applyHeading = applyHeading
-            bridge.requestAttachmentSelection = requestAttachmentSelection
-            bridge.reportUndoRedoAvailability = onUndoRedoAvailabilityChanged
-            bridge.refreshUndoRedoAvailability?()
-            if focusFirstLineRequest > 0 {
-                focusFirstLine()
-            }
-        }
+        .onAppear(perform: configureBridge)
         .onDisappear {
             onUndoRedoAvailabilityChanged(.disabled)
         }
@@ -94,6 +92,18 @@ struct MarkdownEditor: View {
 }
 
 private extension MarkdownEditor {
+    private func configureBridge() {
+        bridge.applyFormattingCommand = applyFormattingCommand
+        bridge.applyHeading = applyHeading
+        bridge.requestAttachmentSelection = requestAttachmentSelection
+        bridge.reportUndoRedoAvailability = onUndoRedoAvailabilityChanged
+        bridge.refreshUndoRedoAvailability?()
+
+        if focusFirstLineRequest > 0 {
+            focusFirstLine()
+        }
+    }
+
     private func applyHeadingFormatting() {
         let currentText = text
         let selectedRange = formattingSelection(in: currentText)
@@ -111,6 +121,10 @@ private extension MarkdownEditor {
 
     private func applyItalicFormatting() {
         applyInlineFormatting(command: .italic)
+    }
+
+    private func applyStrikethroughFormatting() {
+        applyInlineFormatting(command: .strikethrough)
     }
 
     private func applyCodeFormatting() {
@@ -189,7 +203,7 @@ private extension MarkdownEditor {
             result = MarkdownFormatting.applyQuoteResult(to: currentText, selection: selectedRange)
         case .todo:
             result = MarkdownFormatting.applyTodoResult(to: currentText, selection: selectedRange)
-        case .bold, .italic, .heading, .code, .link, .table, .image:
+        case .bold, .italic, .strikethrough, .heading, .code, .link, .table, .image:
             return
         }
 
@@ -210,6 +224,8 @@ private extension MarkdownEditor {
             result = MarkdownFormatting.applyBoldResult(to: currentText, selection: selectedRange)
         case .italic:
             result = MarkdownFormatting.applyItalicResult(to: currentText, selection: selectedRange)
+        case .strikethrough:
+            result = MarkdownFormatting.applyStrikethroughResult(to: currentText, selection: selectedRange)
         case .code:
             result = MarkdownFormatting.applyCodeResult(to: currentText, selection: selectedRange)
         case .link:
@@ -380,6 +396,8 @@ private extension NoteFormattingCommand {
             "Bold"
         case .italic:
             "Italic"
+        case .strikethrough:
+            "Strikethrough"
         case .heading:
             "Heading"
         case .unorderedList:

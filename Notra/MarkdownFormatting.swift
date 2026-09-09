@@ -17,6 +17,8 @@ enum MarkdownFormatting {
             return applyBoldResult(to: text, selection: selectedRange).text
         case .italic:
             return applyItalicResult(to: text, selection: selectedRange).text
+        case .strikethrough:
+            return applyStrikethroughResult(to: text, selection: selectedRange).text
         case .heading:
             return applyHeading(level: .h1, to: text, selection: selection)
         case .unorderedList:
@@ -46,6 +48,11 @@ enum MarkdownFormatting {
     /// Wraps the selection in underscore emphasis markers while preserving the resulting selection.
     static func applyItalicResult(to text: String, selection: Range<String.Index>) -> MarkdownFormattingResult {
         applyWrappedResult(to: text, selection: selection, prefix: "_", suffix: "_")
+    }
+
+    /// Wraps the selection in strikethrough markers while preserving the resulting selection.
+    static func applyStrikethroughResult(to text: String, selection: Range<String.Index>) -> MarkdownFormattingResult {
+        applyWrappedResult(to: text, selection: selection, prefix: "~~", suffix: "~~")
     }
 
     /// Wraps the selection in inline-code markers without changing text outside the selection.

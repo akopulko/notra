@@ -10,27 +10,34 @@ struct NoteEditorPane: View {
     @Bindable var store: NotesStore
     /// Parent-owned edit/preview mode shared with the sidebar and floating button.
     @Binding var isEditing: Bool
+    /// Repeated app-menu formatting actions forwarded to the native editor.
+    let editorCommandRequest: NoteEditorCommandRequest?
     /// The split-view shell owns inspector presentation so native sidebar controls remain available.
     @Binding var isAttachmentInspectorPresented: Bool
     /// An existing asset selected for insertion in the shell's inspector.
     @Binding var attachmentToInsert: TextBundleAsset?
     /// Monotonic focus request emitted after creating a note.
     let editorFocusRequest: Int
+    /// Monotonic focus request emitted by the preview-toggle keyboard command.
+    let commandEditorFocusRequest: Int
     /// Parent callback used by the empty-selection create button.
     let createNote: () -> Void
     /// Monotonic request for inserting a newly imported local asset.
     let attachmentSelectionRequest: MarkdownAttachmentSelectionRequest
     /// Parent callback that presents the platform attachment picker.
     let requestAttachmentSelection: () -> Void
+    /// Parent callback that exports the current note as a shareable PDF.
+    let requestShare: () -> Void
+    /// Current state of the shared PDF preparation flow.
+    let shareState: NoteShareState
     /// Maximum accepted attachment size, shared with the Settings screen.
     @AppStorage(AttachmentSettingKey.maximumSizeMB) private var maximumAttachmentSizeMB =
         AttachmentSettings.defaultMaximumSizeMB
-    /// Persisted preview font family.
-    @AppStorage(AppearanceSettingKey.previewFontName) private var previewFontName = AppearanceFont.defaultName
     /// Request counters let the native editor react to repeated identical commands.
     @State private var headingFormattingRequest = MarkdownHeadingFormattingRequest(id: 0, level: .h1)
     @State private var boldFormattingRequest = 0
     @State private var italicFormattingRequest = 0
+    @State private var strikethroughFormattingRequest = 0
     @State private var codeFormattingRequest = 0
     @State private var linkFormattingRequest = 0
     @State private var tableFormattingRequest = 0
@@ -47,7 +54,6 @@ struct NoteEditorPane: View {
         id: 0,
         command: .unorderedList
     )
-    @State private var pdfShareState = PDFShareState.idle
     #if os(iOS)
     @State private var selectedImageItem: PhotosPickerItem?
     @State private var isImagePickerPresented = false
@@ -81,6 +87,9 @@ struct NoteEditorPane: View {
         .onChange(of: attachmentSelectionRequest) {
             importAttachmentFromSelectionRequest()
         }
+        .onChange(of: editorCommandRequest) {
+            handleEditorCommandRequest()
+        }
         .onChange(of: attachmentToInsert) {
             guard let attachment = attachmentToInsert else {
                 return
@@ -91,10 +100,6 @@ struct NoteEditorPane: View {
         .onChange(of: store.selectedNoteID) {
             isEditing = false
             undoRedoAvailability = .disabled
-            pdfShareState = .idle
-        }
-        .onChange(of: isEditing) {
-            pdfShareState = .idle
         }
         .onChange(of: editorFocusRequest) {
             if editorFocusRequest > 0 {
@@ -119,6 +124,7 @@ struct NoteEditorPane: View {
             headingFormattingRequest: headingFormattingRequest,
             boldFormattingRequest: boldFormattingRequest,
             italicFormattingRequest: italicFormattingRequest,
+            strikethroughFormattingRequest: strikethroughFormattingRequest,
             codeFormattingRequest: codeFormattingRequest,
             linkFormattingRequest: linkFormattingRequest,
             tableFormattingRequest: tableFormattingRequest,
@@ -128,6 +134,7 @@ struct NoteEditorPane: View {
             undoRequest: undoRequest,
             redoRequest: redoRequest,
             focusFirstLineRequest: editorFocusRequest,
+            focusEditorRequest: commandEditorFocusRequest,
             onUndoRedoAvailabilityChanged: updateUndoRedoAvailability
         )
     }
@@ -198,23 +205,23 @@ struct NoteEditorPane: View {
         }
         #endif
         ToolbarItem(placement: .primaryAction) {
-            switch pdfShareState {
+            switch shareState {
             case .idle:
                 Button("Share", systemImage: "square.and.arrow.up") {
-                    sharePDF()
+                    requestShare()
                 }
                 .labelStyle(.iconOnly)
                 .help("Share")
                 .accessibilityLabel("Share")
-                .disabled(pdfShareSnapshot == nil)
+                .disabled(!canShare)
             case .failed:
                 Button("Retry Share", systemImage: "arrow.clockwise") {
-                    sharePDF()
+                    requestShare()
                 }
                 .labelStyle(.iconOnly)
                 .help("Retry Share")
                 .accessibilityLabel("Retry Share")
-                .disabled(pdfShareSnapshot == nil)
+                .disabled(!canShare)
             case .generating:
                 Button("Preparing Share", systemImage: "square.and.arrow.up") {}
                     .labelStyle(.iconOnly)
@@ -250,21 +257,8 @@ struct NoteEditorPane: View {
 }
 
 private extension NoteEditorPane {
-    private var pdfShareSnapshot: NotePDFSnapshot? {
-        guard !isEditing,
-              store.hasSelection,
-              let noteURL = store.selectedNoteURL,
-              let noteSummary = store.selectedNoteSummary
-        else {
-            return nil
-        }
-
-        return NotePDFSnapshot(
-            markdown: store.editorText,
-            noteURL: noteURL,
-            previewFontName: previewFontName,
-            suggestedFilename: noteSummary.url.lastPathComponent
-        )
+    private var canShare: Bool {
+        !isEditing && store.hasSelection
     }
 
     private func undo() {
@@ -277,26 +271,6 @@ private extension NoteEditorPane {
 
     private func updateUndoRedoAvailability(_ availability: EditorUndoRedoAvailability) {
         undoRedoAvailability = availability
-    }
-
-    private func sharePDF() {
-        guard pdfShareState != .generating, let snapshot = pdfShareSnapshot else {
-            pdfShareState = .idle
-            return
-        }
-
-        pdfShareState = .generating
-        Task { @MainActor in
-            await Task.yield()
-            do {
-                let item = try await NotePDFExporter().export(snapshot: snapshot)
-                NoteSharePresenter.present(fileURL: item.fileURL)
-                pdfShareState = .idle
-            } catch {
-                AppLog.error("Failed to prepare PDF for sharing: \(error.localizedDescription)")
-                pdfShareState = .failed
-            }
-        }
     }
 
     private func insertAttachment(_ attachment: TextBundleAsset) {
@@ -327,6 +301,8 @@ private extension NoteEditorPane {
             boldFormattingRequest += 1
         case .italic:
             italicFormattingRequest += 1
+        case .strikethrough:
+            strikethroughFormattingRequest += 1
         case .code:
             codeFormattingRequest += 1
         case .link:
@@ -348,6 +324,19 @@ private extension NoteEditorPane {
             )
         case .heading:
             break
+        }
+    }
+
+    private func handleEditorCommandRequest() {
+        guard let editorCommandRequest else {
+            return
+        }
+
+        switch editorCommandRequest.command {
+        case let .heading(level):
+            handleHeading(level)
+        case let .formatting(command):
+            handleFormattingCommand(command)
         }
     }
 
@@ -480,11 +469,4 @@ private extension NoteEditorPane {
             )
         }
     }
-}
-
-/// Tracks explicit PDF sharing attempts without preparing large exports on preview load.
-private enum PDFShareState {
-    case idle
-    case generating
-    case failed
 }

@@ -189,6 +189,17 @@ struct MarkdownFormattingTests {
         #expect(cursorOffset(in: result) == 6)
     }
 
+    @Test func strikethroughWithSelectionPreservesSelectedText() {
+        let text = "Selected text"
+        let result = MarkdownFormatting.applyStrikethroughResult(
+            to: text,
+            selection: text.startIndex ..< text.endIndex
+        )
+
+        #expect(result.text == "~~Selected text~~")
+        #expect(cursorOffset(in: result) == 17)
+    }
+
     @Test func codeWithoutSelectionInEmptyDocumentPlacesCursorInsideMarkup() {
         let text = ""
         let result = MarkdownFormatting.applyCodeResult(
