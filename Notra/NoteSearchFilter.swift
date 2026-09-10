@@ -1,5 +1,4 @@
 import Foundation
-import Markdown
 
 /// A single structured scope applied to sidebar search results.
 enum NoteSearchFilter: String, CaseIterable, Identifiable, Sendable {
@@ -45,20 +44,22 @@ enum NoteSearchFilter: String, CaseIterable, Identifiable, Sendable {
     }
 
     nonisolated static func hasChecklist(in markdown: String) -> Bool {
-        containsChecklist(in: Document(parsing: markdown))
+        MarkdownDocumentAnalysis.analyse(markdown: markdown).hasChecklist
     }
 
     nonisolated static func hasLinkedAttachment(noteURL: URL, markdown: String) -> Bool {
-        let assetsURL = noteURL.appendingPathComponent(TextBundleNoteRepository.assetsFolder, isDirectory: true)
-        return MarkdownAttachmentReferences.linkedURLs(in: markdown, assetBaseURL: assetsURL)
-            .contains { FileManager.default.fileExists(atPath: $0.path(percentEncoded: false)) }
+        hasLinkedAttachment(
+            noteURL: noteURL,
+            analysis: MarkdownDocumentAnalysis.analyse(markdown: markdown)
+        )
     }
 
-    private nonisolated static func containsChecklist(in markup: any Markup) -> Bool {
-        if let listItem = markup as? ListItem, listItem.checkbox != nil {
-            return true
-        }
-
-        return markup.children.contains { containsChecklist(in: $0) }
+    nonisolated static func hasLinkedAttachment(
+        noteURL: URL,
+        analysis: MarkdownDocumentAnalysis
+    ) -> Bool {
+        let assetsURL = noteURL.appendingPathComponent(TextBundleNoteRepository.assetsFolder, isDirectory: true)
+        return MarkdownAttachmentReferences.linkedURLs(in: analysis, assetBaseURL: assetsURL)
+            .contains { FileManager.default.fileExists(atPath: $0.path(percentEncoded: false)) }
     }
 }

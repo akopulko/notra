@@ -43,11 +43,17 @@ enum AppearanceFont {
     static let defaultDisplayName = "System Default"
     static let defaultSize = 17.0
 
+    private static var availableChoicesCache: [Bool: [AppearanceFontChoice]] = [:]
+
     /// Returns the installed font families appropriate for one appearance preference.
     ///
     /// The empty name remains the durable representation of the system default, while
     /// concrete choices persist each family's regular PostScript name.
     static func availableChoices(fixedPitchOnly: Bool) -> [AppearanceFontChoice] {
+        if let cachedChoices = availableChoicesCache[fixedPitchOnly] {
+            return cachedChoices
+        }
+
         let familyNames: [String]
 
         #if os(macOS)
@@ -61,7 +67,14 @@ enum AppearanceFont {
         }
         .sorted { $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending }
 
-        return [AppearanceFontChoice(fontName: defaultName, displayName: defaultDisplayName)] + installedChoices
+        let choices = [AppearanceFontChoice(fontName: defaultName, displayName: defaultDisplayName)] + installedChoices
+        availableChoicesCache[fixedPitchOnly] = choices
+        return choices
+    }
+
+    /// Clears the catalogue so the next settings presentation sees newly installed fonts.
+    static func invalidateAvailableChoices() {
+        availableChoicesCache.removeAll(keepingCapacity: true)
     }
 
     /// Resolves stale UserDefaults values to the explicit system-default menu choice.

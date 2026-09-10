@@ -33,12 +33,12 @@ struct NotesSidebar: View {
             .toolbar {
                 ToolbarItemGroup(placement: .primaryAction) {
                     NewNoteButton(action: createNote)
+                    #if os(iOS)
                     SortNotesMenu(
                         preference: store.sortPreference,
                         setField: store.setSortField,
                         setDirection: store.setSortDirection
                     )
-                    #if os(iOS)
                     settingsButton
                     #endif
                 }
@@ -150,7 +150,7 @@ struct NotesSidebar: View {
                             createNote()
                         }
                     }
-                } else if visibleNotes.isEmpty, isSearching {
+                } else if groups.pinned.isEmpty, groups.notes.isEmpty, isSearching {
                     searchEmptyState
                 }
 
@@ -321,30 +321,46 @@ private extension NotesSidebar {
     }
     #endif
 
-    var visibleNotes: [NoteSummary] {
+    var visibleNoteGroups: (pinned: [NoteSummary], notes: [NoteSummary]) {
+        let visibleNotes: [NoteSummary]
         guard isSearching else {
-            return store.notes
+            visibleNotes = store.notes
+            return partition(visibleNotes)
         }
 
         guard !trimmedSearchText.isEmpty else {
             guard let selectedSearchFilter else {
-                return store.notes
+                visibleNotes = store.notes
+                return partition(visibleNotes)
             }
-            return store.notes.filter(selectedSearchFilter.matches)
+            visibleNotes = store.notes.filter(selectedSearchFilter.matches)
+            return partition(visibleNotes)
         }
 
         let notesByBundleName = Dictionary(
             uniqueKeysWithValues: store.notes.map { ($0.url.lastPathComponent, $0) }
         )
-        return NotePinning.pinnedFirst(
+        visibleNotes = NotePinning.pinnedFirst(
             searchResultIDs.compactMap { notesByBundleName[$0.lastPathComponent] }
         )
+        return partition(visibleNotes)
     }
 
-    /// Partitions the already ordered list so each section preserves its existing sort semantics.
-    var visibleNoteGroups: (pinned: [NoteSummary], notes: [NoteSummary]) {
-        let notes = visibleNotes
-        return (notes.filter(\.isPinned), notes.filter { !$0.isPinned })
+    /// Partitions the already ordered list in one pass so each section preserves its sort semantics.
+    private func partition(_ notes: [NoteSummary]) -> (pinned: [NoteSummary], notes: [NoteSummary]) {
+        var pinned: [NoteSummary] = []
+        var unpinned: [NoteSummary] = []
+        pinned.reserveCapacity(notes.count)
+        unpinned.reserveCapacity(notes.count)
+
+        for note in notes {
+            if note.isPinned {
+                pinned.append(note)
+            } else {
+                unpinned.append(note)
+            }
+        }
+        return (pinned, unpinned)
     }
 
     var isSearching: Bool {

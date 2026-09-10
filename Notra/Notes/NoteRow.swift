@@ -115,27 +115,23 @@ private struct NoteRowTagsLine: View {
     var body: some View {
         ViewThatFits(in: .horizontal) {
             tagsStack(tags: tags, showsOverflow: false)
-            ForEach(truncatedTagCounts, id: \.self) { visibleCount in
-                tagsStack(
-                    tags: Array(tags.prefix(visibleCount)),
-                    showsOverflow: true
-                )
+            if tags.count > 1 {
+                ForEach(1..<tags.count, id: \.self) { offset in
+                    // Keep the original tag storage as an ArraySlice instead of allocating a new Array per candidate.
+                    let visibleCount = tags.count - offset
+                    tagsStack(tags: tags.prefix(visibleCount), showsOverflow: true)
+                }
             }
-            tagsStack(tags: [], showsOverflow: true)
+            tagsStack(tags: tags.prefix(0), showsOverflow: true)
         }
         .font(.caption2)
         .lineLimit(1)
     }
 
-    private var truncatedTagCounts: [Int] {
-        guard tags.count > 1 else {
-            return []
-        }
-
-        return Array(stride(from: tags.count - 1, through: 1, by: -1))
-    }
-
-    private func tagsStack(tags visibleTags: [NoteTag], showsOverflow: Bool) -> some View {
+    private func tagsStack<C: RandomAccessCollection>(
+        tags visibleTags: C,
+        showsOverflow: Bool
+    ) -> some View where C.Element == NoteTag {
         HStack(spacing: 4) {
             ForEach(visibleTags) { tag in
                 tagText(tag.prefixedDisplayName)
@@ -185,7 +181,7 @@ private struct NoteRowThumbnail: View {
         .contentShape(.rect)
         .task(id: url) {
             image = nil
-            image = await NoteRowThumbnailLoader.shared.thumbnail(for: url)
+            image = await ThumbnailService.shared.thumbnail(for: url, maximumPixelSize: 96)
         }
     }
 
@@ -198,27 +194,5 @@ private struct NoteRowThumbnail: View {
             size: NSSize(width: image.width, height: image.height)
         ))
         #endif
-    }
-}
-
-/// Serializes and caches small note-row thumbnail reads.
-private actor NoteRowThumbnailLoader {
-    static let shared = NoteRowThumbnailLoader()
-
-    private var cache: [URL: CGImage] = [:]
-
-    func thumbnail(for url: URL) async -> CGImage? {
-        if let cachedImage = cache[url] {
-            return cachedImage
-        }
-
-        let image = await Task.detached(priority: .utility) {
-            ImageThumbnailDecoder.decode(from: url, maximumPixelSize: 96)
-        }.value
-
-        if let image {
-            cache[url] = image
-        }
-        return image
     }
 }

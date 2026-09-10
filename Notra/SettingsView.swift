@@ -378,7 +378,10 @@ private struct AppearanceSettingsDetailView: View {
         }
         .settingsDetailFormStyle()
         .settingsDetailNavigationTitle(SettingsCategory.appearance.title)
-        .onAppear(perform: normaliseFontSelections)
+        .onAppear {
+            AppearanceFont.invalidateAvailableChoices()
+            normaliseFontSelections()
+        }
     }
 
     private func fontChoices(fixedPitchOnly: Bool) -> some View {

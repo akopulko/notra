@@ -27,6 +27,8 @@ struct MarkdownEditor: View {
     /// Focuses the native editor without changing its current selection.
     let focusEditorRequest: Int
     let onUndoRedoAvailabilityChanged: (EditorUndoRedoAvailability) -> Void
+    /// Marks a new-note first-line focus request as consumed after the native editor receives it.
+    let onFocusFirstLineHandled: () -> Void
 
     @State private var bridge = MarkdownTextEditorBridge()
     @State private var selectionStore = MarkdownEditorSelectionStore()
@@ -82,7 +84,7 @@ struct MarkdownEditor: View {
             bridge.performRedo?()
         }
         .onChange(of: focusFirstLineRequest) {
-            focusFirstLine()
+            focusFirstLineIfRequested()
         }
         .onAppear(perform: configureBridge)
         .onDisappear {
@@ -100,8 +102,17 @@ private extension MarkdownEditor {
         bridge.refreshUndoRedoAvailability?()
 
         if focusFirstLineRequest > 0 {
-            focusFirstLine()
+            focusFirstLineIfRequested()
         }
+    }
+
+    private func focusFirstLineIfRequested() {
+        guard focusFirstLineRequest > 0 else {
+            return
+        }
+
+        focusFirstLine()
+        onFocusFirstLineHandled()
     }
 
     private func applyHeadingFormatting() {

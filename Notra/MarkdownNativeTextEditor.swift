@@ -843,12 +843,9 @@ extension MarkdownNativeTextEditor {
             lastText = newText
             cache.setText(newText)
             textView.string = newText
-            guard let storage = textView.textStorage else {
-                return
-            }
 
             let font = currentFont
-            applyHighlight(to: storage, lines: 0..<cache.count)
+            applyHighlight(lines: 0..<cache.count)
             lastFont = font
             lastTheme = parent.theme
         }
@@ -913,12 +910,12 @@ extension MarkdownNativeTextEditor {
 
         private func refreshHighlight() {
             cancelDeferredHighlight()
-            guard !cache.isEmpty, let storage = textView.textStorage else {
+            guard !cache.isEmpty else {
                 return
             }
 
             let font = currentFont
-            applyHighlight(to: storage, lines: 0..<cache.count)
+            applyHighlight(lines: 0..<cache.count)
             lastFont = font
             lastTheme = parent.theme
         }
@@ -933,13 +930,12 @@ extension MarkdownNativeTextEditor {
                 guard !Task.isCancelled,
                       let self,
                       generation == highlightGeneration,
-                      let storage = textView.textStorage,
                       let changedRange = cache.updateText(text, edit: edit)
                 else {
                     return
                 }
 
-                applyHighlight(to: storage, lines: changedRange)
+                applyHighlight(lines: changedRange)
             }
         }
 
@@ -949,18 +945,18 @@ extension MarkdownNativeTextEditor {
             highlightGeneration &+= 1
         }
 
-        private func applyHighlight(to storage: NSMutableAttributedString, lines: Range<Int>) {
-            let selection = selectionSnapshot(from: textView.selectedRange())
-            cache.applyColors(
+        private func applyHighlight(lines: Range<Int>) {
+            guard let layoutManager = textView.layoutManager else {
+                return
+            }
+
+            cache.applyTemporaryColors(
                 theme: parent.theme,
                 font: currentFont,
                 baseColor: parent.theme.editor.normalText.platformColor,
-                to: storage,
+                to: layoutManager,
                 lines: lines
             )
-            if let selection {
-                restoreSelection(selection)
-            }
         }
 
         private func setSelection(_ selection: MarkdownEditorSelectionSnapshot) {

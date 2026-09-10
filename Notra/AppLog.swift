@@ -2,7 +2,7 @@ import Foundation
 import OSLog
 
 /// Centralizes the app's unified logging policy, including level filtering and debug overrides.
-enum AppLog {
+nonisolated enum AppLog {
     enum Level: Int {
         case debug
         case info
@@ -57,7 +57,10 @@ enum AppLog {
         }
 
         let line = "\(timestamp()) [\(level.label)] \(function) - \(message())"
+        #if DEBUG
+        // Keep local console mirroring convenient without adding stdout I/O to Release builds.
         print(line)
+        #endif
         logger.log(level: osLogType(for: level), "\(line, privacy: .public)")
     }
 

@@ -166,12 +166,25 @@ struct TagFlowLayout: Layout {
     var horizontalSpacing: CGFloat = 8
     var verticalSpacing: CGFloat = 8
 
+    struct Cache {
+        var intrinsicSizes: [CGSize]
+    }
+
+    func makeCache(subviews: Subviews) -> Cache {
+        Cache(intrinsicSizes: intrinsicSizes(for: subviews))
+    }
+
+    func updateCache(_ cache: inout Cache, subviews: Subviews) {
+        cache.intrinsicSizes = intrinsicSizes(for: subviews)
+    }
+
     func sizeThatFits(
         proposal: ProposedViewSize,
         subviews: Subviews,
-        cache _: inout ()
+        cache: inout Cache
     ) -> CGSize {
-        let rows = rows(for: subviews, maxWidth: proposal.width ?? .infinity)
+        let sizes = cachedIntrinsicSizes(for: subviews, cache: &cache)
+        let rows = rows(for: sizes, maxWidth: proposal.width ?? .infinity)
         return CGSize(
             width: rows.width,
             height: rows.height
@@ -182,15 +195,16 @@ struct TagFlowLayout: Layout {
         in bounds: CGRect,
         proposal: ProposedViewSize,
         subviews: Subviews,
-        cache _: inout ()
+        cache: inout Cache
     ) {
+        let sizes = cachedIntrinsicSizes(for: subviews, cache: &cache)
         var x = bounds.minX
         var y = bounds.minY
         var rowHeight: CGFloat = 0
         let maxWidth = proposal.width ?? bounds.width
 
-        for subview in subviews {
-            let size = subview.sizeThatFits(.unspecified)
+        for (index, subview) in subviews.enumerated() {
+            let size = sizes[index]
             if x > bounds.minX, x + size.width > bounds.minX + maxWidth {
                 x = bounds.minX
                 y += rowHeight + verticalSpacing
@@ -206,14 +220,25 @@ struct TagFlowLayout: Layout {
         }
     }
 
-    private func rows(for subviews: Subviews, maxWidth: CGFloat) -> (width: CGFloat, height: CGFloat) {
+    private func intrinsicSizes(for subviews: Subviews) -> [CGSize] {
+        subviews.map { $0.sizeThatFits(.unspecified) }
+    }
+
+    private func cachedIntrinsicSizes(for subviews: Subviews, cache: inout Cache) -> [CGSize] {
+        guard cache.intrinsicSizes.count == subviews.count else {
+            cache.intrinsicSizes = intrinsicSizes(for: subviews)
+            return cache.intrinsicSizes
+        }
+        return cache.intrinsicSizes
+    }
+
+    private func rows(for sizes: [CGSize], maxWidth: CGFloat) -> (width: CGFloat, height: CGFloat) {
         var rowWidth: CGFloat = 0
         var rowHeight: CGFloat = 0
         var totalWidth: CGFloat = 0
         var totalHeight: CGFloat = 0
 
-        for subview in subviews {
-            let size = subview.sizeThatFits(.unspecified)
+        for size in sizes {
             let proposedWidth = rowWidth == 0 ? size.width : rowWidth + horizontalSpacing + size.width
 
             if rowWidth > 0, proposedWidth > maxWidth {

@@ -157,6 +157,127 @@ struct NotesStoreTests {
     }
 
     @Test
+    func `library loading publishes notes only after the background read completes`() async throws {
+        let harness = try makeHarness()
+        defer {
+            harness.cleanup()
+        }
+        let note = try harness.makeNote(markdown: "Background note")
+        let gate = RepositoryLibraryLoadGate(delayedRootURL: harness.repository.rootURL)
+        let store = NotesStore(
+            repository: harness.repository,
+            sortPreferenceStorage: NoteSortPreferenceStorage(userDefaults: harness.userDefaults),
+            searchIndex: SQLiteNoteSearchIndex(
+                databaseURL: harness.repository.rootURL.appendingPathComponent("background-search.sqlite")
+            ),
+            storagePreferenceStorage: NoteStoragePreferenceStorage(userDefaults: harness.userDefaults),
+            libraryNotesLoader: { repository, sortPreference in
+                try await gate.load(repository: repository, sortPreference: sortPreference)
+            },
+            iCloudAvailability: { false }
+        )
+
+        let loadTask = Task { @MainActor in
+            await store.loadNotes()
+        }
+        await gate.waitUntilEntered()
+
+        #expect(store.isLoading)
+        #expect(store.notes.isEmpty)
+
+        await gate.release()
+        await loadTask.value
+
+        #expect(store.notes.map(\.id) == [note.id])
+        #expect(!store.isLoading)
+    }
+
+    @Test
+    func `stale initial library load cannot overwrite a storage switch`() async throws {
+        let localRootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let iCloudRootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer {
+            try? FileManager.default.removeItem(at: localRootURL)
+            try? FileManager.default.removeItem(at: iCloudRootURL)
+        }
+
+        let localRepository = TextBundleNoteRepository(rootURL: localRootURL)
+        let iCloudRepository = TextBundleNoteRepository(rootURL: iCloudRootURL, isUsingICloud: true)
+        try localRepository.prepareStorage()
+        try iCloudRepository.prepareStorage()
+        let localNote = try localRepository.createNote(initialMarkdown: "Local note")
+        let iCloudNote = try iCloudRepository.createNote(initialMarkdown: "iCloud note")
+        let suiteName = "Notra.NotesStoreLibraryLoadTests.\(UUID().uuidString)"
+        let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+        defer {
+            userDefaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let gate = RepositoryLibraryLoadGate(delayedRootURL: localRepository.rootURL)
+        let store = NotesStore(
+            repository: localRepository,
+            sortPreferenceStorage: NoteSortPreferenceStorage(userDefaults: userDefaults),
+            searchIndex: SQLiteNoteSearchIndex(
+                databaseURL: localRootURL.appendingPathComponent("background-search.sqlite")
+            ),
+            storagePreferenceStorage: NoteStoragePreferenceStorage(userDefaults: userDefaults),
+            repositoryFactory: { location in
+                switch location {
+                case .iCloud:
+                    iCloudRepository
+                case .localStore:
+                    localRepository
+                }
+            },
+            libraryNotesLoader: { repository, sortPreference in
+                try await gate.load(repository: repository, sortPreference: sortPreference)
+            },
+            iCloudAvailability: { true }
+        )
+
+        let initialLoadTask = Task { @MainActor in
+            await store.loadNotes()
+        }
+        await gate.waitUntilEntered()
+
+        await store.changeStorageLocation(to: .iCloud)
+        await gate.release()
+        await initialLoadTask.value
+
+        #expect(store.storageLocation == .iCloud)
+        #expect(store.notes.map(\.id) == [iCloudNote.id])
+        #expect(!store.notes.contains(where: { $0.id == localNote.id }))
+        #expect(!store.isLoading)
+    }
+
+    @Test
+    func `cancelled library loading does not show an error`() async throws {
+        let harness = try makeHarness()
+        defer {
+            harness.cleanup()
+        }
+        let store = NotesStore(
+            repository: harness.repository,
+            sortPreferenceStorage: NoteSortPreferenceStorage(userDefaults: harness.userDefaults),
+            searchIndex: SQLiteNoteSearchIndex(
+                databaseURL: harness.repository.rootURL.appendingPathComponent("cancelled-search.sqlite")
+            ),
+            storagePreferenceStorage: NoteStoragePreferenceStorage(userDefaults: harness.userDefaults),
+            libraryNotesLoader: { _, _ in
+                throw CancellationError()
+            },
+            iCloudAvailability: { false }
+        )
+
+        await store.loadNotes()
+
+        #expect(store.errorMessage == nil)
+        #expect(!store.isLoading)
+    }
+
+    @Test
     func `changing storage saves edits and isolates search results`() async throws {
         let localRootURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -306,7 +427,7 @@ struct NotesStoreTests {
             ),
             storagePreferenceStorage: NoteStoragePreferenceStorage(userDefaults: harness.userDefaults),
             repositoryFactory: { _ in iCloudRepository },
-            repositoryNotesLoader: { _ in
+            repositoryNotesLoader: { _, _ in
                 throw NoteRepositoryError.storageUnavailable
             },
             iCloudAvailability: { true }
@@ -607,6 +728,49 @@ private struct NotesStoreHarness {
 
     func cleanup() {
         userDefaults.removePersistentDomain(forName: suiteName)
+    }
+}
+
+/// Holds one repository read open so tests can deterministically exercise stale-result handling.
+private actor RepositoryLibraryLoadGate {
+    private let delayedRootURL: URL
+    private var entered = false
+    private var entryWaiter: CheckedContinuation<Void, Never>?
+    private var releaseWaiter: CheckedContinuation<Void, Never>?
+
+    init(delayedRootURL: URL) {
+        self.delayedRootURL = delayedRootURL
+    }
+
+    func load(
+        repository: TextBundleNoteRepository,
+        sortPreference: NoteSortPreference
+    ) async throws -> [NoteSummary] {
+        if repository.rootURL == delayedRootURL {
+            entered = true
+            entryWaiter?.resume()
+            entryWaiter = nil
+            await withCheckedContinuation { continuation in
+                releaseWaiter = continuation
+            }
+        }
+
+        return try sortPreference.sorted(repository.listNotes())
+    }
+
+    func waitUntilEntered() async {
+        guard !entered else {
+            return
+        }
+
+        await withCheckedContinuation { continuation in
+            entryWaiter = continuation
+        }
+    }
+
+    func release() {
+        releaseWaiter?.resume()
+        releaseWaiter = nil
     }
 }
 

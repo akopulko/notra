@@ -54,6 +54,8 @@ struct NoteEditorPane: View {
         id: 0,
         command: .unorderedList
     )
+    /// Retains an unconsumed new-note focus request across the editor's first appearance only.
+    @State private var pendingFocusFirstLineRequest = 0
     #if os(iOS)
     @State private var selectedImageItem: PhotosPickerItem?
     @State private var isImagePickerPresented = false
@@ -73,15 +75,6 @@ struct NoteEditorPane: View {
         }
         .scrollEdgeEffectStyle(.soft, for: .top)
         #if os(iOS)
-        .overlay(alignment: floatingButtonAlignment) {
-            if store.hasSelection {
-                FloatingEditModeButton(isEditing: isEditing) {
-                    isEditing.toggle()
-                }
-                .padding(.trailing, 24)
-                .padding(floatingButtonVerticalPaddingEdge, 24)
-            }
-        }
         .modifier(imagePickerPresentationModifier)
         #endif
         .onChange(of: attachmentSelectionRequest) {
@@ -100,9 +93,11 @@ struct NoteEditorPane: View {
         .onChange(of: store.selectedNoteID) {
             isEditing = false
             undoRedoAvailability = .disabled
+            pendingFocusFirstLineRequest = 0
         }
         .onChange(of: editorFocusRequest) {
             if editorFocusRequest > 0 {
+                pendingFocusFirstLineRequest = editorFocusRequest
                 isEditing = true
             }
         }
@@ -133,9 +128,10 @@ struct NoteEditorPane: View {
             linePrefixFormattingRequest: linePrefixFormattingRequest,
             undoRequest: undoRequest,
             redoRequest: redoRequest,
-            focusFirstLineRequest: editorFocusRequest,
+            focusFirstLineRequest: pendingFocusFirstLineRequest,
             focusEditorRequest: commandEditorFocusRequest,
-            onUndoRedoAvailabilityChanged: updateUndoRedoAvailability
+            onUndoRedoAvailabilityChanged: updateUndoRedoAvailability,
+            onFocusFirstLineHandled: consumeFocusFirstLineRequest
         )
     }
 
@@ -148,6 +144,10 @@ struct NoteEditorPane: View {
         )
     }
 
+    private func consumeFocusFirstLineRequest() {
+        pendingFocusFirstLineRequest = 0
+    }
+
     private var noSelectionContent: some View {
         ContentUnavailableView(
             "Select a Note",
@@ -158,7 +158,7 @@ struct NoteEditorPane: View {
 
     @ToolbarContentBuilder
     private var editorToolbar: some ToolbarContent {
-        #if os(macOS)
+        #if os(macOS) || os(iOS)
         ToolbarItem(placement: .primaryAction) {
             Button {
                 isEditing.toggle()
@@ -358,22 +358,6 @@ private extension NoteEditorPane {
             """
         )
         requestAttachmentSelection()
-    }
-
-    private var floatingButtonAlignment: Alignment {
-        #if os(macOS)
-        .topTrailing
-        #else
-        .bottomTrailing
-        #endif
-    }
-
-    private var floatingButtonVerticalPaddingEdge: Edge.Set {
-        #if os(macOS)
-        .top
-        #else
-        .bottom
-        #endif
     }
 
     #if os(iOS)

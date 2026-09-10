@@ -20,19 +20,7 @@ struct AttachmentInspectorView: View {
 
     var body: some View {
         List(selection: $selectedAttachmentURL) {
-            if let info = store.selectedNoteInfo {
-                Section {
-                    #if os(macOS)
-                    NoteInfoView(info: info) {
-                        NSWorkspace.shared.activateFileViewerSelecting([info.fileURL])
-                    }
-                    #else
-                    NoteInfoView(info: info)
-                    #endif
-                } header: {
-                    sectionHeader("Note Info")
-                }
-            }
+            AttachmentInspectorInfoSection(store: store)
 
             tagSection
 
@@ -308,6 +296,31 @@ struct AttachmentInspectorView: View {
     }
 }
 
+/// Keeps statistics observation local so attachment rows do not reevaluate for each update.
+private struct AttachmentInspectorInfoSection: View {
+    let store: NotesStore
+
+    var body: some View {
+        if let info = store.selectedNoteInfo {
+            Section {
+                #if os(macOS)
+                NoteInfoView(info: info) {
+                    NSWorkspace.shared.activateFileViewerSelecting([info.fileURL])
+                }
+                #else
+                NoteInfoView(info: info)
+                #endif
+            } header: {
+                Text("Note Info")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.secondary)
+                    .textCase(.uppercase)
+            }
+        }
+    }
+}
+
 /// Describes validation feedback kept beside the inspector's tag entry field.
 private enum TagEntryFeedback {
     case invalid
@@ -407,10 +420,7 @@ private struct AttachmentThumbnailView: View {
     }
 
     private func loadImage() async -> Image? {
-        let imageURL = url
-        let cgImage = await Task.detached(priority: .utility) {
-            ImageThumbnailDecoder.decode(from: imageURL, maximumPixelSize: 192)
-        }.value
+        let cgImage = await ThumbnailService.shared.thumbnail(for: url, maximumPixelSize: 192)
 
         guard !Task.isCancelled, let cgImage else {
             return nil

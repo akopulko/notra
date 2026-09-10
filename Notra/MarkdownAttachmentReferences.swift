@@ -9,8 +9,18 @@ enum MarkdownAttachmentReferences {
     }
 
     nonisolated static func linkedURLs(in markdown: String, assetBaseURL: URL) -> Set<URL> {
-        Set(references(in: markdown).compactMap { reference in
-            guard let resolvedURL = resolve(reference.source, assetBaseURL: assetBaseURL),
+        linkedURLs(
+            in: MarkdownDocumentAnalysis.analyse(markdown: markdown),
+            assetBaseURL: assetBaseURL
+        )
+    }
+
+    nonisolated static func linkedURLs(
+        in analysis: MarkdownDocumentAnalysis,
+        assetBaseURL: URL
+    ) -> Set<URL> {
+        Set(analysis.attachmentSources.compactMap { source in
+            guard let resolvedURL = resolve(source, assetBaseURL: assetBaseURL),
                   resolvedURL.isFileURL
             else {
                 return nil

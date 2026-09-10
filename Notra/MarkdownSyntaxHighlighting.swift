@@ -40,6 +40,53 @@ enum MarkdownHighlightRole: Equatable {
     case codeConstant
 }
 
+#if os(macOS)
+extension MarkdownHighlightCache {
+    /// Draws syntax colours without mutating the text storage that owns AppKit's insertion point.
+    func applyTemporaryColors(
+        theme: MarkdownTheme,
+        font: MarkdownPlatformFont,
+        baseColor: MarkdownPlatformColor,
+        to layoutManager: NSLayoutManager,
+        lines: Range<Int>
+    ) {
+        let clampedRange = lines.clamped(to: 0..<self.lines.count)
+        guard !clampedRange.isEmpty else {
+            return
+        }
+
+        for lineIndex in clampedRange {
+            let line = self.lines[lineIndex]
+            let characterRange = NSRange(
+                location: line.range.lowerBound,
+                length: line.range.upperBound - line.range.lowerBound
+            )
+            guard characterRange.length > 0 else {
+                continue
+            }
+
+            layoutManager.setTemporaryAttributes(
+                [.font: font, .foregroundColor: baseColor],
+                forCharacterRange: characterRange
+            )
+
+            for span in line.spans {
+                let spanRange = NSRange(location: span.lower, length: span.upper - span.lower)
+                guard spanRange.length > 0 else {
+                    continue
+                }
+
+                layoutManager.addTemporaryAttribute(
+                    .foregroundColor,
+                    value: theme.color(for: span.role).platformColor,
+                    forCharacterRange: spanRange
+                )
+            }
+        }
+    }
+}
+#endif
+
 /// Associates a syntax role with a UTF-16 range in the Markdown source.
 struct MarkdownHighlightSpan: Equatable {
     let role: MarkdownHighlightRole
@@ -958,10 +1005,10 @@ struct MarkdownHighlightCache {
             changedCount += 1
         }
 
-        var fenceState = MarkdownCodeFenceState.closed
-        for line in oldCache.prefix(prefix) {
-            fenceState = line.fenceStateAfter
-        }
+        let initialFenceState = prefix > 0
+            ? oldCache[prefix - 1].fenceStateAfter
+            : MarkdownCodeFenceState.closed
+        var fenceState = initialFenceState
 
         var updatedLines = Array(oldCache.prefix(prefix))
         var changedRange = prefix..<prefix + changedCount
@@ -1128,10 +1175,10 @@ struct MarkdownHighlightCache {
         let oldSuffixStart = min(oldEndLine + 1, oldCache.count)
         let newChangedEnd = min(newEndLine + 1, newEntries.count)
 
-        var fenceState = MarkdownCodeFenceState.closed
-        for line in oldCache.prefix(parseStart) {
-            fenceState = line.fenceStateAfter
-        }
+        let initialFenceState = parseStart > 0
+            ? oldCache[parseStart - 1].fenceStateAfter
+            : MarkdownCodeFenceState.closed
+        var fenceState = initialFenceState
 
         var updatedLines = Array(oldCache.prefix(parseStart))
         var changedRange = parseStart..<newChangedEnd
