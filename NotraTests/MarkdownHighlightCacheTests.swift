@@ -2,6 +2,10 @@
 import Foundation
 import Testing
 
+#if os(macOS)
+import AppKit
+#endif
+
 @MainActor
 /// Verifies that incremental syntax highlighting remains equivalent to a full parse.
 struct MarkdownHighlightCacheTests {
@@ -178,6 +182,31 @@ struct MarkdownHighlightCacheTests {
 
         expectConsistentCache(afterEditingTo: edited)
     }
+
+    #if os(macOS)
+    @Test func temporaryHighlightingPreservesTheMacOSInsertionPoint() throws {
+        let markdown = "# Heading\nBody"
+        var cache = MarkdownHighlightCache()
+        cache.setText(markdown)
+
+        let textView = NSTextView()
+        textView.string = markdown
+        let insertionPoint = NSRange(location: markdown.utf16.count, length: 0)
+        textView.setSelectedRange(insertionPoint)
+
+        let layoutManager = try #require(textView.layoutManager)
+        cache.applyTemporaryColors(
+            theme: .light,
+            font: .systemFont(ofSize: 14),
+            baseColor: .labelColor,
+            to: layoutManager,
+            lines: 0..<cache.count
+        )
+
+        #expect(textView.selectedRange() == insertionPoint)
+        #expect(layoutManager.temporaryAttribute(.foregroundColor, atCharacterIndex: 0, effectiveRange: nil) != nil)
+    }
+    #endif
 
     private func expectConsistentCache(afterEditingTo edited: String) {
         var cache = MarkdownHighlightCache()

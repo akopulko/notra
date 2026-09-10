@@ -54,6 +54,8 @@ struct NoteEditorPane: View {
         id: 0,
         command: .unorderedList
     )
+    /// Retains an unconsumed new-note focus request across the editor's first appearance only.
+    @State private var pendingFocusFirstLineRequest = 0
     #if os(iOS)
     @State private var selectedImageItem: PhotosPickerItem?
     @State private var isImagePickerPresented = false
@@ -91,9 +93,11 @@ struct NoteEditorPane: View {
         .onChange(of: store.selectedNoteID) {
             isEditing = false
             undoRedoAvailability = .disabled
+            pendingFocusFirstLineRequest = 0
         }
         .onChange(of: editorFocusRequest) {
             if editorFocusRequest > 0 {
+                pendingFocusFirstLineRequest = editorFocusRequest
                 isEditing = true
             }
         }
@@ -124,9 +128,10 @@ struct NoteEditorPane: View {
             linePrefixFormattingRequest: linePrefixFormattingRequest,
             undoRequest: undoRequest,
             redoRequest: redoRequest,
-            focusFirstLineRequest: editorFocusRequest,
+            focusFirstLineRequest: pendingFocusFirstLineRequest,
             focusEditorRequest: commandEditorFocusRequest,
-            onUndoRedoAvailabilityChanged: updateUndoRedoAvailability
+            onUndoRedoAvailabilityChanged: updateUndoRedoAvailability,
+            onFocusFirstLineHandled: consumeFocusFirstLineRequest
         )
     }
 
@@ -137,6 +142,10 @@ struct NoteEditorPane: View {
             tags: store.selectedNoteTags,
             toggleTask: store.toggleTask
         )
+    }
+
+    private func consumeFocusFirstLineRequest() {
+        pendingFocusFirstLineRequest = 0
     }
 
     private var noSelectionContent: some View {
