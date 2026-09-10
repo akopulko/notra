@@ -367,7 +367,20 @@ extension MarkdownSyntaxHighlighter {
         }
 
         let labelStart = markdown.index(after: index)
-        guard let labelEnd = firstIndex(of: "]", in: markdown, from: labelStart, to: limit) else {
+        var cursor = labelStart
+        var labelEnd: String.Index?
+        while cursor < limit {
+            if markdown[cursor] == "[" {
+                // Let the main scanner consider the nested opener instead of rescanning this suffix.
+                return nil
+            }
+            if markdown[cursor] == "]" {
+                labelEnd = cursor
+                break
+            }
+            cursor = markdown.index(after: cursor)
+        }
+        guard let labelEnd else {
             return nil
         }
 

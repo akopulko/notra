@@ -1,5 +1,4 @@
 import SwiftUI
-import UniformTypeIdentifiers
 
 /// Owns the searchable, sortable note list and its context-menu export actions.
 struct NotesSidebar: View {
@@ -8,7 +7,11 @@ struct NotesSidebar: View {
     let isEditing: Bool
     @Binding var searchText: String
     let createNote: () -> Void
+    /// Shared export entry point used by row context menus and scene commands.
+    let exportNote: (NoteSummary, NoteExportAction) -> Void
+    #if os(iOS)
     @Namespace private var settingsZoom
+    #endif
     @State private var isSearchPresented = false
     @State private var searchFilters: [NoteSearchFilter] = []
     #if os(macOS)
@@ -18,15 +21,11 @@ struct NotesSidebar: View {
     @State private var searchResultIDs: [URL] = []
     @State private var hasMoreSearchResults = false
     @State private var isLoadingMoreSearchResults = false
-    @State private var exportTask: Task<Void, Never>?
     /// Holds one user-initiated deletion until its native confirmation is resolved.
     @State private var pendingDeletion: NoteDeletionRequest?
-    @AppStorage(AppearanceSettingKey.previewFontName) private var previewFontName = AppearanceFont.defaultName
     @AppStorage(AppearanceSettingKey.showsNotePreview) private var showsNotePreview = true
     #if os(iOS)
     @State private var isSettingsPresented = false
-    #else
-    @State private var pendingFileExport: PendingNoteFileExport?
     #endif
 
     var body: some View {
@@ -66,26 +65,6 @@ struct NotesSidebar: View {
             #if os(iOS)
             .sheet(isPresented: $isSettingsPresented) {
                 SettingsView(store: store)
-            }
-            #else
-            .fileExporter(
-                isPresented: Binding(
-                    get: { pendingFileExport != nil },
-                    set: { isPresented in
-                        if !isPresented {
-                            pendingFileExport = nil
-                        }
-                    }
-                ),
-                document: pendingFileExport?.document,
-                contentType: pendingFileExport?.contentType ?? .data,
-                defaultFilename: pendingFileExport?.suggestedFilename
-            ) { result in
-                if case let .failure(error) = result {
-                    AppLog.error("Failed to save note export: \(error.localizedDescription)")
-                    store.errorMessage = error.localizedDescription
-                }
-                pendingFileExport = nil
             }
             #endif
             .onChange(of: isEditing) {
@@ -269,92 +248,6 @@ struct NotesSidebar: View {
             !isEditing && isSearchPresented
         } set: { isPresented in
             isSearchPresented = !isEditing && isPresented
-        }
-    }
-
-    private func sharePDF(_ note: NoteSummary) {
-        prepareExport(for: note, format: .pdf, destination: .share)
-    }
-
-    #if os(macOS)
-    private func exportPDF(_ note: NoteSummary) {
-        prepareExport(for: note, format: .pdf, destination: .save)
-    }
-
-    private func exportMarkdown(_ note: NoteSummary) {
-        prepareExport(for: note, format: .markdown, destination: .save)
-    }
-    #endif
-
-    private func prepareExport(
-        for note: NoteSummary,
-        format: NoteExportFormat,
-        destination: NoteExportDestination
-    ) {
-        guard !isEditing, exportTask == nil else {
-            return
-        }
-
-        exportTask = Task { @MainActor in
-            defer { exportTask = nil }
-
-            do {
-                let payload = try await store.exportPayload(for: note)
-                switch format {
-                case .pdf:
-                    let item = try await NotePDFExporter().export(snapshot: pdfSnapshot(for: payload))
-                    try present(
-                        fileURL: item.fileURL,
-                        contentType: .pdf,
-                        suggestedFilename: item.suggestedFilename,
-                        destination: destination
-                    )
-                case .markdown:
-                    let item = try NoteMarkdownExporter().export(payload: payload)
-                    try present(
-                        fileURL: item.fileURL,
-                        contentType: .notraMarkdown,
-                        suggestedFilename: item.suggestedFilename,
-                        destination: destination
-                    )
-                }
-            } catch {
-                AppLog.error("Failed to prepare note export: \(error.localizedDescription)")
-                store.errorMessage = error.localizedDescription
-            }
-        }
-    }
-
-    private func pdfSnapshot(for payload: NoteExportPayload) -> NotePDFSnapshot {
-        NotePDFSnapshot(
-            markdown: payload.markdown,
-            noteURL: payload.noteURL,
-            previewFontName: previewFontName,
-            suggestedFilename: payload.suggestedFilename
-        )
-    }
-
-    private func present(
-        fileURL: URL,
-        contentType: UTType,
-        suggestedFilename: String,
-        destination: NoteExportDestination
-    ) throws {
-        switch destination {
-        case .share:
-            NoteSharePresenter.present(fileURL: fileURL)
-        case .save:
-            #if os(macOS)
-            guard pendingFileExport == nil else {
-                return
-            }
-            let data = try Data(contentsOf: fileURL)
-            pendingFileExport = PendingNoteFileExport(
-                document: NoteFileExportDocument(data: data),
-                contentType: contentType,
-                suggestedFilename: suggestedFilename
-            )
-            #endif
         }
     }
 }
@@ -542,20 +435,18 @@ private extension NotesSidebar {
             }
             Divider()
             Button("Share…", systemImage: "square.and.arrow.up") {
-                sharePDF(note)
+                exportNote(note, .sharePDF)
             }
             .disabled(isEditing)
-            #if os(macOS)
             Menu("Export…", systemImage: "arrow.forward.folder.fill") {
                 Button("PDF") {
-                    exportPDF(note)
+                    exportNote(note, .exportPDF)
                 }
                 Button("Markdown") {
-                    exportMarkdown(note)
+                    exportNote(note, .exportMarkdown)
                 }
             }
             .disabled(isEditing)
-            #endif
             Divider()
             Button("Delete", systemImage: "trash", role: .destructive) {
                 requestNoteDeletion([note])

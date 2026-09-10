@@ -9,8 +9,6 @@ struct NoteInfoTests {
 
         #expect(statistics.wordCount == 0)
         #expect(statistics.characterCount == 0)
-        #expect(statistics.lineCount == 0)
-        #expect(statistics.readingTimeMinutes == 0)
     }
 
     @Test func statisticsIgnoreBlankLinesAndCountUnicodeCharacters() {
@@ -18,16 +16,6 @@ struct NoteInfoTests {
 
         #expect(statistics.wordCount == 3)
         #expect(statistics.characterCount == 17)
-        #expect(statistics.lineCount == 2)
-        #expect(statistics.readingTimeMinutes == 1)
-    }
-
-    @Test func readingTimeRoundsUpToTheNextMinute() {
-        let twoHundredWords = Array(repeating: "word", count: 200).joined(separator: " ")
-        let twoHundredAndOneWords = Array(repeating: "word", count: 201).joined(separator: " ")
-
-        #expect(NoteStatistics(markdown: twoHundredWords).readingTimeMinutes == 1)
-        #expect(NoteStatistics(markdown: twoHundredAndOneWords).readingTimeMinutes == 2)
     }
 
     @Test func noteInfoProjectsURLAndDerivesFilenameFromTextBundleMetadata() {

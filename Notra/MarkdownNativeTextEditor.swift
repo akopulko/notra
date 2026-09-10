@@ -15,6 +15,8 @@ struct MarkdownNativeTextEditor: UIViewRepresentable {
     let theme: MarkdownTheme
     let bridge: MarkdownTextEditorBridge
     let selectionStore: MarkdownEditorSelectionStore
+    /// Monotonic request that makes this native text view the keyboard target.
+    let focusEditorRequest: Int
 
     /// Creates the delegate object that owns native text-view configuration and callbacks.
     func makeCoordinator() -> Coordinator {
@@ -186,7 +188,7 @@ extension MarkdownNativeTextEditor {
     /// Bridges UITextView delegate events to the shared SwiftUI editor bridge.
     final class Coordinator: NSObject, UITextViewDelegate {
         var parent: MarkdownNativeTextEditor
-        let textView = UITextView()
+        let textView = FocusableTextView()
         private var accessoryContainer: AccessoryContainerView?
         private var cache = MarkdownHighlightCache()
         private var lastText = ""
@@ -194,12 +196,24 @@ extension MarkdownNativeTextEditor {
         private var lastTheme: MarkdownTheme?
         private var pendingProgrammaticSelection: MarkdownEditorSelectionSnapshot?
         private var pendingTextEdit: MarkdownTextEdit?
+        private var highlightTask: Task<Void, Never>?
+        private var highlightGeneration = 0
+        private var remainingFocusAttempts = 0
+        private var lastFocusEditorRequest = 0
 
         init(parent: MarkdownNativeTextEditor) {
             self.parent = parent
             super.init()
             configureTextView()
             wireBridge()
+            textView.didMoveToWindowHandler = { [weak self] in
+                self?.focusIfPossible()
+            }
+            receiveFocusRequestIfNeeded()
+        }
+
+        deinit {
+            highlightTask?.cancel()
         }
 
         /// Applies pending text, font, theme, selection, and undo-state changes to UIKit.
@@ -224,6 +238,9 @@ extension MarkdownNativeTextEditor {
             if lastTheme != parent.theme {
                 refreshHighlight()
             }
+
+            receiveFocusRequestIfNeeded()
+            focusIfPossible()
         }
 
         /// Sends user edits through incremental highlighting before publishing the binding change.
@@ -294,7 +311,7 @@ extension MarkdownNativeTextEditor {
                 self?.applyProgrammaticEdit(text: text, selection: selection)
             }
             parent.bridge.focusEditor = { [weak self] in
-                self?.textView.becomeFirstResponder()
+                self?.requestEditorFocus()
             }
             parent.bridge.refreshHighlight = { [weak self] in
                 self?.refreshHighlight()
@@ -307,6 +324,57 @@ extension MarkdownNativeTextEditor {
             }
             parent.bridge.refreshUndoRedoAvailability = { [weak self] in
                 self?.updateUndoRedoAvailability()
+            }
+        }
+
+        private func requestEditorFocus() {
+            textView.isFocusRequested = true
+            // A NavigationSplitView can restore the sidebar as first responder in the same update
+            // that inserts the editor. Reassert focus over subsequent UIKit passes so the editor
+            // becomes the final keyboard target after the split view has settled.
+            remainingFocusAttempts = 3
+            scheduleFocusAttempt()
+        }
+
+        private func receiveFocusRequestIfNeeded() {
+            guard parent.focusEditorRequest > lastFocusEditorRequest else {
+                return
+            }
+
+            lastFocusEditorRequest = parent.focusEditorRequest
+            requestEditorFocus()
+        }
+
+        private func focusIfPossible() {
+            guard textView.isFocusRequested, textView.window != nil else {
+                return
+            }
+
+            _ = textView.becomeFirstResponder()
+            scheduleFocusAttempt()
+        }
+
+        private func scheduleFocusAttempt() {
+            guard textView.isFocusRequested, remainingFocusAttempts > 0 else {
+                return
+            }
+
+            DispatchQueue.main.async { [weak self] in
+                guard let self, textView.isFocusRequested else {
+                    return
+                }
+
+                guard textView.window != nil else {
+                    return
+                }
+
+                remainingFocusAttempts -= 1
+                _ = textView.becomeFirstResponder()
+                if remainingFocusAttempts > 0 {
+                    scheduleFocusAttempt()
+                } else {
+                    textView.isFocusRequested = false
+                }
             }
         }
 
@@ -346,15 +414,7 @@ extension MarkdownNativeTextEditor {
             lastText = newText
             let edit = pendingTextEdit
             pendingTextEdit = nil
-            if let changedRange = cache.updateText(newText, edit: edit) {
-                cache.applyColors(
-                    theme: parent.theme,
-                    font: currentFont,
-                    baseColor: parent.theme.editor.normalText.platformColor,
-                    to: textView.textStorage,
-                    lines: changedRange
-                )
-            }
+            scheduleHighlight(for: newText, edit: edit)
             parent.text = newText
             updateUndoRedoAvailability()
         }
@@ -365,6 +425,7 @@ extension MarkdownNativeTextEditor {
                 return
             }
 
+            cancelDeferredHighlight()
             lastText = newText
             cache.setText(newText)
             textView.text = newText
@@ -439,6 +500,7 @@ extension MarkdownNativeTextEditor {
         }
 
         private func refreshHighlight() {
+            cancelDeferredHighlight()
             guard !cache.isEmpty else {
                 return
             }
@@ -453,6 +515,37 @@ extension MarkdownNativeTextEditor {
             )
             lastFont = font
             lastTheme = parent.theme
+        }
+
+        /// Coalesces native typing so syntax parsing cannot consume every input event.
+        private func scheduleHighlight(for text: String, edit: MarkdownTextEdit?) {
+            highlightTask?.cancel()
+            highlightGeneration &+= 1
+            let generation = highlightGeneration
+            highlightTask = Task { [weak self] in
+                try? await Task.sleep(for: .milliseconds(75))
+                guard !Task.isCancelled,
+                      let self,
+                      generation == highlightGeneration,
+                      let changedRange = cache.updateText(text, edit: edit)
+                else {
+                    return
+                }
+
+                cache.applyColors(
+                    theme: parent.theme,
+                    font: currentFont,
+                    baseColor: parent.theme.editor.normalText.platformColor,
+                    to: textView.textStorage,
+                    lines: changedRange
+                )
+            }
+        }
+
+        private func cancelDeferredHighlight() {
+            highlightTask?.cancel()
+            highlightTask = nil
+            highlightGeneration &+= 1
         }
 
         private func setSelection(_ selection: MarkdownEditorSelectionSnapshot) {
@@ -499,6 +592,17 @@ extension MarkdownNativeTextEditor {
             [.font: currentFont, .foregroundColor: parent.theme.editor.normalText.platformColor]
         }
     }
+
+    /// Records a focus request until UIKit attaches the editor to a window.
+    final class FocusableTextView: UITextView {
+        var isFocusRequested = false
+        var didMoveToWindowHandler: (() -> Void)?
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            didMoveToWindowHandler?()
+        }
+    }
 }
 #elseif os(macOS)
 /// Wraps NSTextView with the same editor contract used by the iOS implementation.
@@ -509,6 +613,8 @@ struct MarkdownNativeTextEditor: NSViewRepresentable {
     let theme: MarkdownTheme
     let bridge: MarkdownTextEditorBridge
     let selectionStore: MarkdownEditorSelectionStore
+    /// Requests keyboard focus when the command inserts the AppKit editor.
+    let focusEditorRequest: Int
 
     /// Creates the delegate object that owns native text-view configuration and callbacks.
     func makeCoordinator() -> Coordinator {
@@ -533,13 +639,16 @@ extension MarkdownNativeTextEditor {
     final class Coordinator: NSObject, NSTextViewDelegate {
         var parent: MarkdownNativeTextEditor
         let scrollView = NSScrollView()
-        let textView = NSTextView()
+        let textView = FocusableTextView()
         private var cache = MarkdownHighlightCache()
         private var lastText = ""
         private var lastFont: NSFont?
+        private var lastFocusEditorRequest = 0
         private var lastTheme: MarkdownTheme?
         private var pendingProgrammaticSelection: MarkdownEditorSelectionSnapshot?
         private var pendingTextEdit: MarkdownTextEdit?
+        private var highlightTask: Task<Void, Never>?
+        private var highlightGeneration = 0
 
         init(parent: MarkdownNativeTextEditor) {
             self.parent = parent
@@ -547,6 +656,10 @@ extension MarkdownNativeTextEditor {
             configureTextView()
             configureScrollView()
             wireBridge()
+        }
+
+        deinit {
+            highlightTask?.cancel()
         }
 
         /// Applies pending text, font, theme, selection, and undo-state changes to AppKit.
@@ -570,6 +683,11 @@ extension MarkdownNativeTextEditor {
 
             if lastTheme != parent.theme {
                 refreshHighlight()
+            }
+
+            if parent.focusEditorRequest > lastFocusEditorRequest {
+                lastFocusEditorRequest = parent.focusEditorRequest
+                textView.requestKeyboardFocus()
             }
         }
 
@@ -639,10 +757,7 @@ extension MarkdownNativeTextEditor {
                 self?.applyProgrammaticEdit(text: text, selection: selection)
             }
             parent.bridge.focusEditor = { [weak self] in
-                guard let self else {
-                    return
-                }
-                textView.window?.makeFirstResponder(textView)
+                self?.textView.requestKeyboardFocus()
             }
             parent.bridge.refreshHighlight = { [weak self] in
                 self?.refreshHighlight()
@@ -713,9 +828,7 @@ extension MarkdownNativeTextEditor {
             lastText = newText
             let edit = pendingTextEdit
             pendingTextEdit = nil
-            if let changedRange = cache.updateText(newText, edit: edit), let storage = textView.textStorage {
-                applyHighlight(to: storage, lines: changedRange)
-            }
+            scheduleHighlight(for: newText, edit: edit)
             parent.text = newText
             updateUndoRedoAvailability()
         }
@@ -726,6 +839,7 @@ extension MarkdownNativeTextEditor {
                 return
             }
 
+            cancelDeferredHighlight()
             lastText = newText
             cache.setText(newText)
             textView.string = newText
@@ -798,6 +912,7 @@ extension MarkdownNativeTextEditor {
         }
 
         private func refreshHighlight() {
+            cancelDeferredHighlight()
             guard !cache.isEmpty, let storage = textView.textStorage else {
                 return
             }
@@ -806,6 +921,32 @@ extension MarkdownNativeTextEditor {
             applyHighlight(to: storage, lines: 0..<cache.count)
             lastFont = font
             lastTheme = parent.theme
+        }
+
+        /// Coalesces native typing so syntax parsing cannot consume every input event.
+        private func scheduleHighlight(for text: String, edit: MarkdownTextEdit?) {
+            highlightTask?.cancel()
+            highlightGeneration &+= 1
+            let generation = highlightGeneration
+            highlightTask = Task { [weak self] in
+                try? await Task.sleep(for: .milliseconds(75))
+                guard !Task.isCancelled,
+                      let self,
+                      generation == highlightGeneration,
+                      let storage = textView.textStorage,
+                      let changedRange = cache.updateText(text, edit: edit)
+                else {
+                    return
+                }
+
+                applyHighlight(to: storage, lines: changedRange)
+            }
+        }
+
+        private func cancelDeferredHighlight() {
+            highlightTask?.cancel()
+            highlightTask = nil
+            highlightGeneration &+= 1
         }
 
         private func applyHighlight(to storage: NSMutableAttributedString, lines: Range<Int>) {
@@ -866,6 +1007,44 @@ extension MarkdownNativeTextEditor {
 
         private var currentFont: NSFont {
             AppearanceFont.nativeEditorFont(named: parent.fontName, size: parent.fontSize)
+        }
+    }
+}
+
+extension MarkdownNativeTextEditor {
+    /// Delivers focus after AppKit has attached the editor and finished the current view update.
+    final class FocusableTextView: NSTextView {
+        private var needsKeyboardFocus = false
+        private var isFocusScheduled = false
+
+        func requestKeyboardFocus() {
+            needsKeyboardFocus = true
+            scheduleKeyboardFocus()
+        }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            scheduleKeyboardFocus()
+        }
+
+        private func scheduleKeyboardFocus() {
+            guard needsKeyboardFocus, window != nil, !isFocusScheduled else {
+                return
+            }
+
+            isFocusScheduled = true
+            DispatchQueue.main.async { [weak self] in
+                guard let self else {
+                    return
+                }
+                isFocusScheduled = false
+                guard needsKeyboardFocus, let window else {
+                    return
+                }
+                if window.makeFirstResponder(self) {
+                    needsKeyboardFocus = false
+                }
+            }
         }
     }
 }

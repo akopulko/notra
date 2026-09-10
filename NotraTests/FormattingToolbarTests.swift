@@ -7,6 +7,7 @@ struct FormattingToolbarTests {
         #expect(NoteFormattingCommand.keyboardAccessoryCommands == [
             .bold,
             .italic,
+            .strikethrough,
             .unorderedList,
             .orderedList,
             .todo,
@@ -18,7 +19,7 @@ struct FormattingToolbarTests {
     }
 
     @Test func toolbarPlacesInlineStylesAfterHeadingMenu() {
-        #expect(NoteFormattingCommand.toolbarCommandGroups[0] == [.bold, .italic])
+        #expect(NoteFormattingCommand.toolbarCommandGroups[0] == [.bold, .italic, .strikethrough])
     }
 
     @Test func attachmentMenuMembershipRemainsUnchanged() {

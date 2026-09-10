@@ -20,7 +20,7 @@ enum NoteStartContent: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .titleHeader:
-            "Title Header (#H1)"
+            "Title (H1)"
         case .emptyNote:
             "Empty Note"
         }

@@ -126,6 +126,7 @@ struct Note: Identifiable, Equatable {
 enum NoteFormattingCommand: CaseIterable, Hashable {
     case bold
     case italic
+    case strikethrough
     case heading
     case unorderedList
     case orderedList

@@ -12,7 +12,7 @@ struct NoteSettingsTests {
     }
 
     @Test func exposesMenuTitlesAndInitialMarkdown() {
-        #expect(NoteStartContent.titleHeader.title == "Title Header (#H1)")
+        #expect(NoteStartContent.titleHeader.title == "Title (H1)")
         #expect(NoteStartContent.titleHeader.initialMarkdown == "# ")
         #expect(NoteStartContent.emptyNote.title == "Empty Note")
         #expect(NoteStartContent.emptyNote.initialMarkdown.isEmpty)

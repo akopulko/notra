@@ -85,6 +85,7 @@ private extension MarkdownHTMLRenderer {
         li::marker { color: \(theme.listMarker); }
         .task-item { list-style: none; }
         .task-checkbox { margin: 0 6px 0 0; vertical-align: baseline; }
+        .task-checkbox:not(:disabled) { cursor: pointer; }
         \(taskCheckboxRules(theme: theme))
         blockquote { border-left: 4px solid \(theme.quoteAccent); color: \(theme.quoteText); margin: 0 0 16px; padding-left: 12px; }
         a { color: \(theme.linkText); } code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
@@ -194,14 +195,7 @@ private extension MarkdownHTMLRenderer {
     }
 
     mutating func render(_ item: MarkdownListItem) -> String {
-        let checkbox = switch item.taskState {
-        case .checked:
-            "<input class=\"task-checkbox\" type=\"checkbox\" checked disabled>"
-        case .unchecked:
-            "<input class=\"task-checkbox\" type=\"checkbox\" disabled>"
-        case nil:
-            ""
-        }
+        let checkbox = taskCheckbox(for: item)
 
         guard item.taskState != nil else {
             return "<li>\(item.blocks.map { render($0) }.joined())</li>"
@@ -213,6 +207,25 @@ private extension MarkdownHTMLRenderer {
         }
 
         return "<li class=\"task-item\">\(checkbox)\(item.blocks.map { render($0) }.joined())</li>"
+    }
+
+    func taskCheckbox(for item: MarkdownListItem) -> String {
+        guard let state = item.taskState else {
+            return ""
+        }
+
+        let checked = state == .checked ? " checked" : ""
+        guard mode == .preview, let marker = item.taskMarker else {
+            return "<input class=\"task-checkbox\" type=\"checkbox\"\(checked) disabled>"
+        }
+
+        let stateValue = state == .checked ? "checked" : "unchecked"
+        let markerAttributes = [
+            "data-notra-task-line=\"\(marker.line)\"",
+            "data-notra-task-column=\"\(marker.column)\"",
+            "data-notra-task-state=\"\(stateValue)\""
+        ].joined(separator: " ")
+        return "<input class=\"task-checkbox\" type=\"checkbox\"\(checked) \(markerAttributes)>"
     }
 
     mutating func render(_ table: MarkdownTable) -> String {

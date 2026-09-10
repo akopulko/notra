@@ -11,6 +11,14 @@ struct MarkdownSyntaxHighlightingTests {
         #expect(spans.isEmpty)
     }
 
+    @Test func unmatchedLinkOpenersDoNotPreventLaterValidLinkHighlighting() {
+        let markdown = "[[[valid](https://example.com)"
+        let spans = MarkdownSyntaxHighlighter().spans(in: markdown)
+
+        #expect(spans.contains { $0.role == .linkText && String(markdown[$0.range]) == "valid" })
+        #expect(spans.contains { $0.role == .linkDestination && String(markdown[$0.range]) == "https://example.com" })
+    }
+
     @Test func highlightsCommonMarkdownRoles() {
         let markdown = """
         # Heading

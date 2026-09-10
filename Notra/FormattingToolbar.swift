@@ -95,13 +95,13 @@ struct EditorUndoRedoToolbar: ToolbarContent {
 
 extension MarkdownHeadingLevel {
     var menuTitle: String {
-        "\(markdownPrefix)h\(rawValue) Heading"
+        "\(markdownPrefix)H\(rawValue) Heading"
     }
 }
 
 extension NoteFormattingCommand {
     static let toolbarCommandGroups: [[NoteFormattingCommand]] = [
-        [.bold, .italic],
+        [.bold, .italic, .strikethrough],
         [.unorderedList, .orderedList, .todo, .quote],
         [.link, .table, .code]
     ]
@@ -124,6 +124,8 @@ extension NoteFormattingCommand {
             "Bold"
         case .italic:
             "Italic"
+        case .strikethrough:
+            "Strikethrough"
         case .heading:
             "Headers"
         case .unorderedList:
@@ -151,6 +153,8 @@ extension NoteFormattingCommand {
             "bold"
         case .italic:
             "italic"
+        case .strikethrough:
+            "strikethrough"
         case .heading:
             "textformat.size"
         case .unorderedList:

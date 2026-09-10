@@ -2,26 +2,17 @@ import Foundation
 
 /// Derives display statistics from note text without retaining another copy of the document.
 struct NoteStatistics: Equatable, Sendable {
-    /// Reading-speed baseline used to round estimates up to whole minutes.
-    static let wordsPerMinute = 200
-
     /// Number of words found in the Markdown body.
     let wordCount: Int
     /// Number of Swift characters in the Markdown body.
     let characterCount: Int
-    /// Number of non-empty logical lines.
-    let lineCount: Int
-    /// Rounded-up reading estimate derived from `wordCount`.
-    let readingTimeMinutes: Int
 
-    init(markdown: String) {
+    nonisolated init(markdown: String) {
         wordCount = Self.countWords(in: markdown)
         characterCount = markdown.count
-        lineCount = Self.countLines(in: markdown)
-        readingTimeMinutes = wordCount == 0 ? 0 : max(1, (wordCount + Self.wordsPerMinute - 1) / Self.wordsPerMinute)
     }
 
-    private static func countWords(in markdown: String) -> Int {
+    private nonisolated static func countWords(in markdown: String) -> Int {
         var count = 0
         markdown.enumerateSubstrings(
             in: markdown.startIndex..<markdown.endIndex,
@@ -30,12 +21,6 @@ struct NoteStatistics: Equatable, Sendable {
             count += 1
         }
         return count
-    }
-
-    private static func countLines(in markdown: String) -> Int {
-        markdown.split(whereSeparator: \.isNewline).count { line in
-            !line.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        }
     }
 }
 
@@ -60,7 +45,17 @@ struct NoteInfo: Equatable, Sendable {
     }
 
     init(summary: NoteSummary, markdown: String, location: String, byteCount: Int64) {
-        statistics = NoteStatistics(markdown: markdown)
+        self.init(
+            summary: summary,
+            statistics: NoteStatistics(markdown: markdown),
+            location: location,
+            byteCount: byteCount
+        )
+    }
+
+    /// Creates inspector metadata from independently maintained content statistics.
+    init(summary: NoteSummary, statistics: NoteStatistics, location: String, byteCount: Int64) {
+        self.statistics = statistics
         createdAt = summary.createdAt
         modifiedAt = summary.modifiedAt
         self.location = location

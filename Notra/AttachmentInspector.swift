@@ -279,10 +279,7 @@ struct AttachmentInspectorView: View {
     }
 
     private func openAttachment(_ attachment: TextBundleAsset) {
-        guard attachment.kind == .attachment else {
-            return
-        }
-
+        // Open both images and other files through the platform's default preview or app.
         #if os(macOS)
         let didOpen = NSWorkspace.shared.open(attachment.url)
         if !didOpen {

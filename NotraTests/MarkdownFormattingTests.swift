@@ -189,6 +189,17 @@ struct MarkdownFormattingTests {
         #expect(cursorOffset(in: result) == 6)
     }
 
+    @Test func strikethroughWithSelectionPreservesSelectedText() {
+        let text = "Selected text"
+        let result = MarkdownFormatting.applyStrikethroughResult(
+            to: text,
+            selection: text.startIndex ..< text.endIndex
+        )
+
+        #expect(result.text == "~~Selected text~~")
+        #expect(cursorOffset(in: result) == 17)
+    }
+
     @Test func codeWithoutSelectionInEmptyDocumentPlacesCursorInsideMarkup() {
         let text = ""
         let result = MarkdownFormatting.applyCodeResult(
@@ -218,6 +229,26 @@ struct MarkdownFormattingTests {
 
         #expect(result.text == "`Selected text`")
         #expect(cursorOffset(in: result) == 15)
+    }
+
+    @Test func codeWithMultipleSelectedLinesCreatesFencedCodeBlock() {
+        let text = "first\nsecond"
+        let result = MarkdownFormatting.applyCodeResult(
+            to: text,
+            selection: text.startIndex ..< text.endIndex
+        )
+
+        #expect(result.text == "```\nfirst\nsecond\n```")
+        #expect(cursorOffset(in: result) == 20)
+    }
+
+    @Test func codeWithPartialMultilineSelectionExpandsToWholeLines() {
+        let text = "Before\nfirst line\nsecond line\nAfter"
+        let lowerBound = text.range(of: "first")?.lowerBound ?? text.startIndex
+        let upperBound = text.range(of: "second")?.upperBound ?? text.endIndex
+        let result = MarkdownFormatting.applyCodeResult(to: text, selection: lowerBound ..< upperBound)
+
+        #expect(result.text == "Before\n```\nfirst line\nsecond line\n```\nAfter")
     }
 
     @Test func codeWithUnicodeSelectionPreservesSelectedText() {
@@ -538,6 +569,24 @@ struct MarkdownFormattingTests {
             #expect(result.text == text)
             #expect(cursorOffset(in: result) == text.count)
         }
+    }
+
+    @Test func previewTaskToggleUpdatesOnlyTheRecordedMarker() {
+        let text = "- [ ] First\n  - [x] 😀 Nested\r\n- [ ] First"
+        let marker = MarkdownTaskMarker(line: 2, column: 5, state: .checked)
+
+        let toggled = MarkdownFormatting.togglingTask(in: text, marker: marker, to: .unchecked)
+
+        #expect(toggled == "- [ ] First\n  - [ ] 😀 Nested\r\n- [ ] First")
+    }
+
+    @Test func previewTaskToggleRejectsStaleMarkerState() {
+        let text = "- [x] Done"
+        let marker = MarkdownTaskMarker(line: 1, column: 3, state: .unchecked)
+
+        let toggled = MarkdownFormatting.togglingTask(in: text, marker: marker, to: .checked)
+
+        #expect(toggled == nil)
     }
 
     @Test func todoPreservesIndentedUncheckedTaskWithEmptySelection() {
