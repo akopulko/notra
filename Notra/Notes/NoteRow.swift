@@ -115,27 +115,23 @@ private struct NoteRowTagsLine: View {
     var body: some View {
         ViewThatFits(in: .horizontal) {
             tagsStack(tags: tags, showsOverflow: false)
-            ForEach(truncatedTagCounts, id: \.self) { visibleCount in
-                tagsStack(
-                    tags: Array(tags.prefix(visibleCount)),
-                    showsOverflow: true
-                )
+            if tags.count > 1 {
+                ForEach(1..<tags.count, id: \.self) { offset in
+                    // Keep the original tag storage as an ArraySlice instead of allocating a new Array per candidate.
+                    let visibleCount = tags.count - offset
+                    tagsStack(tags: tags.prefix(visibleCount), showsOverflow: true)
+                }
             }
-            tagsStack(tags: [], showsOverflow: true)
+            tagsStack(tags: tags.prefix(0), showsOverflow: true)
         }
         .font(.caption2)
         .lineLimit(1)
     }
 
-    private var truncatedTagCounts: [Int] {
-        guard tags.count > 1 else {
-            return []
-        }
-
-        return Array(stride(from: tags.count - 1, through: 1, by: -1))
-    }
-
-    private func tagsStack(tags visibleTags: [NoteTag], showsOverflow: Bool) -> some View {
+    private func tagsStack<C: RandomAccessCollection>(
+        tags visibleTags: C,
+        showsOverflow: Bool
+    ) -> some View where C.Element == NoteTag {
         HStack(spacing: 4) {
             ForEach(visibleTags) { tag in
                 tagText(tag.prefixedDisplayName)

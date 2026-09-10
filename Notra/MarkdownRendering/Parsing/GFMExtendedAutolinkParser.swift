@@ -1,5 +1,29 @@
 import Foundation
 
+/// Reuses the immutable regular expressions shared by every Markdown parse.
+private enum GFMExtendedAutolinkRegexCache {
+    nonisolated static let url = makeRegex(
+        pattern: #"https?://([A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)+)[^\s<]*"#
+    )
+    nonisolated static let www = makeRegex(
+        pattern: #"www\.([A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)+)[^\s<]*"#
+    )
+    nonisolated static let emailProtocol = makeRegex(
+        pattern: #"(?:mailto:|xmpp:)[A-Za-z0-9._%+\-]+@[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)+(?:/[A-Za-z0-9@.]*)?"#
+    )
+    nonisolated static let email = makeRegex(
+        pattern: #"[A-Za-z0-9.!$%&'*+/=?^_`{|}~\-]+@[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)+"#
+    )
+
+    private nonisolated static func makeRegex(pattern: String) -> NSRegularExpression {
+        do {
+            return try NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
+        } catch {
+            preconditionFailure("Failed to compile regular expression: \(error)")
+        }
+    }
+}
+
 /// Adds GitHub-Flavored Markdown extended autolinks that the base parser leaves as text.
 struct GFMExtendedAutolinkParser: Sendable {
     private let urlRegex: NSRegularExpression
@@ -14,26 +38,10 @@ struct GFMExtendedAutolinkParser: Sendable {
     }
 
     nonisolated init() {
-        urlRegex = Self.makeRegex(
-            pattern: #"https?://([A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)+)[^\s<]*"#
-        )
-        wwwRegex = Self.makeRegex(
-            pattern: #"www\.([A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)+)[^\s<]*"#
-        )
-        emailProtocolRegex = Self.makeRegex(
-            pattern: #"(?:mailto:|xmpp:)[A-Za-z0-9._%+\-]+@[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)+(?:/[A-Za-z0-9@.]*)?"#
-        )
-        emailRegex = Self.makeRegex(
-            pattern: #"[A-Za-z0-9.!$%&'*+/=?^_`{|}~\-]+@[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)+"#
-        )
-    }
-
-    private nonisolated static func makeRegex(pattern: String) -> NSRegularExpression {
-        do {
-            return try NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
-        } catch {
-            preconditionFailure("Failed to compile regular expression: \(error)")
-        }
+        urlRegex = GFMExtendedAutolinkRegexCache.url
+        wwwRegex = GFMExtendedAutolinkRegexCache.www
+        emailProtocolRegex = GFMExtendedAutolinkRegexCache.emailProtocol
+        emailRegex = GFMExtendedAutolinkRegexCache.email
     }
 
     nonisolated func parse(_ text: String) -> [MarkdownInline] {
