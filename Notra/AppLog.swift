@@ -57,7 +57,10 @@ enum AppLog {
         }
 
         let line = "\(timestamp()) [\(level.label)] \(function) - \(message())"
+        #if DEBUG
+        // Keep local console mirroring convenient without adding stdout I/O to Release builds.
         print(line)
+        #endif
         logger.log(level: osLogType(for: level), "\(line, privacy: .public)")
     }
 

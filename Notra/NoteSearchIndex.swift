@@ -591,13 +591,17 @@ private extension SQLiteNoteSearchIndex {
 
     func log(_ message: String) {
         let line = "[SearchIndex] \(message)"
+        #if DEBUG
         print(line)
+        #endif
         Self.logger.info("\(line, privacy: .public)")
     }
 
     func logError(_ message: String) {
         let line = "[SearchIndex] \(message)"
+        #if DEBUG
         print(line)
+        #endif
         Self.logger.error("\(line, privacy: .public)")
     }
 
