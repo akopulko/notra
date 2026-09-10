@@ -231,6 +231,26 @@ struct MarkdownFormattingTests {
         #expect(cursorOffset(in: result) == 15)
     }
 
+    @Test func codeWithMultipleSelectedLinesCreatesFencedCodeBlock() {
+        let text = "first\nsecond"
+        let result = MarkdownFormatting.applyCodeResult(
+            to: text,
+            selection: text.startIndex ..< text.endIndex
+        )
+
+        #expect(result.text == "```\nfirst\nsecond\n```")
+        #expect(cursorOffset(in: result) == 20)
+    }
+
+    @Test func codeWithPartialMultilineSelectionExpandsToWholeLines() {
+        let text = "Before\nfirst line\nsecond line\nAfter"
+        let lowerBound = text.range(of: "first")?.lowerBound ?? text.startIndex
+        let upperBound = text.range(of: "second")?.upperBound ?? text.endIndex
+        let result = MarkdownFormatting.applyCodeResult(to: text, selection: lowerBound ..< upperBound)
+
+        #expect(result.text == "Before\n```\nfirst line\nsecond line\n```\nAfter")
+    }
+
     @Test func codeWithUnicodeSelectionPreservesSelectedText() {
         let text = "A 😀 note"
         let lowerBound = text.firstIndex(of: "😀") ?? text.startIndex

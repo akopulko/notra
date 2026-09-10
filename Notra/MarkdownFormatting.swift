@@ -55,9 +55,16 @@ enum MarkdownFormatting {
         applyWrappedResult(to: text, selection: selection, prefix: "~~", suffix: "~~")
     }
 
-    /// Wraps the selection in inline-code markers without changing text outside the selection.
+    /// Applies inline code to one line, or a fenced code block to a multiline selection.
     static func applyCodeResult(to text: String, selection: Range<String.Index>) -> MarkdownFormattingResult {
-        applyWrappedResult(to: text, selection: selection, prefix: "`", suffix: "`")
+        guard text[selection].contains("\n") else {
+            return applyWrappedResult(to: text, selection: selection, prefix: "`", suffix: "`")
+        }
+
+        let lineRange = expandedSelectedLineRange(in: text, for: selection)
+        let replacement = "```\n\(text[lineRange])\n```"
+
+        return resultReplacingLineRange(lineRange, in: text, with: replacement)
     }
 
     /// Inserts a Markdown link and places the cursor in the label or URL editing position.
