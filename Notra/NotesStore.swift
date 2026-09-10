@@ -987,7 +987,11 @@ private extension NotesStore {
     }
 
     /// Upserts one note's Markdown and tags into the actor-owned full-text index.
-    private func indexNote(_ note: Note, generation: UInt64) async -> Bool {
+    private func indexNote(
+        _ note: Note,
+        analysis: MarkdownDocumentAnalysis? = nil,
+        generation: UInt64
+    ) async -> Bool {
         guard isCurrentRepository(generation) else {
             return false
         }
@@ -997,7 +1001,12 @@ private extension NotesStore {
         let tags = note.metadata.tags
         do {
             guard try await (searchIndexGate.run(for: generation, operation: {
-                try await self.searchIndex.index(noteID: noteID, markdown: markdown, tags: tags)
+                try await self.searchIndex.index(
+                    noteID: noteID,
+                    markdown: markdown,
+                    tags: tags,
+                    analysis: analysis
+                )
             })) != nil else {
                 return false
             }
@@ -1124,7 +1133,8 @@ private extension NotesStore {
                 else {
                     return
                 }
-                guard await indexNote(noteToSave, generation: generation) else {
+                let analysis = MarkdownDocumentAnalysis.analyse(markdown: noteToSave.markdown)
+                guard await indexNote(noteToSave, analysis: analysis, generation: generation) else {
                     return
                 }
                 guard !Task.isCancelled,
@@ -1134,7 +1144,7 @@ private extension NotesStore {
                 else {
                     return
                 }
-                let savedSummary = try repository.summary(for: noteToSave.url)
+                let savedSummary = try repository.summary(for: noteToSave.url, analysis: analysis)
                 applySavedSummary(savedSummary)
                 if !attachments.isEmpty {
                     let assetBaseURL = noteToSave.url.appendingPathComponent(
@@ -1143,7 +1153,7 @@ private extension NotesStore {
                     )
                     applyAttachmentLinkStates(
                         linkedURLs: MarkdownAttachmentReferences.linkedURLs(
-                            in: noteToSave.markdown,
+                            in: analysis,
                             assetBaseURL: assetBaseURL
                         )
                     )

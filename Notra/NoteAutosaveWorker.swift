@@ -1,5 +1,4 @@
 import Foundation
-import Markdown
 
 /// Serialises deferred Markdown writes away from the main actor.
 actor NoteAutosaveWorker {
@@ -9,7 +8,6 @@ actor NoteAutosaveWorker {
             throw CocoaError(.fileNoSuchFile)
         }
 
-        _ = Document(parsing: markdown)
         try markdown.write(
             to: noteURL.appendingPathComponent(TextBundleNoteRepository.textFilename),
             atomically: true,

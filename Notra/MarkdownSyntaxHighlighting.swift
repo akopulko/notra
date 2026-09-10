@@ -958,10 +958,10 @@ struct MarkdownHighlightCache {
             changedCount += 1
         }
 
-        var fenceState = MarkdownCodeFenceState.closed
-        for line in oldCache.prefix(prefix) {
-            fenceState = line.fenceStateAfter
-        }
+        let initialFenceState = prefix > 0
+            ? oldCache[prefix - 1].fenceStateAfter
+            : MarkdownCodeFenceState.closed
+        var fenceState = initialFenceState
 
         var updatedLines = Array(oldCache.prefix(prefix))
         var changedRange = prefix..<prefix + changedCount
@@ -1128,10 +1128,10 @@ struct MarkdownHighlightCache {
         let oldSuffixStart = min(oldEndLine + 1, oldCache.count)
         let newChangedEnd = min(newEndLine + 1, newEntries.count)
 
-        var fenceState = MarkdownCodeFenceState.closed
-        for line in oldCache.prefix(parseStart) {
-            fenceState = line.fenceStateAfter
-        }
+        let initialFenceState = parseStart > 0
+            ? oldCache[parseStart - 1].fenceStateAfter
+            : MarkdownCodeFenceState.closed
+        var fenceState = initialFenceState
 
         var updatedLines = Array(oldCache.prefix(parseStart))
         var changedRange = parseStart..<newChangedEnd

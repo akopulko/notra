@@ -185,7 +185,7 @@ private struct NoteRowThumbnail: View {
         .contentShape(.rect)
         .task(id: url) {
             image = nil
-            image = await NoteRowThumbnailLoader.shared.thumbnail(for: url)
+            image = await ThumbnailService.shared.thumbnail(for: url, maximumPixelSize: 96)
         }
     }
 
@@ -198,27 +198,5 @@ private struct NoteRowThumbnail: View {
             size: NSSize(width: image.width, height: image.height)
         ))
         #endif
-    }
-}
-
-/// Serializes and caches small note-row thumbnail reads.
-private actor NoteRowThumbnailLoader {
-    static let shared = NoteRowThumbnailLoader()
-
-    private var cache: [URL: CGImage] = [:]
-
-    func thumbnail(for url: URL) async -> CGImage? {
-        if let cachedImage = cache[url] {
-            return cachedImage
-        }
-
-        let image = await Task.detached(priority: .utility) {
-            ImageThumbnailDecoder.decode(from: url, maximumPixelSize: 96)
-        }.value
-
-        if let image {
-            cache[url] = image
-        }
-        return image
     }
 }

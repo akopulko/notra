@@ -5,7 +5,16 @@ struct NotraMarkdownDocument: Equatable, Sendable {
     let blocks: [MarkdownBlock]
     let compactParagraphIDs: Set<String>
     let spacedListIDs: Set<String>
-    let renderRows: [MarkdownRenderRow]
+
+    /// Builds the legacy native row model only for callers that still need it.
+    /// The HTML preview and PDF renderer consume `blocks` directly.
+    var renderRows: [MarkdownRenderRow] {
+        MarkdownRenderRowBuilder.rows(
+            from: blocks,
+            compactParagraphIDs: compactParagraphIDs,
+            spacedListIDs: spacedListIDs
+        )
+    }
 
     nonisolated init(
         blocks: [MarkdownBlock],
@@ -15,11 +24,6 @@ struct NotraMarkdownDocument: Equatable, Sendable {
         self.blocks = blocks
         self.compactParagraphIDs = compactParagraphIDs
         self.spacedListIDs = spacedListIDs
-        renderRows = MarkdownRenderRowBuilder.rows(
-            from: blocks,
-            compactParagraphIDs: compactParagraphIDs,
-            spacedListIDs: spacedListIDs
-        )
     }
 }
 

@@ -1,6 +1,5 @@
 import Foundation
 import ImageIO
-import Markdown
 import UniformTypeIdentifiers
 
 /// Storage failures that can be translated into user-facing note-operation errors.
@@ -104,25 +103,28 @@ struct TextBundleNoteRepository {
         )
 
         let noteURLs = urls.filter { $0.pathExtension == Self.bundleExtension }
-        return try noteURLs.map(summary(for:))
+        return try noteURLs.map { try summary(for: $0) }
     }
 
     /// Derives the sidebar projection for one bundle without enumerating the whole notes library.
-    func summary(for url: URL) throws -> NoteSummary {
+    func summary(
+        for url: URL,
+        analysis: MarkdownDocumentAnalysis? = nil
+    ) throws -> NoteSummary {
         let createdAt = try url.resourceValues(forKeys: [.creationDateKey])
             .creationDate ?? .distantPast
         let markdown = try markdownContent(in: url)
+        let analysis = analysis ?? MarkdownDocumentAnalysis.analyse(markdown: markdown)
         let preview = Self.preview(for: markdown)
         let metadata = summaryMetadata(at: url)
-        let hasChecklist = NoteSearchFilter.hasChecklist(in: markdown)
-        let attachmentSummary = try attachmentSummary(for: url, markdown: markdown)
+        let attachmentSummary = try attachmentSummary(for: url, analysis: analysis)
         let modifiedAt = try modifiedDate(of: url)
         return NoteSummary(
             url: url,
             previewText: preview.text,
             previewFirstLineIsHeading: preview.firstLineIsHeading,
             tags: metadata.tags,
-            hasChecklist: hasChecklist,
+            hasChecklist: analysis.hasChecklist,
             attachmentSummary: attachmentSummary,
             createdAt: createdAt,
             modifiedAt: modifiedAt,
@@ -141,8 +143,6 @@ struct TextBundleNoteRepository {
         let metadata = try noteMetadata(at: url)
         let createdAt = try url.resourceValues(forKeys: [.creationDateKey])
             .creationDate ?? .distantPast
-        _ = Document(parsing: markdown)
-
         return try Note(
             url: url,
             markdown: markdown,
@@ -167,7 +167,6 @@ struct TextBundleNoteRepository {
         let infoData = try JSONEncoder.notra.encode(TextBundleInfo())
         try infoData.write(to: bundleURL.appendingPathComponent(Self.infoFilename), options: .atomic)
 
-        _ = Document(parsing: initialMarkdown)
         try initialMarkdown.write(
             to: bundleURL.appendingPathComponent(Self.textFilename),
             atomically: true,
@@ -182,7 +181,6 @@ struct TextBundleNoteRepository {
             throw NoteRepositoryError.noteNotFound
         }
 
-        _ = Document(parsing: note.markdown)
         try note.markdown.write(
             to: note.url.appendingPathComponent(Self.textFilename),
             atomically: true,
@@ -407,8 +405,18 @@ struct TextBundleNoteRepository {
 private extension TextBundleNoteRepository {
     /// Summarizes only linked assets so unused files do not produce row-level attachment indicators.
     private func attachmentSummary(for noteURL: URL, markdown: String) throws -> NoteAttachmentSummary {
+        try attachmentSummary(
+            for: noteURL,
+            analysis: MarkdownDocumentAnalysis.analyse(markdown: markdown)
+        )
+    }
+
+    private func attachmentSummary(
+        for noteURL: URL,
+        analysis: MarkdownDocumentAnalysis
+    ) throws -> NoteAttachmentSummary {
         let assetBaseURL = noteURL.appendingPathComponent(Self.assetsFolder, isDirectory: true)
-        let linkedURLs = MarkdownAttachmentReferences.linkedURLs(in: markdown, assetBaseURL: assetBaseURL)
+        let linkedURLs = MarkdownAttachmentReferences.linkedURLs(in: analysis, assetBaseURL: assetBaseURL)
         guard !linkedURLs.isEmpty else {
             return .empty
         }

@@ -24,26 +24,30 @@ struct MarkdownWebPreview: View {
             switch model.state {
             case .idle:
                 Color.clear
-            case let .parsed(document):
-                MarkdownWebView(
-                    document: htmlDocument(for: document),
-                    openURL: { url in
-                        openURL(url)
-                    },
-                    openAttachment: openAttachment,
-                    toggleTask: toggleTask
-                )
+            case .parsed:
+                if let document = model.htmlDocument {
+                    MarkdownWebView(
+                        document: document,
+                        openURL: { url in
+                            openURL(url)
+                        },
+                        openAttachment: openAttachment,
+                        toggleTask: toggleTask
+                    )
+                } else {
+                    Color.clear
+                }
             }
         }
-        .task(id: markdown) {
-            model.update(markdown: markdown)
+        .task(id: PreviewRequestID(markdown: markdown, context: context, style: style)) {
+            model.update(markdown: markdown, context: context, style: style)
         }
     }
 
-    /// Keeps HTML generation deterministic from the parser-owned document model.
-    private func htmlDocument(for document: NotraMarkdownDocument) -> MarkdownHTMLDocument {
-        var renderer = MarkdownHTMLRenderer(style: style, mode: .preview, context: context)
-        return renderer.render(document)
+    private struct PreviewRequestID: Equatable {
+        let markdown: String
+        let context: MarkdownRenderContext
+        let style: MarkdownStyle
     }
 }
 

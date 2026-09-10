@@ -134,14 +134,25 @@ actor SQLiteNoteSearchIndex {
     }
 
     /// Upserts one changed note immediately after an editor or metadata mutation.
-    func index(noteID: URL, markdown: String, tags: [NoteTag]) async throws {
+    func index(
+        noteID: URL,
+        markdown: String,
+        tags: [NoteTag],
+        analysis: MarkdownDocumentAnalysis? = nil
+    ) async throws {
         log("Indexing changed note; note=\(noteID.lastPathComponent); markdownBytes=\(markdown.utf8.count)")
         try ensureDatabase()
         let normalizedID = Self.normalizedID(noteID)
         let metadata = try sourceMetadata(for: noteID, tags: tags)
 
         try withTransaction {
-            try upsert(noteID: normalizedID, markdown: markdown, tags: tags, metadata: metadata)
+            try upsert(
+                noteID: normalizedID,
+                markdown: markdown,
+                tags: tags,
+                metadata: metadata,
+                analysis: analysis
+            )
         }
         isReady = true
         log("Changed note indexed; note=\(noteID.lastPathComponent)")
@@ -480,13 +491,20 @@ private extension SQLiteNoteSearchIndex {
     }
 
     /// Writes searchable Markdown/tags and the source metadata used for incremental sync.
-    func upsert(noteID: String, markdown: String, tags: [NoteTag], metadata: SearchMetadata) throws {
+    func upsert(
+        noteID: String,
+        markdown: String,
+        tags: [NoteTag],
+        metadata: SearchMetadata,
+        analysis: MarkdownDocumentAnalysis? = nil
+    ) throws {
         try delete(noteID: noteID)
         let searchableContent = ([markdown] + tags.map(\.name)).joined(separator: "\n")
-        let hasChecklist = NoteSearchFilter.hasChecklist(in: markdown)
+        let analysis = analysis ?? MarkdownDocumentAnalysis.analyse(markdown: markdown)
+        let hasChecklist = analysis.hasChecklist
         let hasAttachments = NoteSearchFilter.hasLinkedAttachment(
             noteURL: URL(fileURLWithPath: noteID),
-            markdown: markdown
+            analysis: analysis
         )
 
         let insertSearch = try prepare(

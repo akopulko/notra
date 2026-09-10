@@ -13,10 +13,11 @@ final class MarkdownPreviewModel {
     /// Latest input accepted by the model; newer generations invalidate older parse tasks.
     private let parser: @Sendable (String) -> NotraMarkdownDocument
     private var parsedMarkdown: String?
-    private var parseGeneration = 0
+    private var requestGeneration = 0
     @ObservationIgnored private var parseTask: Task<Void, Never>?
 
     var state: State = .idle
+    var htmlDocument: MarkdownHTMLDocument?
 
     init(
         parser: @escaping @Sendable (String) -> NotraMarkdownDocument = { markdown in
@@ -30,37 +31,48 @@ final class MarkdownPreviewModel {
         parseTask?.cancel()
     }
 
-    /// Starts a detached parse and publishes it only if no newer text superseded the request.
-    func update(markdown: String) {
-        guard markdown != parsedMarkdown else {
-            return
-        }
-
+    /// Parses and prepares HTML away from SwiftUI view evaluation.
+    func update(
+        markdown: String,
+        context: MarkdownRenderContext = .empty,
+        style: MarkdownStyle = .notra(previewFontName: AppearanceFont.defaultName)
+    ) {
+        requestGeneration += 1
+        let generation = requestGeneration
+        let markdownChanged = markdown != parsedMarkdown
         parsedMarkdown = markdown
-        parseGeneration += 1
-        let generation = parseGeneration
         let inputBytes = markdown.utf8.count
         let startedAt = Date.now
         parseTask?.cancel()
         parseTask = Task { [parser] in
-            let document = await Task.detached(priority: .userInitiated) {
+            let document = if markdownChanged {
+                await Task.detached(priority: .userInitiated) {
+                    parser(markdown)
+                }.value
+            } else if case let .parsed(existingDocument) = state {
+                existingDocument
+            } else {
                 parser(markdown)
-            }.value
+            }
+
+            var renderer = MarkdownHTMLRenderer(style: style, mode: .preview, context: context)
+            let preparedHTML = renderer.render(document)
 
             let durationMilliseconds = Int(Date.now.timeIntervalSince(startedAt) * 1000)
             AppLog.debug(
                 "Parsed markdown preview; bytes=\(inputBytes); blocks=\(document.blocks.count); "
-                    + "rows=\(document.renderRows.count); durationMs=\(durationMilliseconds)"
+                    + "durationMs=\(durationMilliseconds)"
             )
 
             guard !Task.isCancelled,
-                  generation == parseGeneration,
+                  generation == requestGeneration,
                   markdown == parsedMarkdown
             else {
                 return
             }
 
             state = .parsed(document)
+            htmlDocument = preparedHTML
         }
     }
 }
