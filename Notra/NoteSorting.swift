@@ -1,7 +1,7 @@
 import Foundation
 
 /// The note property used to order the sidebar.
-enum NoteSortField: String, CaseIterable {
+enum NoteSortField: String, CaseIterable, Sendable {
     case dateEdited
     case dateCreated
 
@@ -16,7 +16,7 @@ enum NoteSortField: String, CaseIterable {
 }
 
 /// Whether sorted notes place newer or older values first.
-enum NoteSortDirection: String, CaseIterable {
+enum NoteSortDirection: String, CaseIterable, Sendable {
     case latestFirst
     case oldestFirst
 
@@ -31,7 +31,7 @@ enum NoteSortDirection: String, CaseIterable {
 }
 
 /// A serializable sort choice that can order summaries without touching storage.
-struct NoteSortPreference: Equatable {
+struct NoteSortPreference: Equatable, Sendable {
     /// Default ordering keeps recently edited notes at the top of the sidebar.
     static let `default` = NoteSortPreference(field: .dateEdited, direction: .latestFirst)
 
@@ -41,7 +41,7 @@ struct NoteSortPreference: Equatable {
     var direction: NoteSortDirection
 
     /// Returns a deterministic order, using preview text and URL as tie breakers.
-    func sorted(_ notes: [NoteSummary]) -> [NoteSummary] {
+    nonisolated func sorted(_ notes: [NoteSummary]) -> [NoteSummary] {
         let pinnedNotes = NotePinning.sortedPinnedNotes(in: notes)
         let unpinnedNotes = notes.filter { !$0.isPinned }.sorted { lhs, rhs in
             let result: Bool? = switch field {
@@ -59,7 +59,7 @@ struct NoteSortPreference: Equatable {
         return pinnedNotes + unpinnedNotes
     }
 
-    private func compare(_ lhs: Date, _ rhs: Date, direction: NoteSortDirection) -> Bool? {
+    private nonisolated func compare(_ lhs: Date, _ rhs: Date, direction: NoteSortDirection) -> Bool? {
         guard lhs != rhs else {
             return nil
         }
@@ -72,7 +72,7 @@ struct NoteSortPreference: Equatable {
         }
     }
 
-    private func comparePreviews(_ lhs: NoteSummary, _ rhs: NoteSummary) -> Bool? {
+    private nonisolated func comparePreviews(_ lhs: NoteSummary, _ rhs: NoteSummary) -> Bool? {
         switch lhs.previewText.localizedStandardCompare(rhs.previewText) {
         case .orderedAscending:
             true
@@ -90,7 +90,7 @@ enum NotePinning {
     static let maximumPinnedNotes = 5
 
     /// Returns pinned notes ordered by the most recently recorded pin timestamp.
-    static func sortedPinnedNotes(in notes: [NoteSummary]) -> [NoteSummary] {
+    nonisolated static func sortedPinnedNotes(in notes: [NoteSummary]) -> [NoteSummary] {
         notes.filter(\.isPinned).sorted { lhs, rhs in
             guard let lhsPinnedAt = lhs.pinnedAt, let rhsPinnedAt = rhs.pinnedAt else {
                 return lhs.url.path.localizedStandardCompare(rhs.url.path) == .orderedAscending
@@ -105,7 +105,7 @@ enum NotePinning {
     }
 
     /// Moves pinned search results ahead of unpinned results without changing search relevance.
-    static func pinnedFirst(_ notes: [NoteSummary]) -> [NoteSummary] {
+    nonisolated static func pinnedFirst(_ notes: [NoteSummary]) -> [NoteSummary] {
         sortedPinnedNotes(in: notes) + notes.filter { !$0.isPinned }
     }
 }

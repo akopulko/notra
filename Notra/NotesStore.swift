@@ -12,9 +12,12 @@ final class NotesStore {
     /// Creates and prepares a repository before a location change becomes visible in the UI.
     @ObservationIgnored
     private let repositoryFactory: (NoteStorageLocation) throws -> TextBundleNoteRepository
-    /// Loads summaries from a prepared target repository before it replaces the current state.
+    /// Loads initial-library summaries away from the main actor before publishing them to the sidebar.
     @ObservationIgnored
-    private let repositoryNotesLoader: (TextBundleNoteRepository) throws -> [NoteSummary]
+    private let libraryNotesLoader: @Sendable (TextBundleNoteRepository, NoteSortPreference) async throws -> [NoteSummary]
+    /// Loads a replacement library before a storage location change becomes visible in the UI.
+    @ObservationIgnored
+    private let repositoryNotesLoader: @Sendable (TextBundleNoteRepository, NoteSortPreference) async throws -> [NoteSummary]
     /// Keeps availability checks injectable for storage-setting tests.
     @ObservationIgnored
     private let iCloudAvailability: () -> Bool
@@ -81,6 +84,9 @@ final class NotesStore {
     /// Monotonic identity for the repository whose state is currently published.
     @ObservationIgnored
     private var repositoryGeneration: UInt64 = 0
+    /// Identifies the newest whole-library load so superseded work cannot hide its loading state.
+    @ObservationIgnored
+    private var libraryLoadIdentifier: UInt64 = 0
     /// Monotonic editor identity used to discard save work superseded by newer typing.
     @ObservationIgnored
     private var editorRevision: UInt64 = 0
@@ -96,9 +102,8 @@ final class NotesStore {
         repositoryFactory: @escaping (NoteStorageLocation) throws -> TextBundleNoteRepository = {
             try TextBundleNoteRepository.repository(for: $0)
         },
-        repositoryNotesLoader: @escaping (TextBundleNoteRepository) throws -> [NoteSummary] = {
-            try $0.listNotes()
-        },
+        libraryNotesLoader: @escaping @Sendable (TextBundleNoteRepository, NoteSortPreference) async throws -> [NoteSummary] = NoteLibraryLoader.load,
+        repositoryNotesLoader: @escaping @Sendable (TextBundleNoteRepository, NoteSortPreference) async throws -> [NoteSummary] = NoteLibraryLoader.load,
         iCloudAvailability: @escaping () -> Bool = {
             TextBundleNoteRepository.isICloudAvailable()
         },
@@ -109,6 +114,7 @@ final class NotesStore {
     ) {
         self.repository = repository
         self.repositoryFactory = repositoryFactory
+        self.libraryNotesLoader = libraryNotesLoader
         self.repositoryNotesLoader = repositoryNotesLoader
         self.iCloudAvailability = iCloudAvailability
         self.autosavePause = autosavePause
@@ -169,21 +175,27 @@ final class NotesStore {
         }
 
         isChangingStorage = true
-        isLoading = true
         let previousGeneration = repositoryGeneration
         repositoryGeneration &+= 1
+        let replacementGeneration = repositoryGeneration
+        let loadIdentifier = beginLibraryLoading()
         cancelDeferredWork()
         searchIndexTask?.cancel()
         await searchIndexGate.advance(to: repositoryGeneration)
         defer {
-            isChangingStorage = false
-            isLoading = false
+            if isCurrentRepository(replacementGeneration) {
+                isChangingStorage = false
+                finishLibraryLoading(loadIdentifier, generation: replacementGeneration)
+            }
         }
 
         do {
             try await saveCurrentNoteIfNeeded(generation: previousGeneration)
             let replacementRepository = try repositoryFactory(location)
-            let replacementNotes = try sortPreference.sorted(repositoryNotesLoader(replacementRepository))
+            let replacementNotes = try await repositoryNotesLoader(replacementRepository, sortPreference)
+            guard !Task.isCancelled, isCurrentRepository(replacementGeneration) else {
+                return
+            }
 
             repository = replacementRepository
             storageLocation = location
@@ -194,7 +206,16 @@ final class NotesStore {
             storagePreferenceStorage.location = location
             startSearchIndexSynchronization()
             AppLog.info("Changed note storage to \(replacementRepository.storageDescription)")
+        } catch is CancellationError {
+            guard isCurrentRepository(replacementGeneration) else {
+                return
+            }
+            startSearchIndexSynchronization()
+            return
         } catch {
+            guard isCurrentRepository(replacementGeneration) else {
+                return
+            }
             startSearchIndexSynchronization()
             AppLog.error("Failed to change note storage: \(error.localizedDescription)")
             errorMessage = error.localizedDescription
@@ -221,11 +242,19 @@ final class NotesStore {
             return
         }
         AppLog.info("Loading notes from \(repository.storageDescription)")
-        isLoading = true
-        defer { isLoading = false }
+        let generation = repositoryGeneration
+        let loadingRepository = repository
+        let loadIdentifier = beginLibraryLoading()
+        defer {
+            finishLibraryLoading(loadIdentifier, generation: generation)
+        }
 
         do {
-            try refreshNotes()
+            let loadedNotes = try await libraryNotesLoader(loadingRepository, sortPreference)
+            guard !Task.isCancelled, isCurrentRepository(generation) else {
+                return
+            }
+            notes = loadedNotes
             #if os(macOS)
             if selectedNoteID == nil {
                 selectedNoteID = notes.first?.id
@@ -236,7 +265,12 @@ final class NotesStore {
             }
             startSearchIndexSynchronization()
             AppLog.info("Loaded \(notes.count) notes; selected note: \(logName(for: selectedNoteID))")
+        } catch is CancellationError {
+            return
         } catch {
+            guard isCurrentRepository(generation) else {
+                return
+            }
             AppLog.error("Failed to load notes: \(error.localizedDescription)")
             errorMessage = error.localizedDescription
         }
@@ -1188,6 +1222,23 @@ private extension NotesStore {
         }
 
         return url.deletingPathExtension().lastPathComponent
+    }
+}
+
+private extension NotesStore {
+    /// Starts a whole-library read and returns the identity required to finish only that read.
+    func beginLibraryLoading() -> UInt64 {
+        libraryLoadIdentifier &+= 1
+        isLoading = true
+        return libraryLoadIdentifier
+    }
+
+    /// Leaves the current loading indicator intact when older work completes after a newer load.
+    func finishLibraryLoading(_ identifier: UInt64, generation: UInt64) {
+        guard isCurrentRepository(generation), identifier == libraryLoadIdentifier else {
+            return
+        }
+        isLoading = false
     }
 }
 

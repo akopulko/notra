@@ -7,7 +7,7 @@ import Darwin
 /// Summarizes attachment visibility without loading all attachment metadata into a row.
 struct NoteAttachmentSummary: Equatable, Sendable {
     /// Empty summary used when the note has no links to assets.
-    static let empty = NoteAttachmentSummary(
+    nonisolated static let empty = NoteAttachmentSummary(
         firstLinkedImageURL: nil,
         hasLinkedNonImageAttachment: false
     )
@@ -35,9 +35,9 @@ struct NoteAttachmentSummary: Equatable, Sendable {
 }
 
 /// The lightweight note value used by lists, selection, sorting, and search results.
-struct NoteSummary: Identifiable, Equatable {
+struct NoteSummary: Identifiable, Equatable, Sendable {
     /// Shared placeholder used when a note contains no non-empty preview lines.
-    static let emptyPreviewText = "<Empty Note>"
+    nonisolated static let emptyPreviewText = "<Empty Note>"
 
     /// Canonical file URL used as the stable SwiftUI and search identity.
     let id: URL
@@ -61,11 +61,11 @@ struct NoteSummary: Identifiable, Equatable {
     let pinnedAt: Date?
 
     /// Whether the note should remain above the regular sorted notes.
-    var isPinned: Bool {
+    nonisolated var isPinned: Bool {
         pinnedAt != nil
     }
 
-    init(
+    nonisolated init(
         url: URL,
         previewText: String,
         previewFirstLineIsHeading: Bool = false,

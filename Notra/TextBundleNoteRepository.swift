@@ -39,7 +39,7 @@ enum NoteRepositoryError: Equatable, LocalizedError {
 }
 
 /// Reads and writes notes as specification-compatible TextBundles on local or iCloud storage.
-struct TextBundleNoteRepository {
+struct TextBundleNoteRepository: Sendable {
     /// TextBundle layout constants shared by storage, import, preview, and export code.
     nonisolated static let bundleExtension = "textbundle"
     nonisolated static let textFilename = "text.markdown"
@@ -48,9 +48,9 @@ struct TextBundleNoteRepository {
     nonisolated static let appMetadataKey = "app.notra.Notra"
 
     /// Root directory containing note bundles for the selected storage location.
-    let rootURL: URL
+    nonisolated let rootURL: URL
     /// The location represented by `rootURL`, retained for settings and inspector descriptions.
-    let storageLocation: NoteStorageLocation
+    nonisolated let storageLocation: NoteStorageLocation
 
     init(rootURL: URL, isUsingICloud: Bool = false) {
         self.rootURL = rootURL
@@ -62,7 +62,7 @@ struct TextBundleNoteRepository {
     }
 
     /// Creates the repository root before any directory enumeration or bundle creation.
-    func prepareStorage() throws {
+    nonisolated func prepareStorage() throws {
         try FileManager.default.createDirectory(at: rootURL, withIntermediateDirectories: true)
     }
 
@@ -93,8 +93,9 @@ struct TextBundleNoteRepository {
     }
 
     /// Enumerates valid TextBundles and derives lightweight previews without loading editor bodies.
-    func listNotes() throws -> [NoteSummary] {
+    nonisolated func listNotes() throws -> [NoteSummary] {
         try prepareStorage()
+        try Task.checkCancellation()
 
         let urls = try FileManager.default.contentsOfDirectory(
             at: rootURL,
@@ -103,11 +104,14 @@ struct TextBundleNoteRepository {
         )
 
         let noteURLs = urls.filter { $0.pathExtension == Self.bundleExtension }
-        return try noteURLs.map { try summary(for: $0) }
+        return try noteURLs.map { url in
+            try Task.checkCancellation()
+            return try summary(for: url)
+        }
     }
 
     /// Derives the sidebar projection for one bundle without enumerating the whole notes library.
-    func summary(
+    nonisolated func summary(
         for url: URL,
         analysis: MarkdownDocumentAnalysis? = nil
     ) throws -> NoteSummary {
@@ -189,7 +193,7 @@ struct TextBundleNoteRepository {
     }
 
     /// Reads Notra metadata, treating missing metadata as an unpinned note without tags.
-    func noteMetadata(at noteURL: URL) throws -> NoteMetadata {
+    nonisolated func noteMetadata(at noteURL: URL) throws -> NoteMetadata {
         let infoURL = noteURL.appendingPathComponent(Self.infoFilename)
         guard FileManager.default.fileExists(atPath: infoURL.path(percentEncoded: false)) else {
             return NoteMetadata()
@@ -201,7 +205,7 @@ struct TextBundleNoteRepository {
     }
 
     /// Keeps damaged notes discoverable while recording why their metadata could not be read.
-    private func summaryMetadata(at noteURL: URL) -> NoteMetadata {
+    private nonisolated func summaryMetadata(at noteURL: URL) -> NoteMetadata {
         do {
             return try noteMetadata(at: noteURL)
         } catch {
@@ -343,7 +347,7 @@ struct TextBundleNoteRepository {
     }
 
     /// Returns visible regular files in the bundle's assets directory in stable filename order.
-    func assetURLs(in noteURL: URL) throws -> [URL] {
+    nonisolated func assetURLs(in noteURL: URL) throws -> [URL] {
         let assetsURL = noteURL.appendingPathComponent(Self.assetsFolder, isDirectory: true)
         guard FileManager.default.fileExists(atPath: assetsURL.path(percentEncoded: false)) else {
             return []
@@ -404,14 +408,14 @@ struct TextBundleNoteRepository {
 
 private extension TextBundleNoteRepository {
     /// Summarizes only linked assets so unused files do not produce row-level attachment indicators.
-    private func attachmentSummary(for noteURL: URL, markdown: String) throws -> NoteAttachmentSummary {
+    private nonisolated func attachmentSummary(for noteURL: URL, markdown: String) throws -> NoteAttachmentSummary {
         try attachmentSummary(
             for: noteURL,
             analysis: MarkdownDocumentAnalysis.analyse(markdown: markdown)
         )
     }
 
-    private func attachmentSummary(
+    private nonisolated func attachmentSummary(
         for noteURL: URL,
         analysis: MarkdownDocumentAnalysis
     ) throws -> NoteAttachmentSummary {
@@ -465,7 +469,7 @@ private extension TextBundleNoteRepository {
     }
 
     /// Uses the Markdown file timestamp first, falling back to the bundle timestamp for old bundles.
-    private func modifiedDate(of bundleURL: URL) throws -> Date {
+    private nonisolated func modifiedDate(of bundleURL: URL) throws -> Date {
         let textURL = bundleURL.appendingPathComponent(Self.textFilename)
         let textValues = try textURL.resourceValues(forKeys: [.contentModificationDateKey])
         if let modifiedAt = textValues.contentModificationDate {
@@ -476,7 +480,7 @@ private extension TextBundleNoteRepository {
     }
 
     /// Reads the required UTF-8 Markdown member of a TextBundle.
-    private func markdownContent(in bundleURL: URL) throws -> String {
+    private nonisolated func markdownContent(in bundleURL: URL) throws -> String {
         let textURL = bundleURL.appendingPathComponent(Self.textFilename)
         return try String(contentsOf: textURL, encoding: .utf8)
     }
@@ -601,12 +605,12 @@ private extension TextBundleNoteRepository {
     }
 
     /// Compatibility accessor for callers that only need the rendered preview text.
-    static func previewText(for markdown: String) -> String {
+    nonisolated static func previewText(for markdown: String) -> String {
         preview(for: markdown).text
     }
 
     /// Builds a short plain-text preview while skipping table structure and Markdown markers.
-    static func preview(for markdown: String) -> NotePreview {
+    nonisolated static func preview(for markdown: String) -> NotePreview {
         let lines = previewSourceLines(from: markdown)
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
@@ -629,7 +633,7 @@ private extension TextBundleNoteRepository {
     }
 
     /// Removes complete GFM table blocks before choosing the first preview lines.
-    private static func previewSourceLines(from markdown: String) -> [String] {
+    private nonisolated static func previewSourceLines(from markdown: String) -> [String] {
         let lines = markdown.components(separatedBy: .newlines)
         var previewLines: [String] = []
         var index = 0
@@ -654,15 +658,15 @@ private extension TextBundleNoteRepository {
         return previewLines
     }
 
-    private static func isTableHeader(_ line: String) -> Bool {
+    private nonisolated static func isTableHeader(_ line: String) -> Bool {
         line.contains("|") && !line.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
-    private static func isTableRow(_ line: String) -> Bool {
+    private nonisolated static func isTableRow(_ line: String) -> Bool {
         line.contains("|") && !line.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
-    private static func tableColumnCount(in delimiter: String) -> Int? {
+    private nonisolated static func tableColumnCount(in delimiter: String) -> Int? {
         let cells = tableCells(in: delimiter)
         guard !cells.isEmpty,
               cells.allSatisfy({
@@ -676,11 +680,11 @@ private extension TextBundleNoteRepository {
         return cells.count
     }
 
-    private static func tableCellCount(in row: String) -> Int {
+    private nonisolated static func tableCellCount(in row: String) -> Int {
         tableCells(in: row).count
     }
 
-    private static func tableCells(in line: String) -> [Substring] {
+    private nonisolated static func tableCells(in line: String) -> [Substring] {
         var row = line[...]
         if row.first == "|" {
             row.removeFirst()
@@ -691,7 +695,7 @@ private extension TextBundleNoteRepository {
         return row.split(separator: "|", omittingEmptySubsequences: false)
     }
 
-    private static func plainText(fromMarkdownLine line: String) -> String {
+    private nonisolated static func plainText(fromMarkdownLine line: String) -> String {
         line
             .replacingOccurrences(
                 of: #"^\s{0,3}#{1,6}\s+"#,
@@ -741,7 +745,7 @@ private extension TextBundleNoteRepository {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private static func isMarkdownHeading(_ line: String) -> Bool {
+    private nonisolated static func isMarkdownHeading(_ line: String) -> Bool {
         line.range(
             of: #"^\s{0,3}#{1,6}(\s|$)"#,
             options: .regularExpression

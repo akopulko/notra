@@ -38,7 +38,7 @@ enum TextBundleAssetKind: Equatable, Sendable {
     case image
     case attachment
 
-    init(contentType: UTType?, filename: String) {
+    nonisolated init(contentType: UTType?, filename: String) {
         if contentType?.conforms(to: .image) == true {
             self = .image
             return
