@@ -33,12 +33,12 @@ struct NotesSidebar: View {
             .toolbar {
                 ToolbarItemGroup(placement: .primaryAction) {
                     NewNoteButton(action: createNote)
+                    #if os(iOS)
                     SortNotesMenu(
                         preference: store.sortPreference,
                         setField: store.setSortField,
                         setDirection: store.setSortDirection
                     )
-                    #if os(iOS)
                     settingsButton
                     #endif
                 }

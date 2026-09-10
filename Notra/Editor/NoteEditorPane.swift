@@ -73,15 +73,6 @@ struct NoteEditorPane: View {
         }
         .scrollEdgeEffectStyle(.soft, for: .top)
         #if os(iOS)
-        .overlay(alignment: floatingButtonAlignment) {
-            if store.hasSelection {
-                FloatingEditModeButton(isEditing: isEditing) {
-                    isEditing.toggle()
-                }
-                .padding(.trailing, 24)
-                .padding(floatingButtonVerticalPaddingEdge, 24)
-            }
-        }
         .modifier(imagePickerPresentationModifier)
         #endif
         .onChange(of: attachmentSelectionRequest) {
@@ -158,7 +149,7 @@ struct NoteEditorPane: View {
 
     @ToolbarContentBuilder
     private var editorToolbar: some ToolbarContent {
-        #if os(macOS)
+        #if os(macOS) || os(iOS)
         ToolbarItem(placement: .primaryAction) {
             Button {
                 isEditing.toggle()
@@ -358,22 +349,6 @@ private extension NoteEditorPane {
             """
         )
         requestAttachmentSelection()
-    }
-
-    private var floatingButtonAlignment: Alignment {
-        #if os(macOS)
-        .topTrailing
-        #else
-        .bottomTrailing
-        #endif
-    }
-
-    private var floatingButtonVerticalPaddingEdge: Edge.Set {
-        #if os(macOS)
-        .top
-        #else
-        .bottom
-        #endif
     }
 
     #if os(iOS)
