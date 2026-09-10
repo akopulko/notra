@@ -131,8 +131,10 @@ struct NotraCommands: Commands {
 
     var body: some Commands {
         CommandGroup(replacing: .newItem) {
-            Button("New Note") {
+            Button {
                 context?.createNote()
+            } label: {
+                Label("New Note", systemImage: "square.and.pencil")
             }
             .keyboardShortcut("n", modifiers: .command)
             .disabled(!(context?.canCreateNote ?? false))
@@ -141,34 +143,44 @@ struct NotraCommands: Commands {
         CommandGroup(after: .newItem) {
             Divider()
 
-            Button("Share") {
+            Button {
                 context?.requestExport(.sharePDF)
+            } label: {
+                Label("Share", systemImage: "square.and.arrow.up")
             }
             .disabled(!(context?.canExportSelectedNote ?? false))
 
             Divider()
 
-            Menu("Export…") {
-                Button("PDF") {
+            Menu {
+                Button {
                     context?.requestExport(.exportPDF)
+                } label: {
+                    Label("PDF", systemImage: "doc")
                 }
                 .disabled(!(context?.canExportSelectedNote ?? false))
 
-                Button("Markdown") {
+                Button {
                     context?.requestExport(.exportMarkdown)
+                } label: {
+                    Label("Markdown", systemImage: "doc.on.doc")
                 }
                 .disabled(!(context?.canExportSelectedNote ?? false))
+            } label: {
+                Label("Export…", systemImage: "arrow.forward.folder.fill")
             }
         }
 
         CommandMenu("Format") {
-            Menu("Header") {
+            Menu {
                 headingButton(.h1, shortcut: "1")
                 headingButton(.h2, shortcut: "2")
                 headingButton(.h3, shortcut: "3")
                 headingButton(.h4, shortcut: "4")
                 headingButton(.h5, shortcut: "5")
                 headingButton(.h6, shortcut: "6")
+            } label: {
+                Label("Header", systemImage: NoteFormattingCommand.heading.systemImage)
             }
 
             Divider()
@@ -181,16 +193,20 @@ struct NotraCommands: Commands {
 
             Divider()
 
-            Menu("Font") {
+            Menu {
                 formatButton(.bold, shortcut: "b", modifiers: .command)
                 formatButton(.italic, shortcut: "i", modifiers: .command)
                 formatButton(.strikethrough, shortcut: "x", modifiers: [.command, .shift])
+            } label: {
+                Label("Font", systemImage: NoteFormattingCommand.bold.systemImage)
             }
         }
 
         CommandMenu("Insert") {
-            Button("Attachment") {
+            Button {
                 context?.requestAttachment()
+            } label: {
+                Label("Attachment", systemImage: "paperclip")
             }
             .disabled(!(context?.canEditSelectedNote ?? false))
 
@@ -199,8 +215,10 @@ struct NotraCommands: Commands {
         }
 
         CommandGroup(before: .sidebar) {
-            Button("Toggle Preview") {
+            Button {
                 context?.togglePreview()
+            } label: {
+                Label("Toggle Preview", systemImage: "eye")
             }
             .keyboardShortcut("p", modifiers: [.command, .option])
             .disabled(context?.store.hasSelection != true)
@@ -213,7 +231,7 @@ struct NotraCommands: Commands {
         CommandGroup(after: .sidebar) {
             Divider()
 
-            Menu("Sort By") {
+            Menu {
                 sortFieldButton(.dateEdited)
                 sortFieldButton(.dateCreated)
 
@@ -221,22 +239,30 @@ struct NotraCommands: Commands {
 
                 sortDirectionButton(.latestFirst)
                 sortDirectionButton(.oldestFirst)
+            } label: {
+                Label("Sort By", systemImage: "arrow.up.arrow.down")
             }
             .disabled(context == nil)
         }
 
         CommandGroup(after: .help) {
-            Button("Notra Help") {}
-            Button("Keyboard Shortcuts") {
+            Button {} label: {
+                Label("Notra Help", systemImage: "questionmark.circle")
+            }
+            Button {
                 context?.showKeyboardShortcuts()
+            } label: {
+                Label("Keyboard Shortcuts", systemImage: "keyboard")
             }
             .keyboardShortcut("/", modifiers: .command)
         }
     }
 
     private func headingButton(_ level: MarkdownHeadingLevel, shortcut: KeyEquivalent) -> some View {
-        Button(level.menuTitle) {
+        Button {
             context?.applyHeading(level)
+        } label: {
+            Label(level.menuTitle, systemImage: NoteFormattingCommand.heading.systemImage)
         }
         .keyboardShortcut(shortcut, modifiers: [.command, .option])
         .disabled(!(context?.canEditSelectedNote ?? false))
@@ -247,8 +273,10 @@ struct NotraCommands: Commands {
         shortcut: KeyEquivalent,
         modifiers: EventModifiers
     ) -> some View {
-        Button(command.title) {
+        Button {
             context?.applyFormatting(command)
+        } label: {
+            Label(command.title, systemImage: command.systemImage)
         }
         .keyboardShortcut(shortcut, modifiers: modifiers)
         .disabled(!(context?.canEditSelectedNote ?? false))
