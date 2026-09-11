@@ -21,7 +21,7 @@ phone)
   device_name="iPhone 17"
   ;;
 ipad)
-  device_name="iPad Pro 13-inch (M5)"
+  device_name="iPad (A16)"
   ;;
 *)
   printf '%s\n' "Usage: Scripts/run_iOS.sh [phone|ipad]" >&2
@@ -98,7 +98,13 @@ if [ "$device_state" != "Booted" ]; then
   xcrun simctl boot "$device_id" 2>/dev/null || true
 fi
 
-open -a Simulator
+# Xcode 27 replaces Simulator.app with Device Hub; retain the legacy fallback
+# so this runner continues to work with older Xcode installations.
+if open -a "Device Hub" 2>/dev/null; then
+  :
+else
+  open -a Simulator
+fi
 xcrun simctl bootstatus "$device_id" -b
 xcrun simctl terminate "$device_id" "$bundle_identifier" 2>/dev/null || true
 xcrun simctl install "$device_id" "$app_path"
