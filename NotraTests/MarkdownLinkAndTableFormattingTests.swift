@@ -59,7 +59,7 @@ struct MarkdownLinkAndTableFormattingTests {
             source: "assets/image.jpg"
         )
 
-        #expect(result.text == "![](assets/image.jpg)")
+        #expect(result.text == "![](assets/image.jpg)\n")
         #expect(cursorOffset(in: result) == result.text.count)
     }
 
@@ -73,7 +73,7 @@ struct MarkdownLinkAndTableFormattingTests {
         )
 
         #expect(result.text == "Some\n![](assets/image.jpg)\n text")
-        #expect(cursorOffset(in: result) == "Some\n![](assets/image.jpg)".count)
+        #expect(cursorOffset(in: result) == "Some\n![](assets/image.jpg)\n".count)
     }
 
     @Test func imageSelectionBecomesAltText() {
@@ -84,7 +84,7 @@ struct MarkdownLinkAndTableFormattingTests {
             source: "assets/image.jpg"
         )
 
-        #expect(result.text == "![Selected text](assets/image.jpg)")
+        #expect(result.text == "![Selected text](assets/image.jpg)\n")
         #expect(cursorOffset(in: result) == result.text.count)
     }
 
@@ -99,7 +99,31 @@ struct MarkdownLinkAndTableFormattingTests {
         )
 
         #expect(result.text == "A \n![😀](assets/image.jpg)\n note")
-        #expect(cursorOffset(in: result) == "A \n![😀](assets/image.jpg)".count)
+        #expect(cursorOffset(in: result) == "A \n![😀](assets/image.jpg)\n".count)
+    }
+
+    @Test func imageAtCursorAfterListMarkerStartsOnNextLine() {
+        let text = "-"
+        let result = MarkdownFormatting.applyImageResult(
+            to: text,
+            selection: text.endIndex ..< text.endIndex,
+            source: "assets/paris-france.jpg"
+        )
+
+        #expect(result.text == "-\n![](assets/paris-france.jpg)\n")
+        #expect(cursorOffset(in: result) == result.text.count)
+    }
+
+    @Test func imageMultilineSelectionCannotBreakImageSyntax() {
+        let text = "Before\n-\nAfter"
+        let selection = text.range(of: "\n-\n") ?? text.startIndex ..< text.startIndex
+        let result = MarkdownFormatting.applyImageResult(
+            to: text,
+            selection: selection,
+            source: "assets/image.jpg"
+        )
+
+        #expect(result.text == "Before\n![ - ](assets/image.jpg)\nAfter")
     }
 
     @Test func attachmentLinkAtCursorMidLineUsesBlockLineBreaks() {
@@ -113,7 +137,20 @@ struct MarkdownLinkAndTableFormattingTests {
         )
 
         #expect(result.text == "Some\n[report.pdf](assets/report.pdf)\n text")
-        #expect(cursorOffset(in: result) == "Some\n[report.pdf](assets/report.pdf)".count)
+        #expect(cursorOffset(in: result) == "Some\n[report.pdf](assets/report.pdf)\n".count)
+    }
+
+    @Test func attachmentAtCursorAfterListMarkerStartsOnNextLine() {
+        let text = "-"
+        let result = MarkdownFormatting.applyAttachmentLinkResult(
+            to: text,
+            selection: text.endIndex ..< text.endIndex,
+            label: "report.pdf",
+            source: "assets/report.pdf"
+        )
+
+        #expect(result.text == "-\n[report.pdf](assets/report.pdf)\n")
+        #expect(cursorOffset(in: result) == result.text.count)
     }
 
     @Test func tableAtBeginningOfDocumentPlacesCursorAfterTemplate() {

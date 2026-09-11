@@ -159,7 +159,9 @@ private extension MarkdownEditor {
         }
 
         let currentText = text
-        let selectedRange = formattingSelection(in: currentText)
+        // Image selection can be initiated by a picker and must use the current caret,
+        // not a stale non-empty selection retained for toolbar formatting.
+        let selectedRange = currentSelection(in: currentText)
         AppLog.info(
             """
             Applying image markdown insertion; \
@@ -183,7 +185,8 @@ private extension MarkdownEditor {
         }
 
         let currentText = text
-        let selectedRange = formattingSelection(in: currentText)
+        // File insertion follows the same caret rule as image insertion.
+        let selectedRange = currentSelection(in: currentText)
         AppLog.info(
             """
             Applying attachment markdown insertion; \
@@ -298,6 +301,11 @@ private extension MarkdownEditor {
         }
 
         return range(from: currentSnapshot, in: plainText)
+    }
+
+    /// Returns only the native editor's current selection, without restoring an older selection.
+    private func currentSelection(in plainText: String) -> Range<String.Index> {
+        range(from: selectionStore.snapshot, in: plainText)
     }
 
     private func snapshot(
