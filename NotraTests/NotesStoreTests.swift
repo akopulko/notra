@@ -6,6 +6,21 @@ import Testing
 @MainActor
 struct NotesStoreTests {
     @Test
+    func `loading notes selects the first note by default`() async throws {
+        let harness = try makeHarness()
+        defer {
+            harness.cleanup()
+        }
+        let firstNote = try harness.makeNote(markdown: "First note")
+
+        await harness.store.loadNotes()
+
+        #expect(harness.store.notes.first?.id == firstNote.id)
+        #expect(harness.store.selectedNoteID == firstNote.id)
+        #expect(harness.store.editorText == firstNote.markdown)
+    }
+
+    @Test
     func `deleting selected note selects previous note`() async throws {
         let harness = try makeHarness()
         defer {
