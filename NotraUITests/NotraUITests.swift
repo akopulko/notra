@@ -48,12 +48,17 @@ final class NotraUITests: XCTestCase {
         app.launch()
 
         if UIDevice.current.userInterfaceIdiom == .pad {
-            let sidebarButton = app.buttons.matching(
-                NSPredicate(format: "label CONTAINS[c] 'sidebar' OR identifier CONTAINS[c] 'sidebar'")
-            ).firstMatch
+            let sidebarButton = sidebarVisibilityButton(in: app)
             XCTAssertTrue(sidebarButton.waitForExistence(timeout: 10), app.debugDescription)
             XCTAssertTrue(sidebarButton.isHittable)
-            sidebarButton.tap()
+            if sidebarButton.label == "Hide Sidebar" {
+                sidebarButton.tap()
+            }
+
+            let showSidebarButton = app.buttons["Show Sidebar"].firstMatch
+            XCTAssertTrue(showSidebarButton.waitForExistence(timeout: 10), app.debugDescription)
+            showSidebarButton.tap()
+            XCTAssertTrue(app.buttons["Hide Sidebar"].waitForExistence(timeout: 10))
         }
 
         // A visible create action proves the notes sidebar can be used, including with an empty library.
@@ -61,6 +66,58 @@ final class NotraUITests: XCTestCase {
         let isHittable = NSPredicate(format: "exists == true AND hittable == true")
         expectation(for: isHittable, evaluatedWith: newNoteButton)
         waitForExpectations(timeout: 10)
+    }
+
+    /// Ensures the regular-width iPad layout gives the editor space beside the sidebar.
+    @MainActor
+    func testSidebarPushesDetailInLandscape() {
+        guard UIDevice.current.userInterfaceIdiom == .pad else {
+            return
+        }
+
+        XCUIDevice.shared.orientation = .landscapeLeft
+        defer { XCUIDevice.shared.orientation = .portrait }
+
+        let app = XCUIApplication()
+        app.launchArguments += ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        revealSidebar(in: app)
+
+        app.buttons["New Note"].firstMatch.tap()
+        let editor = app.textViews.firstMatch
+        XCTAssertTrue(editor.waitForExistence(timeout: 10), app.debugDescription)
+        editor.tap()
+        let title = "Sidebar Layout Regression \(UUID().uuidString)"
+        editor.typeText(title)
+
+        let sidebarButton = sidebarVisibilityButton(in: app)
+        XCTAssertTrue(sidebarButton.waitForExistence(timeout: 10), app.debugDescription)
+        if sidebarButton.label == "Show Sidebar" {
+            sidebarButton.tap()
+        }
+
+        let sidebar = sidebarCollectionView(in: app)
+        XCTAssertTrue(sidebar.waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertFalse(sidebar.frame.intersects(editor.frame), app.debugDescription)
+
+        app.buttons["Hide Sidebar"].firstMatch.tap()
+        XCTAssertTrue(editor.waitForExistence(timeout: 10))
+        let showSidebarButton = app.buttons["Show Sidebar"].firstMatch
+        XCTAssertTrue(showSidebarButton.waitForExistence(timeout: 10), app.debugDescription)
+        showSidebarButton.tap()
+
+        XCTAssertTrue(app.buttons["Hide Sidebar"].waitForExistence(timeout: 10))
+        XCTAssertFalse(sidebar.frame.intersects(editor.frame), app.debugDescription)
+
+        app.buttons["Done"].firstMatch.tap()
+        let note = app.cells.containing(.staticText, identifier: title).firstMatch
+        XCTAssertTrue(note.waitForExistence(timeout: 10), app.debugDescription)
+        note.press(forDuration: 1)
+        app.buttons["Delete"].firstMatch.tap()
+        let confirmation = app.alerts["Delete Note?"]
+        XCTAssertTrue(confirmation.waitForExistence(timeout: 5))
+        confirmation.buttons["Delete"].tap()
+        XCTAssertTrue(note.waitForNonExistence(timeout: 10))
     }
 
     /// Exercises presentation changes with a note created by this test, then removes only that note.
@@ -139,9 +196,24 @@ final class NotraUITests: XCTestCase {
 
     @MainActor
     private func sidebarButton(in app: XCUIApplication) -> XCUIElement {
+        let sidebarButton = sidebarVisibilityButton(in: app)
+        if sidebarButton.exists {
+            return sidebarButton
+        }
+
+        return app.buttons["Back"].firstMatch
+    }
+
+    @MainActor
+    private func sidebarVisibilityButton(in app: XCUIApplication) -> XCUIElement {
         app.buttons.matching(
-            NSPredicate(format: "label CONTAINS[c] 'sidebar' OR identifier CONTAINS[c] 'sidebar' OR label == 'Back'")
+            NSPredicate(format: "label == 'Hide Sidebar' OR label == 'Show Sidebar'")
         ).firstMatch
+    }
+
+    @MainActor
+    private func sidebarCollectionView(in app: XCUIApplication) -> XCUIElement {
+        app.collectionViews.matching(NSPredicate(format: "label == 'Sidebar'")).firstMatch
     }
     #endif
 

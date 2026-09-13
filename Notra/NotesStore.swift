@@ -255,11 +255,9 @@ final class NotesStore {
                 return
             }
             notes = loadedNotes
-            #if os(macOS)
             if selectedNoteID == nil {
                 selectedNoteID = notes.first?.id
             }
-            #endif
             if let selectedNoteID {
                 try selectNote(id: selectedNoteID)
             }

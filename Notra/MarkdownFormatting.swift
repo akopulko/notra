@@ -110,22 +110,9 @@ enum MarkdownFormatting {
         selection: Range<String.Index>,
         source: String
     ) -> MarkdownFormattingResult {
-        let selectedText = String(text[selection])
-        let insertionPoint = selection.lowerBound
-        let suffix = text[selection.upperBound...]
-        let leadingBreak = needsLeadingLineBreak(in: text, at: insertionPoint) ? "\n" : ""
-        let trailingBreak = suffix.isEmpty || suffix.hasPrefix("\n") ? "" : "\n"
+        let selectedText = singleLineImageAltText(from: text[selection])
         let imageMarkdown = "![\(selectedText)](\(source))"
-        let replacement = "\(leadingBreak)\(imageMarkdown)\(trailingBreak)"
-        var result = text
-
-        result.replaceSubrange(selection, with: replacement)
-
-        let insertionOffset = text.distance(from: text.startIndex, to: insertionPoint)
-        let cursorOffset = insertionOffset + leadingBreak.count + imageMarkdown.count
-        let cursor = result.index(result.startIndex, offsetBy: cursorOffset)
-
-        return MarkdownFormattingResult(text: result, selection: cursor..<cursor)
+        return applyBlockResult(to: text, selection: selection, content: imageMarkdown)
     }
 
     /// Inserts a local attachment link as a block while retaining its display label.
@@ -135,21 +122,41 @@ enum MarkdownFormatting {
         label: String,
         source: String
     ) -> MarkdownFormattingResult {
+        let attachmentMarkdown = "[\(label)](\(source))"
+        return applyBlockResult(to: text, selection: selection, content: attachmentMarkdown)
+    }
+
+    /// Inserts one block at the active selection and isolates it from surrounding Markdown.
+    private static func applyBlockResult(
+        to text: String,
+        selection: Range<String.Index>,
+        content: String
+    ) -> MarkdownFormattingResult {
         let insertionPoint = selection.lowerBound
         let suffix = text[selection.upperBound...]
         let leadingBreak = needsLeadingLineBreak(in: text, at: insertionPoint) ? "\n" : ""
-        let trailingBreak = suffix.isEmpty || suffix.hasPrefix("\n") ? "" : "\n"
-        let attachmentMarkdown = "[\(label)](\(source))"
-        let replacement = "\(leadingBreak)\(attachmentMarkdown)\(trailingBreak)"
+        let suffixStartsOnNewLine = suffix.hasPrefix("\n")
+        let trailingBreak = suffixStartsOnNewLine ? "" : "\n"
+        let replacement = "\(leadingBreak)\(content)\(trailingBreak)"
         var result = text
 
         result.replaceSubrange(selection, with: replacement)
 
         let insertionOffset = text.distance(from: text.startIndex, to: insertionPoint)
-        let cursorOffset = insertionOffset + leadingBreak.count + attachmentMarkdown.count
+        // Move past either the new separator or the existing line break so typing continues below the block.
+        let trailingBreakCount = suffixStartsOnNewLine ? 1 : trailingBreak.count
+        let cursorOffset = insertionOffset + leadingBreak.count + content.count + trailingBreakCount
         let cursor = result.index(result.startIndex, offsetBy: cursorOffset)
 
         return MarkdownFormattingResult(text: result, selection: cursor..<cursor)
+    }
+
+    /// Keeps image syntax on one line when a multiline editor selection becomes alt text.
+    private static func singleLineImageAltText(from selectedText: Substring) -> String {
+        String(selectedText)
+            .replacingOccurrences(of: "\r\n", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "\r", with: " ")
     }
 
     /// Prefixes every selected line with an unordered-list marker.

@@ -9,8 +9,8 @@ struct ContentView: View {
     @State private var commandContext: NotraCommandContext
     /// Lets the system manage sidebar visibility while the split view has regular width.
     @State private var columnVisibility: NavigationSplitViewVisibility = .automatic
-    /// Chooses which split-view column receives compact-width navigation.
-    @State private var preferredCompactColumn: NavigationSplitViewColumn = .sidebar
+    /// Keeps the editor on top when the split view collapses in narrow widths.
+    @State private var preferredCompactColumn: NavigationSplitViewColumn = .detail
     /// Search query owned by the sidebar, cleared after a new note is created.
     @State private var searchText = ""
     /// Keeps inspector presentation at the split-view boundary, shared by every platform.
@@ -69,7 +69,8 @@ struct ContentView: View {
                 shareState: commands.shareState
             )
         }
-        .navigationSplitViewStyle(.prominentDetail)
+        // Let the sidebar take space from the editor instead of overlaying it on iPad.
+        .navigationSplitViewStyle(.balanced)
         // Placing the inspector outside the split view preserves its system sidebar navigation.
         // An inspector on the detail content can hide the sidebar toggle on iPadOS 26.
         .inspector(isPresented: $isAttachmentInspectorPresented) {
