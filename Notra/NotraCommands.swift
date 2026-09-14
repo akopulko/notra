@@ -245,10 +245,12 @@ struct NotraCommands: Commands {
             .disabled(context == nil)
         }
 
+        // Removes the default app-help command; Keyboard Shortcuts is provided below instead.
+        CommandGroup(replacing: .help) {
+            EmptyView()
+        }
+
         CommandGroup(after: .help) {
-            Button {} label: {
-                Label("Notra Help", systemImage: "questionmark.circle")
-            }
             Button {
                 context?.showKeyboardShortcuts()
             } label: {
