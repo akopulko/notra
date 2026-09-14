@@ -7,15 +7,15 @@ Notra is a SwiftUI notes app for iOS, iPadOS, and macOS. Notes are stored as Tex
 Notra keeps the same focused writing workflow across Apple devices.
 
 <p align="center">
-  <img src="notra-app-landing-page/assets/screenshots/notra-macos.png" alt="Notra running on macOS" width="820">
+  <img src="docs/assets/screenshots/notra-macos.png" alt="Notra running on macOS" width="820">
 </p>
 
 <p align="center">
-  <img src="notra-app-landing-page/assets/screenshots/notra-iphone.png" alt="Notra running on iPhone" width="220">
-  <img src="notra-app-landing-page/assets/screenshots/notra-ipad.png" alt="Notra running on iPad in landscape" width="520">
+  <img src="docs/assets/screenshots/notra-iphone.png" alt="Notra running on iPhone" width="220">
+  <img src="docs/assets/screenshots/notra-ipad.png" alt="Notra running on iPad in landscape" width="520">
 </p>
 
-See the [privacy policy](notra-app-landing-page/privacy.html) used for the App Store submission.
+See the [privacy policy](docs/privacy.html) used for the App Store submission.
 
 ## Requirements
 
