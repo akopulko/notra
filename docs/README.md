@@ -3,14 +3,14 @@
 This is a dependency-free, static GitHub Pages site for Notra. Open `index.html` directly for a quick preview, or serve the folder locally so relative paths behave like GitHub Pages:
 
 ```sh
-python3 -m http.server 8000 --directory notra-app-landing-page
+python3 -m http.server 8000 --directory docs
 ```
 
 Then visit `http://localhost:8000`.
 
 ## Publishing with GitHub Pages
 
-1. Commit and push the `notra-app-landing-page/` folder.
+1. Commit and push the `docs/` folder.
 2. In the repository, open **Settings → Pages**.
 3. Select **Deploy from a branch**, choose the branch, and select `/ (root)` if publishing from a dedicated site branch, or configure the repository workflow to publish this folder.
 
