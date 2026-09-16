@@ -217,6 +217,41 @@ final class NotraUITests: XCTestCase {
     }
     #endif
 
+    #if os(macOS)
+    /// Closing the primary window must leave the app running and allow it to reopen with Command-0.
+    @MainActor
+    func testPrimaryWindowCanBeReopenedFromWindowMenu() {
+        let app = XCUIApplication()
+        app.launchArguments += ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+
+        let mainWindow = app.windows.firstMatch
+        XCTAssertTrue(mainWindow.waitForExistence(timeout: 10), app.debugDescription)
+
+        let fileMenu = app.menuBars.menuBarItems["File"]
+        XCTAssertTrue(fileMenu.waitForExistence(timeout: 10), app.debugDescription)
+        fileMenu.click()
+        XCTAssertFalse(app.menuBars.menuItems["New Window"].exists, app.debugDescription)
+
+        app.typeKey(XCUIKeyboardKey(rawValue: "w"), modifierFlags: .command)
+        XCTAssertTrue(mainWindow.waitForNonExistence(timeout: 10), app.debugDescription)
+        XCTAssertEqual(app.state, .runningForeground, app.debugDescription)
+
+        let windowMenu = app.menuBars.menuBarItems["Window"]
+        XCTAssertTrue(windowMenu.waitForExistence(timeout: 10), app.debugDescription)
+        windowMenu.click()
+        let showNotraCommand = app.menuBars.menuItems["Show Notra"]
+        XCTAssertTrue(showNotraCommand.waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertTrue(showNotraCommand.isEnabled, app.debugDescription)
+
+        app.typeKey(XCUIKeyboardKey(rawValue: "0"), modifierFlags: .command)
+        XCTAssertTrue(mainWindow.waitForExistence(timeout: 10), app.debugDescription)
+
+        app.typeKey(XCUIKeyboardKey(rawValue: "0"), modifierFlags: .command)
+        XCTAssertEqual(app.windows.count, 1, app.debugDescription)
+    }
+    #endif
+
     @MainActor
     func testLaunchPerformance() {
         // This measures how long it takes to launch your application.
