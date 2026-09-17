@@ -905,11 +905,13 @@ private extension NotesStore {
             assetBaseURL: assetBaseURL
         )
         attachments = try urls.map { url in
-            let contentType = try url.resourceValues(forKeys: [.contentTypeKey]).contentType
+            let resourceValues = try url.resourceValues(forKeys: [.contentTypeKey, .fileSizeKey])
+            let contentType = resourceValues.contentType
                 ?? UTType(filenameExtension: url.pathExtension)
             return TextBundleAsset(
                 url: url,
                 contentType: contentType,
+                byteCount: Int64(resourceValues.fileSize ?? 0),
                 isLinked: linkedURLs.contains(url.notraCanonicalFileURL)
             )
         }
@@ -925,6 +927,7 @@ private extension NotesStore {
             TextBundleAsset(
                 url: attachment.url,
                 contentType: attachment.contentType,
+                byteCount: attachment.byteCount,
                 isLinked: linkedURLs.contains(attachment.url.notraCanonicalFileURL)
             )
         }

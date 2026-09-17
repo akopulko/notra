@@ -7,12 +7,15 @@ struct TextBundleAsset: Equatable, Identifiable, Sendable {
     let url: URL
     /// MIME/UTType used to choose image versus generic-file presentation.
     let contentType: UTType?
+    /// Byte count of the asset stored at its canonical URL.
+    let byteCount: Int64
     /// Whether the current Markdown body links to this asset.
     var isLinked: Bool
 
-    init(url: URL, contentType: UTType?, isLinked: Bool) {
+    init(url: URL, contentType: UTType?, byteCount: Int64, isLinked: Bool) {
         self.url = url.notraCanonicalFileURL
         self.contentType = contentType
+        self.byteCount = byteCount
         self.isLinked = isLinked
     }
 

@@ -628,6 +628,36 @@ struct NotesStoreTests {
     }
 
     @Test
+    func `attachment projection publishes stored byte count`() async throws {
+        let harness = try makeHarness()
+        let byteCount = 4_096
+        let sourceURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(UUID().uuidString).bin")
+        defer {
+            try? FileManager.default.removeItem(at: sourceURL)
+            harness.cleanup()
+        }
+        try Data(repeating: 1, count: byteCount).write(to: sourceURL)
+
+        let note = try harness.makeNote(markdown: "")
+        await harness.store.loadNotes()
+        harness.store.selectedNoteID = note.id
+        await harness.store.selectionChanged()
+
+        let importedAsset = try harness.store.importAttachment(
+            from: sourceURL,
+            maximumByteCount: Int64(byteCount)
+        )
+        #expect(harness.store.attachments.first?.byteCount == Int64(byteCount))
+
+        harness.store.updateEditorText("[Attachment](\(importedAsset.source))")
+        await harness.store.saveNow()
+
+        let attachment = try #require(harness.store.attachments.first)
+        #expect(attachment.byteCount == Int64(byteCount))
+    }
+
+    @Test
     func `adding tag updates metadata without changing markdown`() async throws {
         let harness = try makeHarness()
         defer {
