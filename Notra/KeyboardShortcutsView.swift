@@ -26,7 +26,6 @@ struct KeyboardShortcutsView: View {
             .padding(24)
             .frame(maxWidth: .infinity)
         }
-        .background(.ultraThinMaterial)
         .navigationTitle("Keyboard Shortcuts")
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
