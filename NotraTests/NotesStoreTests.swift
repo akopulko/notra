@@ -6,7 +6,7 @@ import Testing
 @MainActor
 struct NotesStoreTests {
     @Test
-    func `loading notes selects the first note by default`() async throws {
+    func `loading notes leaves selection empty until explicitly selected`() async throws {
         let harness = try makeHarness()
         defer {
             harness.cleanup()
@@ -15,8 +15,14 @@ struct NotesStoreTests {
 
         await harness.store.loadNotes()
 
-        #expect(harness.store.notes.first?.id == firstNote.id)
-        #expect(harness.store.selectedNoteID == firstNote.id)
+        #expect(harness.store.notes.map(\.id) == [firstNote.id])
+        #expect(harness.store.selectedNoteID == nil)
+        #expect(!harness.store.hasSelection)
+        #expect(harness.store.editorText.isEmpty)
+
+        harness.store.selectedNoteID = firstNote.id
+        await harness.store.selectionChanged()
+
         #expect(harness.store.editorText == firstNote.markdown)
     }
 

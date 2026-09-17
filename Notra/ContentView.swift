@@ -10,7 +10,7 @@ struct ContentView: View {
     /// Lets the system manage sidebar visibility while the split view has regular width.
     @State private var columnVisibility: NavigationSplitViewVisibility = .automatic
     /// Keeps the editor on top when the split view collapses in narrow widths.
-    @State private var preferredCompactColumn: NavigationSplitViewColumn = .detail
+    @State private var preferredCompactColumn: NavigationSplitViewColumn = .sidebar
     /// Search query owned by the sidebar, cleared after a new note is created.
     @State private var searchText = ""
     /// Keeps inspector presentation at the split-view boundary, shared by every platform.
@@ -86,6 +86,7 @@ struct ContentView: View {
         }
         .focusedSceneValue(commandContext)
         .onChange(of: store.selectedNoteID) {
+            preferredCompactColumn = store.selectedNoteID == nil ? .sidebar : .detail
             attachmentToInsert = nil
             if !store.hasSelection {
                 isAttachmentInspectorPresented = false

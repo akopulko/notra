@@ -255,9 +255,6 @@ final class NotesStore {
                 return
             }
             notes = loadedNotes
-            if selectedNoteID == nil {
-                selectedNoteID = notes.first?.id
-            }
             if let selectedNoteID {
                 try selectNote(id: selectedNoteID)
             }
