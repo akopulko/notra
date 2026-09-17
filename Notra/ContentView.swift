@@ -50,7 +50,8 @@ struct ContentView: View {
                 isEditing: commands.isEditing,
                 searchText: $searchText,
                 createNote: createNote,
-                exportNote: requestExport
+                exportNote: requestExport,
+                deleteSelectedNoteRequestID: commands.deleteSelectedNoteRequestID
             )
             .navigationSplitViewColumnWidth(min: 220, ideal: 260, max: 360)
         } detail: {

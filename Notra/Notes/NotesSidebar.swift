@@ -9,6 +9,8 @@ struct NotesSidebar: View {
     let createNote: () -> Void
     /// Shared export entry point used by row context menus and scene commands.
     let exportNote: (NoteSummary, NoteExportAction) -> Void
+    /// Monotonic scene command event requesting deletion of the current selection.
+    let deleteSelectedNoteRequestID: Int
     #if os(iOS)
     @Namespace private var settingsZoom
     #endif
@@ -163,6 +165,12 @@ struct NotesSidebar: View {
                 }
                 #endif
             }
+        }
+        .onChange(of: deleteSelectedNoteRequestID) {
+            guard let summary = store.selectedNoteSummary else {
+                return
+            }
+            requestNoteDeletion([summary])
         }
         .modifier(NoteDeletionConfirmationModifier(request: $pendingDeletion) { summaries in
             Task {

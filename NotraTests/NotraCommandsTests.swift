@@ -61,6 +61,33 @@ struct NotraCommandsTests {
         #expect(context.editorCommandRequest?.id == 2)
     }
 
+    @Test func deleteSelectedNoteRequestRequiresSelectionAndStableStorage() async throws {
+        let rootURL = URL.temporaryDirectory.appending(path: UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        let store = NotesStore(repository: TextBundleNoteRepository(rootURL: rootURL))
+        await store.loadNotes()
+        let context = NotraCommandContext(store: store)
+
+        #expect(!context.canDeleteSelectedNote)
+        #expect(context.deleteSelectedNoteRequestID == 0)
+        context.requestDeleteSelectedNote()
+        #expect(context.deleteSelectedNoteRequestID == 0)
+
+        await store.createNote()
+        #expect(context.canDeleteSelectedNote)
+
+        context.requestDeleteSelectedNote()
+        #expect(context.deleteSelectedNoteRequestID == 1)
+        context.requestDeleteSelectedNote()
+        #expect(context.deleteSelectedNoteRequestID == 2)
+
+        store.isChangingStorage = true
+        #expect(!context.canDeleteSelectedNote)
+        context.requestDeleteSelectedNote()
+        #expect(context.deleteSelectedNoteRequestID == 2)
+    }
+
     @Test func previewToggleRequestsEditorFocusOnlyWhenEnteringEditMode() async throws {
         let rootURL = URL.temporaryDirectory.appending(path: UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: rootURL) }
