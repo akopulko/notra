@@ -168,6 +168,7 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
         configuration.userContentController.add(self, name: Self.taskToggleMessageName)
         #if os(macOS)
         let webView = MarkdownPreviewWebView(frame: .zero, configuration: configuration)
+        webView.allowsMagnification = true
         #else
         let webView = WKWebView(frame: .zero, configuration: configuration)
         #endif
