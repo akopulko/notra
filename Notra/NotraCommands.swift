@@ -128,6 +128,9 @@ final class NotraCommandContext {
 /// Adds standard menu commands on macOS and hardware-keyboard commands on iPadOS.
 struct NotraCommands: Commands {
     @FocusedValue(NotraCommandContext.self) private var context
+    #if os(macOS)
+    @Environment(\.openWindow) private var openWindow
+    #endif
 
     var body: some Commands {
         CommandGroup(replacing: .newItem) {
@@ -170,6 +173,17 @@ struct NotraCommands: Commands {
                 Label("Export…", systemImage: "arrow.forward.folder.fill")
             }
         }
+
+        #if os(macOS)
+        CommandGroup(after: .windowList) {
+            Button {
+                openWindow(id: NotraWindowScene.mainID, value: NotraWindowScene.primaryValue)
+            } label: {
+                Text("Show Notra", comment: "Window menu command to reopen the primary app window.")
+            }
+            .keyboardShortcut("0", modifiers: .command)
+        }
+        #endif
 
         CommandMenu("Format") {
             Menu {
