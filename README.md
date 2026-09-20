@@ -19,7 +19,7 @@ See the [privacy policy](docs/privacy.html) used for the App Store submission.
 
 ## Requirements
 
-- Xcode with iOS 26+ and macOS 26+ SDKs
+- Xcode 27 with iOS 27 and macOS 27 SDKs
 - SwiftFormat and SwiftLint available on your PATH
 
 ## Build
@@ -30,7 +30,7 @@ Run validation builds before opening a pull request:
 make build
 ```
 
-This builds iOS first, then macOS. To run one platform at a time:
+This builds iOS first, then macOS. To build one platform at a time:
 
 ```sh
 make build-ios
@@ -41,15 +41,17 @@ The build targets run SwiftFormat and SwiftLint in lint mode before compiling.
 
 ## Run
 
-The run scripts build a Debug app, launch it, and stream logs:
+The run scripts launch the latest Debug app built by the matching build target and stream logs:
 
 ```sh
+make build-ios
 make run-ios
 make run-ios-ipad
+make build-macos
 make run-macos
 ```
 
-`make run-ios` uses the phone simulator. The iOS run targets use simulators. For a physical iPhone or iPad, open `Notra.xcodeproj` in Xcode and run the `Notra` scheme on the device.
+`make run-ios` uses the iPhone 17 simulator on iOS 27. The iOS run targets use simulators. For a physical iPhone or iPad, open `Notra.xcodeproj` in Xcode and run the `Notra` scheme on the device.
 
 ## Local Signing and iCloud
 
@@ -66,11 +68,11 @@ cp Config/LocalInfo-iCloud.plist.example Config/LocalInfo-iCloud.plist
 
 Then replace the placeholder values with your own Apple Developer Team ID, bundle identifier, and iCloud container. Both local files are ignored by git.
 
-When `Config/LocalSigning.xcconfig` exists, the run scripts allow code signing by default so private iCloud runs work without extra flags. You can still override this:
+Build scripts default to unsigned builds. Override signing explicitly when building:
 
 ```sh
-CODE_SIGNING_ALLOWED=NO Scripts/run_macOS.sh
-CODE_SIGNING_ALLOWED=YES Scripts/run_iOS.sh phone
+CODE_SIGNING_ALLOWED=NO make build-macos
+CODE_SIGNING_ALLOWED=YES make build-ios
 ```
 
 ## Contributing
