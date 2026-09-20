@@ -18,6 +18,9 @@ final class NotesStore {
     /// Loads a replacement library before a storage location change becomes visible in the UI.
     @ObservationIgnored
     private let repositoryNotesLoader: @Sendable (TextBundleNoteRepository, NoteSortPreference) async throws -> [NoteSummary]
+    /// Loads a library's aggregate byte count without changing sidebar loading behavior.
+    @ObservationIgnored
+    private let libraryByteCountLoader: @Sendable (TextBundleNoteRepository) async throws -> Int64
     /// Keeps availability checks injectable for storage-setting tests.
     @ObservationIgnored
     private let iCloudAvailability: () -> Bool
@@ -104,6 +107,7 @@ final class NotesStore {
         },
         libraryNotesLoader: @escaping @Sendable (TextBundleNoteRepository, NoteSortPreference) async throws -> [NoteSummary] = NoteLibraryLoader.load,
         repositoryNotesLoader: @escaping @Sendable (TextBundleNoteRepository, NoteSortPreference) async throws -> [NoteSummary] = NoteLibraryLoader.load,
+        libraryByteCountLoader: @escaping @Sendable (TextBundleNoteRepository) async throws -> Int64 = NoteLibraryLoader.totalByteCount,
         iCloudAvailability: @escaping () -> Bool = {
             TextBundleNoteRepository.isICloudAvailable()
         },
@@ -116,6 +120,7 @@ final class NotesStore {
         self.repositoryFactory = repositoryFactory
         self.libraryNotesLoader = libraryNotesLoader
         self.repositoryNotesLoader = repositoryNotesLoader
+        self.libraryByteCountLoader = libraryByteCountLoader
         self.iCloudAvailability = iCloudAvailability
         self.autosavePause = autosavePause
         self.autosaveCompletion = autosaveCompletion
@@ -434,6 +439,21 @@ final class NotesStore {
 }
 
 extension NotesStore {
+    var libraryURL: URL {
+        repository.rootURL
+    }
+
+    /// Reads the active library size and rejects results from a superseded repository.
+    func loadLibraryByteCount() async throws -> Int64 {
+        let generation = repositoryGeneration
+        let loadingRepository = repository
+        let byteCount = try await libraryByteCountLoader(loadingRepository)
+        guard !Task.isCancelled, isCurrentRepository(generation) else {
+            throw CancellationError()
+        }
+        return byteCount
+    }
+
     /// Persists a normalized tag and updates the selected note's index entry.
     func addTag(_ tag: NoteTag) -> NoteTagMutationResult? {
         guard canMutateNotes else {

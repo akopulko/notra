@@ -369,7 +369,7 @@ struct TextBundleNoteRepository: Sendable {
     }
 
     /// Sums regular-file sizes recursively for the inspector's bundle-size statistic.
-    func totalBundleSize(at bundleURL: URL) -> Int64 {
+    nonisolated func totalBundleSize(at bundleURL: URL) -> Int64 {
         guard let enumerator = FileManager.default.enumerator(
             at: bundleURL,
             includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey],

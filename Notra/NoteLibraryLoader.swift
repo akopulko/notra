@@ -19,4 +19,23 @@ nonisolated enum NoteLibraryLoader {
             loadingTask.cancel()
         }
     }
+
+    /// Returns the total size of valid TextBundles without scanning root-level support files.
+    static func totalByteCount(repository: TextBundleNoteRepository) async throws -> Int64 {
+        let loadingTask = Task.detached(priority: .userInitiated) {
+            try Task.checkCancellation()
+            let summaries = try repository.listNotes()
+            var totalByteCount: Int64 = 0
+            for summary in summaries {
+                try Task.checkCancellation()
+                totalByteCount += repository.totalBundleSize(at: summary.url)
+            }
+            return totalByteCount
+        }
+        return try await withTaskCancellationHandler {
+            try await loadingTask.value
+        } onCancel: {
+            loadingTask.cancel()
+        }
+    }
 }

@@ -274,6 +274,83 @@ struct NotesStoreTests {
     }
 
     @Test
+    func `library byte count follows active storage and rejects stale reads`() async throws {
+        let localRootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let iCloudRootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer {
+            try? FileManager.default.removeItem(at: localRootURL)
+            try? FileManager.default.removeItem(at: iCloudRootURL)
+        }
+
+        let localRepository = TextBundleNoteRepository(rootURL: localRootURL)
+        let iCloudRepository = TextBundleNoteRepository(rootURL: iCloudRootURL, isUsingICloud: true)
+        try localRepository.prepareStorage()
+        try iCloudRepository.prepareStorage()
+        let localNote = try localRepository.createNote(initialMarkdown: "Local note")
+        let iCloudNote = try iCloudRepository.createNote(initialMarkdown: "iCloud note")
+        try Data(repeating: 1, count: 24)
+            .write(to: localRootURL.appendingPathComponent("local-search.sqlite"))
+        try Data(repeating: 2, count: 48)
+            .write(to: iCloudRootURL.appendingPathComponent("iCloud-search.sqlite"))
+
+        let suiteName = "Notra.NotesStoreLibraryByteCountTests.\(UUID().uuidString)"
+        let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+        defer {
+            userDefaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let gate = RepositoryLibraryLoadGate(delayedRootURL: localRepository.rootURL)
+        let store = NotesStore(
+            repository: localRepository,
+            sortPreferenceStorage: NoteSortPreferenceStorage(userDefaults: userDefaults),
+            searchIndex: SQLiteNoteSearchIndex(
+                databaseURL: localRootURL.appendingPathComponent("byte-count-search.sqlite")
+            ),
+            storagePreferenceStorage: NoteStoragePreferenceStorage(userDefaults: userDefaults),
+            repositoryFactory: { location in
+                switch location {
+                case .iCloud:
+                    iCloudRepository
+                case .localStore:
+                    localRepository
+                }
+            },
+            libraryByteCountLoader: { repository in
+                try await gate.loadByteCount(repository: repository)
+            },
+            iCloudAvailability: { true }
+        )
+
+        let localByteCount = try await store.loadLibraryByteCount()
+        let expectedLocalByteCount = localRepository.totalBundleSize(at: localNote.url)
+        #expect(localByteCount == expectedLocalByteCount)
+
+        await gate.delayNextByteCountLoad()
+        let staleRequest = Task { @MainActor in
+            try await store.loadLibraryByteCount()
+        }
+        await gate.waitUntilEntered()
+
+        await store.changeStorageLocation(to: .iCloud)
+        await gate.release()
+
+        do {
+            _ = try await staleRequest.value
+            Issue.record("Expected the stale library byte-count request to be cancelled.")
+        } catch is CancellationError {
+            // Expected after switching the active repository.
+        } catch {
+            Issue.record("Expected CancellationError, got \(error).")
+        }
+
+        let iCloudByteCount = try await store.loadLibraryByteCount()
+        let expectedICloudByteCount = iCloudRepository.totalBundleSize(at: iCloudNote.url)
+        #expect(iCloudByteCount == expectedICloudByteCount)
+    }
+
+    @Test
     func `cancelled library loading does not show an error`() async throws {
         let harness = try makeHarness()
         defer {
@@ -788,6 +865,7 @@ private actor RepositoryLibraryLoadGate {
     private var entered = false
     private var entryWaiter: CheckedContinuation<Void, Never>?
     private var releaseWaiter: CheckedContinuation<Void, Never>?
+    private var byteCountDelayEnabled = false
 
     init(delayedRootURL: URL) {
         self.delayedRootURL = delayedRootURL
@@ -807,6 +885,25 @@ private actor RepositoryLibraryLoadGate {
         }
 
         return try sortPreference.sorted(repository.listNotes())
+    }
+
+    func delayNextByteCountLoad() {
+        byteCountDelayEnabled = true
+        entered = false
+    }
+
+    func loadByteCount(repository: TextBundleNoteRepository) async throws -> Int64 {
+        if repository.rootURL == delayedRootURL && byteCountDelayEnabled {
+            byteCountDelayEnabled = false
+            entered = true
+            entryWaiter?.resume()
+            entryWaiter = nil
+            await withCheckedContinuation { continuation in
+                releaseWaiter = continuation
+            }
+        }
+
+        return try await NoteLibraryLoader.totalByteCount(repository: repository)
     }
 
     func waitUntilEntered() async {
