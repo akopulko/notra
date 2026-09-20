@@ -41,17 +41,22 @@ The build targets run SwiftFormat and SwiftLint in lint mode before compiling.
 
 ## Run
 
-The run scripts launch the latest Debug app built by the matching build target and stream logs:
+The run targets build the selected Debug app before launching it and stream logs. If the ignored `Config/LocalSigning.xcconfig` exists, they sign the build automatically; otherwise they use an unsigned build:
 
 ```sh
-make build-ios
 make run-ios
 make run-ios-ipad
-make build-macos
 make run-macos
 ```
 
 `make run-ios` uses the iPhone 17 simulator on iOS 27. The iOS run targets use simulators. For a physical iPhone or iPad, open `Notra.xcodeproj` in Xcode and run the `Notra` scheme on the device.
+
+To override the automatic signing choice:
+
+```sh
+CODE_SIGNING_ALLOWED=NO make run-macos
+CODE_SIGNING_ALLOWED=YES make run-ios
+```
 
 ## Local Signing and iCloud
 
