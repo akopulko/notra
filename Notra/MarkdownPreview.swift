@@ -20,10 +20,11 @@ struct MarkdownPreview: View {
     let toggleTask: (MarkdownTaskMarker, MarkdownTaskState) -> Void
 
     var body: some View {
+        let style = previewStyle
         MarkdownWebPreview(
             markdown: markdown,
             context: context,
-            style: previewStyle,
+            style: style,
             openAttachment: openAttachment,
             toggleTask: toggleTask
         )
@@ -34,7 +35,7 @@ struct MarkdownPreview: View {
                     .padding(.bottom, 12)
             }
         }
-        .environment(\.markdownStyle, previewStyle)
+        .environment(\.markdownStyle, style)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Note preview")
         #if os(iOS)

@@ -210,10 +210,11 @@ struct NotesSidebar: View {
 
         let resultIDs = page.results.map(\.id)
         let noteBundleNames = Set(store.notes.map { $0.url.lastPathComponent })
-        let mappedResultCount = resultIDs
-            .map(\.lastPathComponent)
-            .filter(noteBundleNames.contains)
-            .count
+        let mappedResultCount = resultIDs.reduce(into: 0) { count, resultID in
+            if noteBundleNames.contains(resultID.lastPathComponent) {
+                count += 1
+            }
+        }
         AppLog.debug(
             "Search UI received results; resultCount=\(resultIDs.count); "
                 + "mappedResultCount=\(mappedResultCount); noteCount=\(store.notes.count)"
