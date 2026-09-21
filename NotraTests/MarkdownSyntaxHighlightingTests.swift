@@ -140,22 +140,23 @@ struct MarkdownSyntaxHighlightingTests {
         ])
     }
 
-    @Test func lightPaletteMatchesIssueSpecificationAndUsesClosestFallbacks() {
+    @Test func lightPaletteMatchesCurrentSpecification() {
         let palette = MarkdownPalette.light
 
         #expect([
             palette.red.hex, palette.orange.hex, palette.yellow.hex, palette.warmNeutral.hex,
-            palette.green.hex, palette.teal.hex, palette.cyan.hex, palette.lightBlue.hex,
-            palette.blue.hex, palette.purple.hex, palette.primaryText.hex, palette.secondaryText.hex,
-            palette.muted.hex, palette.surface.hex,
+            palette.green.hex, palette.teal.hex, palette.lightCyan?.hex, palette.cyan.hex,
+            palette.lightBlue.hex, palette.blue.hex, palette.purple.hex, palette.primaryText.hex,
+            palette.secondaryText.hex, palette.tertiaryText?.hex, palette.muted.hex,
+            palette.surface.hex, palette.background?.hex,
         ] == [
-            "#8c4351", "#965027", "#8f5e15", "#634f30", "#385f0d", "#33635c",
-            "#006c86", "#0f4b6e", "#2959aa", "#5a3e8e", "#343b58", "#40434f",
-            "#6c6e75", "#e6e7ed",
+            "#b4637a", "#ea9d34", "#d9a441", "#cecacd", "#56949f", "#56949f",
+            "#9ccfd8", "#6e9faf", "#6e9faf", "#286983", "#907aa9", "#575279",
+            "#797593", "#9893a5", "#9893a5", "#f2e9e1", "#faf4ed",
         ])
-        #expect(palette.closestLightCyan == palette.cyan)
-        #expect(palette.closestTertiaryText == palette.muted)
-        #expect(palette.closestBackground == palette.surface)
+        #expect(palette.closestLightCyan.hex == "#9ccfd8")
+        #expect(palette.closestTertiaryText.hex == "#9893a5")
+        #expect(palette.closestBackground.hex == "#faf4ed")
     }
 
     @Test func semanticMappingsFollowEditorPreviewAndCodeRoles() {
@@ -178,8 +179,8 @@ struct MarkdownSyntaxHighlightingTests {
     @Test func previewHashtagColorsFollowBoldThemeRole() {
         #expect(MarkdownTheme.dark.previewHashtagColors.background == MarkdownTheme.dark.preview.bold)
         #expect(MarkdownTheme.light.previewHashtagColors.background == MarkdownTheme.light.preview.bold)
-        #expect(MarkdownTheme.dark.previewHashtagColors.foreground == MarkdownPalette.dark.background)
-        #expect(MarkdownTheme.light.previewHashtagColors.foreground == MarkdownPalette.light.surface)
+        #expect(MarkdownTheme.dark.previewHashtagColors.foreground == MarkdownTheme.dark.palette.closestBackground)
+        #expect(MarkdownTheme.light.previewHashtagColors.foreground == MarkdownTheme.light.palette.closestBackground)
     }
 
     @Test func highlightsTableHeaderDelimiterAndBodyRows() {
