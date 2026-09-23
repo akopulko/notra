@@ -51,8 +51,6 @@ struct NotesSidebar: View {
 
             #if os(iOS)
             .toolbarBackground(.visible, for: .navigationBar)
-            #elseif os(macOS)
-            .toolbarBackground(.visible, for: .windowToolbar)
             #endif
             #if os(macOS)
             .searchable(

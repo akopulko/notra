@@ -179,11 +179,13 @@ struct NoteEditorPane: View {
             )
         }
         #endif
+        #if os(macOS)
         MarkdownFormattingToolbar(
             applyHeading: handleHeading,
             applyFormatting: handleFormattingCommand,
             isEnabled: store.hasSelection && isEditing
         )
+        #endif
         ToolbarSpacer(.flexible)
         #if os(macOS)
         ToolbarItem(placement: .primaryAction) {
