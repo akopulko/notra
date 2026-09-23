@@ -4,6 +4,7 @@ import SwiftUI
 struct MarkdownStyle: Equatable {
     let bodyFont: Font
     let previewFontName: String
+    let previewFixedWidthFontName: String
     let headingScales: [CGFloat]
     let textColor: Color
     let secondaryTextColor: Color
@@ -26,6 +27,7 @@ struct MarkdownStyle: Equatable {
 
     static func notra(
         previewFontName: String,
+        previewFixedWidthFontName: String = AppearanceFont.defaultName,
         theme: MarkdownTheme? = nil,
         renderMode: MarkdownRenderMode = .preview
     ) -> MarkdownStyle {
@@ -39,6 +41,7 @@ struct MarkdownStyle: Equatable {
         return MarkdownStyle(
             bodyFont: AppearanceFont.bodyFont(named: previewFontName),
             previewFontName: previewFontName,
+            previewFixedWidthFontName: previewFixedWidthFontName,
             headingScales: [2, 1.5, 1.25, 1, 0.875, 0.85],
             textColor: appliedTheme?.preview.body.color ?? (isPDF ? .black : .primary),
             secondaryTextColor: appliedTheme?.preview.secondaryText.color ?? (isPDF ? .gray : .secondary),
@@ -50,8 +53,14 @@ struct MarkdownStyle: Equatable {
             quoteAccentColor: appliedTheme?.preview.blockquoteIndicator.color ?? borderColor,
             codeTextColor: appliedTheme?.preview.inlineCode.color ?? (isPDF ? .black : .primary),
             codeSyntaxTheme: appliedTheme,
-            codeBlockFont: .system(.body, design: .monospaced),
-            inlineCodeFont: .system(.callout, design: .monospaced),
+            codeBlockFont: AppearanceFont.fixedWidthPreviewFont(
+                named: previewFixedWidthFontName,
+                textStyle: .body
+            ),
+            inlineCodeFont: AppearanceFont.fixedWidthPreviewFont(
+                named: previewFixedWidthFontName,
+                textStyle: .callout
+            ),
             blockSpacing: 0,
             paragraphSpacing: 16,
             listItemParagraphSpacing: 4,

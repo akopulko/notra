@@ -32,6 +32,8 @@ struct ContentView: View {
         NoteStartContent.defaultValue.rawValue
     /// Uses the same preview font for PDF export as the interactive Markdown preview.
     @AppStorage(AppearanceSettingKey.previewFontName) private var previewFontName = AppearanceFont.defaultName
+    @AppStorage(AppearanceSettingKey.previewFixedWidthFontName) private var previewFixedWidthFontName =
+        AppearanceFont.defaultName
 
     init(store: NotesStore) {
         self.store = store
@@ -265,6 +267,7 @@ struct ContentView: View {
             markdown: payload.markdown,
             noteURL: payload.noteURL,
             previewFontName: previewFontName,
+            previewFixedWidthFontName: previewFixedWidthFontName,
             suggestedFilename: payload.suggestedFilename
         )
     }

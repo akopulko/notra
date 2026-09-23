@@ -19,6 +19,9 @@ struct SettingsView: View {
     @AppStorage(AppearanceSettingKey.editorFontSize) private var editorFontSize = AppearanceFont.defaultSize
     /// Persisted preview font family.
     @AppStorage(AppearanceSettingKey.previewFontName) private var previewFontName = AppearanceFont.defaultName
+    /// Persisted fixed-width font family used for code in note previews.
+    @AppStorage(AppearanceSettingKey.previewFixedWidthFontName) private var previewFixedWidthFontName =
+        AppearanceFont.defaultName
     /// Whether the Markdown preview follows the editor's selected syntax theme.
     @AppStorage(AppearanceSettingKey.previewUsesEditorTheme) private var previewUsesEditorTheme = true
     /// Whether note rows include their content preview below the title or first line.
@@ -125,6 +128,7 @@ struct SettingsView: View {
                 editorFontName: $editorFontName,
                 editorFontSize: $editorFontSize,
                 previewFontName: $previewFontName,
+                previewFixedWidthFontName: $previewFixedWidthFontName,
                 previewUsesEditorTheme: $previewUsesEditorTheme,
                 showsHeader: showsHeader
             )
@@ -393,6 +397,7 @@ private struct AppearanceSettingsDetailView: View {
     @Binding var editorFontName: String
     @Binding var editorFontSize: Double
     @Binding var previewFontName: String
+    @Binding var previewFixedWidthFontName: String
     @Binding var previewUsesEditorTheme: Bool
     let showsHeader: Bool
 
@@ -442,6 +447,19 @@ private struct AppearanceSettingsDetailView: View {
             }
 
             Section {
+                Picker("Preview Fixed Width Font", selection: $previewFixedWidthFontName) {
+                    fontChoices(fixedPitchOnly: true)
+                }
+                #if os(macOS)
+                .pickerStyle(.menu)
+                #else
+                .pickerStyle(.navigationLink)
+                #endif
+            } footer: {
+                Text("Choose the monospaced font used for inline code and code blocks in note previews.")
+            }
+
+            Section {
                 Toggle("Colourful Preview", isOn: $previewUsesEditorTheme)
             } header: {
                 Text("Preview")
@@ -468,9 +486,14 @@ private struct AppearanceSettingsDetailView: View {
     private func normaliseFontSelections() {
         let editorChoices = AppearanceFont.availableChoices(fixedPitchOnly: true)
         let previewChoices = AppearanceFont.availableChoices(fixedPitchOnly: false)
+        let fixedWidthChoices = AppearanceFont.availableChoices(fixedPitchOnly: true)
 
         editorFontName = AppearanceFont.resolvedName(editorFontName, choices: editorChoices)
         previewFontName = AppearanceFont.resolvedName(previewFontName, choices: previewChoices)
+        previewFixedWidthFontName = AppearanceFont.resolvedName(
+            previewFixedWidthFontName,
+            choices: fixedWidthChoices
+        )
     }
 }
 

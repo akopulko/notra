@@ -369,6 +369,7 @@ private struct Fixture {
                 markdown: markdown,
                 noteURL: bundleURL,
                 previewFontName: AppearanceFont.defaultName,
+                previewFixedWidthFontName: AppearanceFont.defaultName,
                 suggestedFilename: bundleURL.lastPathComponent
             )
         )

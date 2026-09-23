@@ -8,6 +8,8 @@ import AppKit
 struct MarkdownPreview: View {
     @Environment(\.colorScheme) private var colorScheme
     @AppStorage(AppearanceSettingKey.previewFontName) private var previewFontName = AppearanceFont.defaultName
+    @AppStorage(AppearanceSettingKey.previewFixedWidthFontName) private var previewFixedWidthFontName =
+        AppearanceFont.defaultName
     @AppStorage(AppearanceSettingKey.previewUsesEditorTheme) private var previewUsesEditorTheme = true
     // Keeps attachment presentation owned by the preview rather than by WebKit navigation.
     #if os(iOS)
@@ -48,6 +50,7 @@ struct MarkdownPreview: View {
     private var previewStyle: MarkdownStyle {
         .notra(
             previewFontName: previewFontName,
+            previewFixedWidthFontName: previewFixedWidthFontName,
             // Preview themes are limited to Markdown text colours; the scroll canvas stays system-owned.
             theme: previewTheme
         )

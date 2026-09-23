@@ -670,9 +670,14 @@ struct MarkdownRenderingTests {
 
     @Test
     func `themed preview style preserves preview font selection`() {
-        let style = MarkdownStyle.notra(previewFontName: "Helvetica", theme: .dark)
+        let style = MarkdownStyle.notra(
+            previewFontName: "Helvetica",
+            previewFixedWidthFontName: "ExampleMono-Regular",
+            theme: .dark
+        )
 
         #expect(style.previewFontName == "Helvetica")
+        #expect(style.previewFixedWidthFontName == "ExampleMono-Regular")
     }
 
     @Test
@@ -681,6 +686,33 @@ struct MarkdownRenderingTests {
 
         #expect(style.codeBlockFont == .system(.body, design: .monospaced))
         #expect(style.inlineCodeFont == .system(.callout, design: .monospaced))
+    }
+
+    @Test
+    func `preview fixed-width font styles inline and fenced code`() {
+        let document = SwiftMarkdownParser().parse("""
+        Inline `code`.
+
+        ```swift
+        let value = 1
+        ```
+        """)
+        var renderer = MarkdownHTMLRenderer(
+            style: .notra(
+                previewFontName: AppearanceFont.defaultName,
+                previewFixedWidthFontName: "Example Mono"
+            ),
+            mode: .preview,
+            context: .empty
+        )
+
+        let html = renderer.render(document).html
+
+        #expect(html.contains(
+            "code { font-family: 'Example Mono', ui-monospace, SFMono-Regular, Menlo, monospace; }"
+        ))
+        #expect(html.contains("<code class=\"inline-code\">code</code>"))
+        #expect(html.contains("<pre><code"))
     }
 
     @Test

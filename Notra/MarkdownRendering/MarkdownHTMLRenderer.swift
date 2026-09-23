@@ -66,6 +66,9 @@ private extension MarkdownHTMLRenderer {
     var stylesheet: String {
         let theme = MarkdownWebTheme(theme: style.codeSyntaxTheme, printable: mode == .pdf)
         let fontFamily = cssString(style.previewFontName.isEmpty ? "-apple-system" : style.previewFontName)
+        let fixedWidthFontFamily = style.previewFixedWidthFontName.isEmpty
+            ? "ui-monospace, SFMono-Regular, Menlo, monospace"
+            : "\(cssString(style.previewFixedWidthFontName)), ui-monospace, SFMono-Regular, Menlo, monospace"
 
         return """
         <style>
@@ -88,7 +91,7 @@ private extension MarkdownHTMLRenderer {
         .task-checkbox:not(:disabled) { cursor: pointer; }
         \(taskCheckboxRules(theme: theme))
         blockquote { border-left: 4px solid \(theme.quoteAccent); color: \(theme.quoteText); margin: 0 0 16px; padding-left: 12px; }
-        a { color: \(theme.linkText); } code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+        a { color: \(theme.linkText); } code { font-family: \(fixedWidthFontFamily); }
         strong { color: \(theme.boldText); } em { color: \(theme.italicText); } del { color: \(theme.strikethroughText); }
         .inline-code { color: \(theme.inlineCodeText); padding: 1px 4px; border-radius: 4px; }
         .inline-code { background: \(theme.inlineCodeBackground); }

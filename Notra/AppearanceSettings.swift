@@ -10,6 +10,7 @@ enum AppearanceSettingKey {
     static let editorFontName = "appearance.editorFontName"
     static let editorFontSize = "appearance.editorFontSize"
     static let previewFontName = "appearance.previewFontName"
+    static let previewFixedWidthFontName = "appearance.previewFixedWidthFontName"
     static let previewUsesEditorTheme = "appearance.previewUsesEditorTheme"
     /// Controls whether note rows include their content preview below the title or first line.
     static let showsNotePreview = "appearance.showsNotePreview"
@@ -136,6 +137,14 @@ enum AppearanceFont {
         }
 
         return .custom(fontName, size: defaultSize, relativeTo: .body)
+    }
+
+    static func fixedWidthPreviewFont(named fontName: String, textStyle: Font.TextStyle) -> Font {
+        guard !fontName.isEmpty, isInstalled(fontName) else {
+            return .system(textStyle, design: .monospaced)
+        }
+
+        return .custom(fontName, size: defaultSize, relativeTo: textStyle)
     }
 
     #if os(macOS)
