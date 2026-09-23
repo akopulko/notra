@@ -32,18 +32,20 @@ struct NotesSidebar: View {
 
     var body: some View {
         notesList
+            #if os(iOS)
             .toolbar {
                 ToolbarItemGroup(placement: .primaryAction) {
                     NewNoteButton(action: createNote)
-                    #if os(iOS)
                     SortNotesMenu(
                         preference: store.sortPreference,
                         setField: store.setSortField,
                         setDirection: store.setSortDirection
                     )
                     settingsButton
-                    #endif
                 }
+            }
+            #endif
+            .toolbar {
                 DefaultToolbarItem(kind: .search, placement: .automatic)
             }
 

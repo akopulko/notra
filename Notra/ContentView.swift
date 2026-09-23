@@ -70,6 +70,14 @@ struct ContentView: View {
                 shareState: commands.shareState
             )
         }
+        #if os(macOS)
+        .toolbar {
+            ToolbarItem(placement: .navigation) {
+                NewNoteButton(action: createNote)
+            }
+            ToolbarSpacer(.fixed)
+        }
+        #endif
         // Let the sidebar take space from the editor instead of overlaying it on iPad.
         .navigationSplitViewStyle(.balanced)
         // Placing the inspector outside the split view preserves its system sidebar navigation.

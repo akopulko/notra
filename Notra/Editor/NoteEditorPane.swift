@@ -178,20 +178,12 @@ struct NoteEditorPane: View {
                 redo: redo
             )
         }
-        #else
-        if isEditing {
-            EditorUndoRedoToolbar(
-                availability: undoRedoAvailability,
-                undo: undo,
-                redo: redo
-            )
-        }
+        #endif
         MarkdownFormattingToolbar(
             applyHeading: handleHeading,
             applyFormatting: handleFormattingCommand,
             isEnabled: store.hasSelection && isEditing
         )
-        #endif
         ToolbarSpacer(.flexible)
         #if os(macOS)
         ToolbarItem(placement: .primaryAction) {
