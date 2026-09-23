@@ -25,7 +25,7 @@ struct NotraApp: App {
         }
         .defaultSize(width: 1040, height: 720)
         .windowResizability(.contentMinSize)
-        .windowStyle(.hiddenTitleBar)
+        .windowToolbarStyle(.unified(showsTitle: false))
         .commands {
             NotraCommands()
         }
@@ -48,6 +48,8 @@ struct NotraApp: App {
     private var mainWindowContent: some View {
         ContentView(store: store)
             #if os(macOS)
+            .toolbarBackgroundVisibility(.visible, for: .windowToolbar)
+            .toolbarBackground(.regularMaterial, for: .windowToolbar)
             .frame(minWidth: 720, minHeight: 480)
             #endif
     }

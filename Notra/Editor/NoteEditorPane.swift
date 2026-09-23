@@ -73,7 +73,9 @@ struct NoteEditorPane: View {
                 noSelectionContent
             }
         }
+        #if os(iOS)
         .scrollEdgeEffectStyle(.soft, for: .top)
+        #endif
         #if os(iOS)
         .modifier(imagePickerPresentationModifier)
         #endif
