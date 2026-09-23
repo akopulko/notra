@@ -39,6 +39,7 @@ struct MarkdownWebPreview: View {
                 }
             }
         }
+        .ignoresSafeArea(.container, edges: .top)
         .task(id: PreviewRequestID(markdown: markdown, context: context, style: style)) {
             model.update(markdown: markdown, context: context, style: style)
         }
@@ -168,6 +169,7 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
         configuration.userContentController.add(self, name: Self.taskToggleMessageName)
         #if os(macOS)
         let webView = MarkdownPreviewWebView(frame: .zero, configuration: configuration)
+        webView.allowsMagnification = true
         #else
         let webView = WKWebView(frame: .zero, configuration: configuration)
         #endif

@@ -7,16 +7,36 @@ nonisolated enum NoteLibraryLoader {
         repository: TextBundleNoteRepository,
         sortPreference: NoteSortPreference
     ) async throws -> [NoteSummary] {
-        let loadingTask = Task.detached(priority: .userInitiated) {
+        try await runDetached {
             try Task.checkCancellation()
             let summaries = try repository.listNotes()
             try Task.checkCancellation()
             return sortPreference.sorted(summaries)
         }
+    }
+
+    /// Returns the total size of valid TextBundles without scanning root-level support files.
+    static func totalByteCount(repository: TextBundleNoteRepository) async throws -> Int64 {
+        try await runDetached {
+            try Task.checkCancellation()
+            let summaries = try repository.listNotes()
+            var totalByteCount: Int64 = 0
+            for summary in summaries {
+                try Task.checkCancellation()
+                totalByteCount += repository.totalBundleSize(at: summary.url)
+            }
+            return totalByteCount
+        }
+    }
+
+    private static func runDetached<T: Sendable>(
+        _ operation: @escaping @Sendable () throws -> T
+    ) async throws -> T {
+        let task = Task.detached(priority: .userInitiated, operation: operation)
         return try await withTaskCancellationHandler {
-            try await loadingTask.value
+            try await task.value
         } onCancel: {
-            loadingTask.cancel()
+            task.cancel()
         }
     }
 }

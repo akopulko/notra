@@ -349,6 +349,17 @@ private enum TagEntryFeedback {
 private struct AttachmentRow: View {
     let attachment: TextBundleAsset
 
+    private var formattedByteCount: String {
+        ByteCountFormatter.string(
+            fromByteCount: attachment.byteCount,
+            countStyle: .file
+        )
+    }
+
+    private var linkState: String {
+        attachment.isLinked ? "Linked" : "Not Linked"
+    }
+
     var body: some View {
         HStack(spacing: 12) {
             if attachment.kind == .image {
@@ -365,17 +376,20 @@ private struct AttachmentRow: View {
                     .font(.body)
                     .lineLimit(1)
                     .truncationMode(.middle)
-                Label(
-                    attachment.isLinked ? "Linked" : "Not Linked",
-                    systemImage: attachment.isLinked ? "link" : "link.slash"
-                )
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Label(
+                        linkState,
+                        systemImage: attachment.isLinked ? "link" : "link.slash"
+                    )
+                    Text(formattedByteCount)
+                }
                 .font(.caption)
                 .foregroundStyle(.secondary)
             }
         }
         .padding(.vertical, 4)
         .accessibilityElement(children: .combine)
-        .accessibilityValue(attachment.isLinked ? "Linked" : "Not Linked")
+        .accessibilityValue("\(linkState), \(formattedByteCount)")
     }
 }
 

@@ -48,6 +48,8 @@ struct NotraApp: App {
     private var mainWindowContent: some View {
         ContentView(store: store)
             #if os(macOS)
+            .toolbarBackgroundVisibility(.visible, for: .windowToolbar)
+            .toolbarBackground(.regularMaterial, for: .windowToolbar)
             .frame(minWidth: 720, minHeight: 480)
             #endif
     }

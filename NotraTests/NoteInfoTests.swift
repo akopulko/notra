@@ -58,6 +58,32 @@ struct NoteInfoTests {
         #expect(repository.totalBundleSize(at: note.url) == initialSize + Int64(assetData.count))
     }
 
+    @Test func libraryByteCountIncludesValidBundlesOnly() async throws {
+        let rootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer {
+            try? FileManager.default.removeItem(at: rootURL)
+        }
+
+        let repository = TextBundleNoteRepository(rootURL: rootURL)
+        let firstNote = try repository.createNote(initialMarkdown: "First note")
+        let secondNote = try repository.createNote(initialMarkdown: "Second note")
+        let assetURL = firstNote.url
+            .appendingPathComponent(TextBundleNoteRepository.assetsFolder, isDirectory: true)
+            .appendingPathComponent("example.bin")
+        let assetData = Data(repeating: 1, count: 32)
+        try assetData.write(to: assetURL)
+
+        let supportFileURL = rootURL.appendingPathComponent("search.sqlite")
+        try Data(repeating: 2, count: 128).write(to: supportFileURL)
+
+        let expectedByteCount = repository.totalBundleSize(at: firstNote.url)
+            + repository.totalBundleSize(at: secondNote.url)
+        let actualByteCount = try await NoteLibraryLoader.totalByteCount(repository: repository)
+
+        #expect(actualByteCount == expectedByteCount)
+    }
+
     @Test func noteLocationDescriptionUsesStorageKind() {
         let rootURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

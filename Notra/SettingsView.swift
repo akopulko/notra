@@ -1,4 +1,9 @@
+import Foundation
 import SwiftUI
+
+#if os(macOS)
+import AppKit
+#endif
 
 /// Hosts the settings navigation shell and platform-specific appearance controls.
 struct SettingsView: View {
@@ -229,6 +234,9 @@ private struct GeneralSettingsDetailView: View {
     @Binding var showsNotePreview: Bool
     let showsHeader: Bool
 
+    @State private var libraryByteCount: Int64?
+    @State private var isLoadingLibraryByteCount = true
+
     var body: some View {
         Form {
             if showsHeader {
@@ -250,10 +258,55 @@ private struct GeneralSettingsDetailView: View {
                 #else
                 .pickerStyle(.navigationLink)
                 #endif
+
+                LabeledContent {
+                    Text(store.notes.count, format: .number)
+                } label: {
+                    Text("Notes", comment: "Settings row showing the number of notes in the active library.")
+                }
+
+                LabeledContent {
+                    if isLoadingLibraryByteCount {
+                        ProgressView()
+                    } else if let libraryByteCount {
+                        Text(ByteCountFormatter.string(fromByteCount: libraryByteCount, countStyle: .file))
+                    } else {
+                        Text("Unavailable", comment: "Settings value shown when the library size cannot be read.")
+                    }
+                } label: {
+                    Text("Library Size", comment: "Settings row showing the total size of the active notes library.")
+                }
+
+                #if os(macOS)
+                Button {
+                    NSWorkspace.shared.activateFileViewerSelecting([store.libraryURL])
+                } label: {
+                    Label {
+                        Text("Open Library Location", comment: "Button that reveals the active notes library in Finder.")
+                    } icon: {
+                        Image(systemName: "folder")
+                    }
+                }
+                .disabled(store.isChangingStorage)
+                #else
+                LabeledContent {
+                    Text(store.storageDescription)
+                } label: {
+                    Text("Library Location", comment: "Settings row showing where the active notes library appears in Files.")
+                }
+                #endif
             } header: {
                 Text("Notes")
             } footer: {
-                Text("Choose where notes are stored. Changing location does not move existing notes.")
+                VStack(alignment: .leading) {
+                    Text("Choose where notes are stored. Changing location does not move existing notes.")
+                    #if os(iOS)
+                    Text(
+                        "The library is available in the Files app.",
+                        comment: "Explains where iOS users can find the active notes library."
+                    )
+                    #endif
+                }
             }
 
             Section {
@@ -294,6 +347,26 @@ private struct GeneralSettingsDetailView: View {
         }
         .settingsDetailFormStyle()
         .settingsDetailNavigationTitle(SettingsCategory.general.title)
+        .task(id: store.libraryURL) {
+            libraryByteCount = nil
+            isLoadingLibraryByteCount = true
+
+            do {
+                let byteCount = try await store.loadLibraryByteCount()
+                guard !Task.isCancelled else {
+                    return
+                }
+                libraryByteCount = byteCount
+                isLoadingLibraryByteCount = false
+            } catch is CancellationError {
+                return
+            } catch {
+                guard !Task.isCancelled else {
+                    return
+                }
+                isLoadingLibraryByteCount = false
+            }
+        }
     }
 
     private var maximumAttachmentSizeBinding: Binding<Int> {

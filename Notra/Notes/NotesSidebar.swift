@@ -9,6 +9,8 @@ struct NotesSidebar: View {
     let createNote: () -> Void
     /// Shared export entry point used by row context menus and scene commands.
     let exportNote: (NoteSummary, NoteExportAction) -> Void
+    /// Monotonic scene command event requesting deletion of the current selection.
+    let deleteSelectedNoteRequestID: Int
     #if os(iOS)
     @Namespace private var settingsZoom
     #endif
@@ -30,20 +32,26 @@ struct NotesSidebar: View {
 
     var body: some View {
         notesList
+            #if os(iOS)
             .toolbar {
                 ToolbarItemGroup(placement: .primaryAction) {
                     NewNoteButton(action: createNote)
-                    #if os(iOS)
                     SortNotesMenu(
                         preference: store.sortPreference,
                         setField: store.setSortField,
                         setDirection: store.setSortDirection
                     )
                     settingsButton
-                    #endif
                 }
+            }
+            #endif
+            .toolbar {
                 DefaultToolbarItem(kind: .search, placement: .automatic)
             }
+
+            #if os(iOS)
+            .toolbarBackground(.visible, for: .navigationBar)
+            #endif
             #if os(macOS)
             .searchable(
                 text: $searchText,
@@ -164,6 +172,12 @@ struct NotesSidebar: View {
                 #endif
             }
         }
+        .onChange(of: deleteSelectedNoteRequestID) {
+            guard let summary = store.selectedNoteSummary else {
+                return
+            }
+            requestNoteDeletion([summary])
+        }
         .modifier(NoteDeletionConfirmationModifier(request: $pendingDeletion) { summaries in
             Task {
                 await store.deleteNotes(summaries)
@@ -202,10 +216,11 @@ struct NotesSidebar: View {
 
         let resultIDs = page.results.map(\.id)
         let noteBundleNames = Set(store.notes.map { $0.url.lastPathComponent })
-        let mappedResultCount = resultIDs
-            .map(\.lastPathComponent)
-            .filter(noteBundleNames.contains)
-            .count
+        let mappedResultCount = resultIDs.reduce(into: 0) { count, resultID in
+            if noteBundleNames.contains(resultID.lastPathComponent) {
+                count += 1
+            }
+        }
         AppLog.debug(
             "Search UI received results; resultCount=\(resultIDs.count); "
                 + "mappedResultCount=\(mappedResultCount); noteCount=\(store.notes.count)"

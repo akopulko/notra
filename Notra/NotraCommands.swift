@@ -44,6 +44,7 @@ final class NotraCommandContext {
     private(set) var editorFocusRequestID = 0
     private(set) var newNoteRequestID = 0
     private(set) var attachmentRequestID = 0
+    private(set) var deleteSelectedNoteRequestID = 0
     private(set) var exportRequest: NoteExportRequest?
     /// Presents the shortcuts reference for the active scene.
     var isKeyboardShortcutsPresented = false
@@ -65,12 +66,24 @@ final class NotraCommandContext {
         store.hasSelection && !isEditing && !store.isChangingStorage
     }
 
+    var canDeleteSelectedNote: Bool {
+        store.hasSelection && !store.isChangingStorage
+    }
+
     func createNote() {
         guard canCreateNote else {
             return
         }
 
         newNoteRequestID += 1
+    }
+
+    func requestDeleteSelectedNote() {
+        guard canDeleteSelectedNote else {
+            return
+        }
+
+        deleteSelectedNoteRequestID += 1
     }
 
     func togglePreview() {
@@ -145,6 +158,11 @@ struct NotraCommands: Commands {
 
         CommandGroup(after: .newItem) {
             Divider()
+            Button("Delete", systemImage: "trash", role: .destructive) {
+                context?.requestDeleteSelectedNote()
+            }
+            .keyboardShortcut(.delete, modifiers: .command)
+            .disabled(!(context?.canDeleteSelectedNote ?? false))
 
             Button {
                 context?.requestExport(.sharePDF)

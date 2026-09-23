@@ -73,7 +73,9 @@ struct NoteEditorPane: View {
                 noSelectionContent
             }
         }
+        #if os(iOS)
         .scrollEdgeEffectStyle(.soft, for: .top)
+        #endif
         #if os(iOS)
         .modifier(imagePickerPresentationModifier)
         #endif
@@ -178,14 +180,8 @@ struct NoteEditorPane: View {
                 redo: redo
             )
         }
-        #else
-        if isEditing {
-            EditorUndoRedoToolbar(
-                availability: undoRedoAvailability,
-                undo: undo,
-                redo: redo
-            )
-        }
+        #endif
+        #if os(macOS)
         MarkdownFormattingToolbar(
             applyHeading: handleHeading,
             applyFormatting: handleFormattingCommand,

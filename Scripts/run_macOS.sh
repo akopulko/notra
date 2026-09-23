@@ -6,49 +6,18 @@ cd "$script_dir/.."
 
 configuration="${CONFIGURATION:-Debug}"
 derived_data_path="${TMPDIR:-/tmp}/NotraDerivedData-macOS"
-
-if [ "${CODE_SIGNING_ALLOWED+x}" ]; then
-  code_signing_allowed="$CODE_SIGNING_ALLOWED"
-elif [ -f Config/LocalSigning.xcconfig ]; then
-  code_signing_allowed="YES"
-else
-  code_signing_allowed="NO"
-fi
-
-printf '%s\n' "Building Notra for macOS..."
-xcodebuild build \
-  -project Notra.xcodeproj \
-  -scheme Notra \
-  -configuration "$configuration" \
-  -destination 'generic/platform=macOS' \
-  -derivedDataPath "$derived_data_path" \
-  CODE_SIGNING_ALLOWED="$code_signing_allowed"
-
-build_settings="$(xcodebuild \
-  -project Notra.xcodeproj \
-  -scheme Notra \
-  -configuration "$configuration" \
-  -destination 'generic/platform=macOS' \
-  -derivedDataPath "$derived_data_path" \
-  CODE_SIGNING_ALLOWED="$code_signing_allowed" \
-  -showBuildSettings 2>/dev/null)"
-
-app_path="$(printf '%s\n' "$build_settings" | awk -F ' = ' '
-  $1 ~ /^[[:space:]]*TARGET_BUILD_DIR$/ {directory=$2}
-  $1 ~ /^[[:space:]]*WRAPPER_NAME$/ {wrapper=$2}
-  END {print directory "/" wrapper}
-')"
-bundle_identifier="$(printf '%s\n' "$build_settings" | awk -F ' = ' '
-  $1 ~ /^[[:space:]]*PRODUCT_BUNDLE_IDENTIFIER$/ {print $2; exit}
-')"
+app_path="${derived_data_path}/Build/Products/${configuration}/Notra.app"
 
 if [ ! -d "$app_path" ]; then
   printf '%s\n' "Notra.app was not found at: ${app_path}" >&2
+  printf '%s\n' "Run make build-macos before running the app." >&2
   exit 1
 fi
 
-if [ -z "$bundle_identifier" ]; then
-  printf '%s\n' "Could not resolve PRODUCT_BUNDLE_IDENTIFIER." >&2
+if ! bundle_identifier="$(/usr/libexec/PlistBuddy \
+  -c 'Print :CFBundleIdentifier' \
+  "$app_path/Contents/Info.plist" 2>/dev/null)"; then
+  printf '%s\n' "Could not resolve the app bundle identifier." >&2
   exit 1
 fi
 

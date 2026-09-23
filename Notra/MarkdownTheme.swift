@@ -66,7 +66,7 @@ struct MarkdownSyntaxColor: Equatable {
     }
 }
 
-/// Contains every raw colour supplied by issue #12; missing light counterparts remain optional.
+/// Contains raw colours for Markdown palettes; optional slots preserve fallback behaviour when a palette omits a counterpart.
 struct MarkdownPalette: Equatable {
     let red: MarkdownSyntaxColor
     let orange: MarkdownSyntaxColor
@@ -119,23 +119,23 @@ struct MarkdownPalette: Equatable {
     )
 
     static let light = MarkdownPalette(
-        red: MarkdownSyntaxColor(hex: "#8c4351"),
-        orange: MarkdownSyntaxColor(hex: "#965027"),
-        yellow: MarkdownSyntaxColor(hex: "#8f5e15"),
-        warmNeutral: MarkdownSyntaxColor(hex: "#634f30"),
-        green: MarkdownSyntaxColor(hex: "#385f0d"),
-        teal: MarkdownSyntaxColor(hex: "#33635c"),
-        lightCyan: nil,
-        cyan: MarkdownSyntaxColor(hex: "#006c86"),
-        lightBlue: MarkdownSyntaxColor(hex: "#0f4b6e"),
-        blue: MarkdownSyntaxColor(hex: "#2959aa"),
-        purple: MarkdownSyntaxColor(hex: "#5a3e8e"),
-        primaryText: MarkdownSyntaxColor(hex: "#343b58"),
-        secondaryText: MarkdownSyntaxColor(hex: "#40434f"),
-        tertiaryText: nil,
-        muted: MarkdownSyntaxColor(hex: "#6c6e75"),
-        surface: MarkdownSyntaxColor(hex: "#e6e7ed"),
-        background: nil
+        red: MarkdownSyntaxColor(hex: "#b4637a"),
+        orange: MarkdownSyntaxColor(hex: "#ea9d34"),
+        yellow: MarkdownSyntaxColor(hex: "#d9a441"),
+        warmNeutral: MarkdownSyntaxColor(hex: "#cecacd"),
+        green: MarkdownSyntaxColor(hex: "#56949f"),
+        teal: MarkdownSyntaxColor(hex: "#56949f"),
+        lightCyan: MarkdownSyntaxColor(hex: "#9ccfd8"),
+        cyan: MarkdownSyntaxColor(hex: "#6e9faf"),
+        lightBlue: MarkdownSyntaxColor(hex: "#6e9faf"),
+        blue: MarkdownSyntaxColor(hex: "#286983"),
+        purple: MarkdownSyntaxColor(hex: "#907aa9"),
+        primaryText: MarkdownSyntaxColor(hex: "#575279"),
+        secondaryText: MarkdownSyntaxColor(hex: "#797593"),
+        tertiaryText: MarkdownSyntaxColor(hex: "#9893a5"),
+        muted: MarkdownSyntaxColor(hex: "#9893a5"),
+        surface: MarkdownSyntaxColor(hex: "#f2e9e1"),
+        background: MarkdownSyntaxColor(hex: "#faf4ed")
     )
 }
 

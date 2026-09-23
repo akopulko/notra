@@ -26,7 +26,6 @@ struct KeyboardShortcutsView: View {
             .padding(24)
             .frame(maxWidth: .infinity)
         }
-        .background(.ultraThinMaterial)
         .navigationTitle("Keyboard Shortcuts")
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
@@ -150,6 +149,7 @@ private struct KeyboardShortcutSection: Identifiable {
             systemImage: "note.text",
             shortcuts: [
                 KeyboardShortcut(id: "new-note", title: "New Note", keys: [.command, .letter("N")]),
+                KeyboardShortcut(id: "delete-note", title: "Delete", keys: [.command, .delete]),
                 KeyboardShortcut(
                     id: "toggle-preview", title: "Toggle Preview",
                     keys: [.command, .option, .letter("P")]
@@ -228,10 +228,10 @@ private enum KeyboardShortcutKey: Identifiable {
     case option
     case shift
     case escape
+    case delete
     case letter(String)
     case number(String)
     case character(String)
-
     var id: String {
         symbol
     }
@@ -246,6 +246,8 @@ private enum KeyboardShortcutKey: Identifiable {
             "⇧"
         case .escape:
             "esc"
+        case .delete:
+            "⌫"
         case let .letter(value), let .number(value), let .character(value):
             value
         }
@@ -261,6 +263,8 @@ private enum KeyboardShortcutKey: Identifiable {
             "Shift"
         case .escape:
             "Escape"
+        case .delete:
+            "Delete"
         case let .letter(value), let .number(value), let .character(value):
             value
         }
