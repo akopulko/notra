@@ -206,7 +206,7 @@ private struct PreviewTagsOverlay: View {
     let tags: [NoteTag]
 
     var body: some View {
-        TagFlowLayout(horizontalSpacing: 8, verticalSpacing: 8) {
+        VStack(alignment: .leading, spacing: 8) {
             ForEach(tags) { tag in
                 TagCapsule(
                     tag: tag,
@@ -214,7 +214,7 @@ private struct PreviewTagsOverlay: View {
                     style: .previewOverlay,
                     displayText: PreviewTagDisplay.text(for: tag)
                 )
-                .frame(maxWidth: 180)
+                .frame(maxWidth: 180, alignment: .leading)
             }
         }
         .padding(.horizontal, 4)
