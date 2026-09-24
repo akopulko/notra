@@ -44,7 +44,6 @@ struct MarkdownEditor: View {
             focusEditorRequest: focusEditorRequest
         )
         .accessibilityLabel("Note editor")
-        .ignoresSafeArea(.container, edges: .top)
         .onChange(of: colorScheme) {
             bridge.refreshHighlight?()
         }
