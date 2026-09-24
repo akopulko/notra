@@ -23,11 +23,11 @@ struct TextBundleAsset: Equatable, Identifiable, Sendable {
         url
     }
 
-    var filename: String {
+    nonisolated var filename: String {
         url.lastPathComponent
     }
 
-    var kind: TextBundleAssetKind {
+    nonisolated var kind: TextBundleAssetKind {
         TextBundleAssetKind(contentType: contentType, filename: filename)
     }
 
@@ -40,6 +40,14 @@ struct TextBundleAsset: Equatable, Identifiable, Sendable {
 enum TextBundleAssetKind: Equatable, Sendable {
     case image
     case attachment
+    nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
+        switch (lhs, rhs) {
+        case (.image, .image), (.attachment, .attachment):
+            true
+        default:
+            false
+        }
+    }
 
     nonisolated init(contentType: UTType?, filename: String) {
         if contentType?.conforms(to: .image) == true {

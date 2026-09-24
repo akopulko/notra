@@ -16,7 +16,6 @@ struct MarkdownWebPreview: View {
     let markdown: String
     let context: MarkdownRenderContext
     let style: MarkdownStyle
-    let openAttachment: (URL) -> Void
     let toggleTask: (MarkdownTaskMarker, MarkdownTaskState) -> Void
 
     var body: some View {
@@ -31,7 +30,6 @@ struct MarkdownWebPreview: View {
                         openURL: { url in
                             openURL(url)
                         },
-                        openAttachment: openAttachment,
                         toggleTask: toggleTask
                     )
                 } else {
@@ -57,11 +55,10 @@ struct MarkdownWebPreview: View {
 private struct MarkdownWebView: UIViewRepresentable {
     let document: MarkdownHTMLDocument
     let openURL: (URL) -> Void
-    let openAttachment: (URL) -> Void
     let toggleTask: (MarkdownTaskMarker, MarkdownTaskState) -> Void
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(openURL: openURL, openAttachment: openAttachment, toggleTask: toggleTask)
+        Coordinator(openURL: openURL, toggleTask: toggleTask)
     }
 
     func makeUIView(context: Context) -> WKWebView {
@@ -82,11 +79,10 @@ private struct MarkdownWebView: UIViewRepresentable {
 private struct MarkdownWebView: NSViewRepresentable {
     let document: MarkdownHTMLDocument
     let openURL: (URL) -> Void
-    let openAttachment: (URL) -> Void
     let toggleTask: (MarkdownTaskMarker, MarkdownTaskState) -> Void
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(openURL: openURL, openAttachment: openAttachment, toggleTask: toggleTask)
+        Coordinator(openURL: openURL, toggleTask: toggleTask)
     }
 
     func makeNSView(context: Context) -> WKWebView {
@@ -130,10 +126,8 @@ private final class MarkdownPreviewWebView: WKWebView {
 private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
     private let assetHandler = MarkdownWebAssetHandler()
     private let openURL: (URL) -> Void
-    private let openAttachment: (URL) -> Void
     private let toggleTask: (MarkdownTaskMarker, MarkdownTaskState) -> Void
     private var renderedHTML: String?
-    private var attachments: [String: URL] = [:]
     private var documentGeneration = 0
     private var pendingScrollOffset: Double?
 
@@ -141,11 +135,9 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
 
     init(
         openURL: @escaping (URL) -> Void,
-        openAttachment: @escaping (URL) -> Void,
         toggleTask: @escaping (MarkdownTaskMarker, MarkdownTaskState) -> Void
     ) {
         self.openURL = openURL
-        self.openAttachment = openAttachment
         self.toggleTask = toggleTask
     }
 
@@ -224,7 +216,6 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
 
     func update(document: MarkdownHTMLDocument, in webView: WKWebView) {
         assetHandler.update(document.assets)
-        attachments = document.attachments
         guard renderedHTML != document.html else {
             return
         }
@@ -289,12 +280,6 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
             return
         }
 
-        if let attachment = attachmentURL(for: url) {
-            openAttachment(attachment)
-            decisionHandler(.cancel)
-            return
-        }
-
         openURL(url)
         decisionHandler(.cancel)
     }
@@ -323,15 +308,6 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
             "document.getElementById(\(anchorLiteral))?.scrollIntoView({ block: 'start', inline: 'nearest' });",
             completionHandler: nil
         )
-    }
-
-    private func attachmentURL(for url: URL) -> URL? {
-        guard url.scheme == MarkdownWebAttachmentScheme.scheme,
-              let id = url.pathComponents.last
-        else {
-            return nil
-        }
-        return attachments[id]
     }
 }
 
@@ -370,9 +346,4 @@ final class MarkdownWebAssetHandler: NSObject, WKURLSchemeHandler {
     }
 
     func webView(_: WKWebView, stop _: any WKURLSchemeTask) {}
-}
-
-/// Separates attachment activation from the asset-serving URL scheme.
-private enum MarkdownWebAttachmentScheme {
-    static let scheme = "notra-attachment"
 }

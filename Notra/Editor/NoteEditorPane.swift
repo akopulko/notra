@@ -142,6 +142,11 @@ struct NoteEditorPane: View {
             markdown: store.editorText,
             context: .textBundle(noteURL: store.selectedNoteURL),
             tags: store.selectedNoteTags,
+            attachments: PreviewAttachmentOverlayModel.linkedNonImageAttachments(
+                from: store.attachments,
+                markdown: store.editorText,
+                noteURL: store.selectedNoteURL
+            ),
             toggleTask: store.toggleTask
         )
     }

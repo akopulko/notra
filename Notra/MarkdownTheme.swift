@@ -328,6 +328,11 @@ struct MarkdownTheme: Equatable {
     var previewHashtagColors: MarkdownTagColors {
         MarkdownTagColors(background: preview.bold, foreground: palette.closestBackground)
     }
+
+    /// Uses the preview italic role for attachment capsules while keeping their foreground readable.
+    var previewAttachmentColors: MarkdownTagColors {
+        MarkdownTagColors(background: preview.italic, foreground: palette.closestBackground)
+    }
 }
 
 /// Colours for hashtag capsules derived from the active Markdown theme.

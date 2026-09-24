@@ -6,7 +6,6 @@ import UniformTypeIdentifiers
 struct MarkdownHTMLDocument: Equatable {
     let html: String
     let assets: [String: URL]
-    let attachments: [String: URL]
     let includedImageURLs: Set<URL>
 }
 
@@ -22,12 +21,10 @@ struct MarkdownHTMLRenderer {
     private let mode: MarkdownHTMLRenderMode
     private let context: MarkdownRenderContext
     private var assets: [String: URL] = [:]
-    private var attachments: [String: URL] = [:]
     private var includedImageURLs = Set<URL>()
     private var headingAnchorCounts: [String: Int] = [:]
     private var headingAnchorIDs: [String: String] = [:]
     private var headingAnchorsBySlug: [String: String] = [:]
-    private var nextResourceID = 0
 
     init(style: MarkdownStyle, mode: MarkdownHTMLRenderMode, context: MarkdownRenderContext) {
         self.style = style
@@ -47,7 +44,6 @@ struct MarkdownHTMLRenderer {
         return MarkdownHTMLDocument(
             html: "<!doctype html><html><head>\(head)</head><body>\(body)</body></html>",
             assets: assets,
-            attachments: attachments,
             includedImageURLs: includedImageURLs
         )
     }
@@ -119,9 +115,9 @@ private extension MarkdownHTMLRenderer {
         .markdown-image { display: block; max-width: 100%; height: auto; margin: 8px 0; }
         .markdown-image { break-inside: avoid-page; page-break-inside: avoid; }
         .pdf-image-container { display: block; max-width: 100%; break-inside: avoid-page; page-break-inside: avoid; }
-        .image-placeholder, .attachment { display: block; margin: 8px 0; padding: 10px; border-radius: 6px; }
-        .image-placeholder, .attachment { color: \(theme.secondaryText); }
-        .image-placeholder, .attachment { background: color-mix(in srgb, currentColor 8%, transparent); }
+        .image-placeholder { display: block; margin: 8px 0; padding: 10px; border-radius: 6px; }
+        .image-placeholder { color: \(theme.secondaryText); }
+        .image-placeholder { background: color-mix(in srgb, currentColor 8%, transparent); }
         \(pdfLayoutRules)
         </style>
         """
@@ -345,9 +341,8 @@ private extension MarkdownHTMLRenderer {
             return ""
         }
 
-        if let url = attachmentURL(for: destination) {
-            let id = registerAttachment(url)
-            return "<a class=\"attachment\" href=\"notra-attachment://attachment/\(id)\">\(render(children))</a>"
+        if isLocalAttachmentReference(destination) {
+            return ""
         }
 
         guard let url = resolvedLinkURL(destination) else {
@@ -380,6 +375,15 @@ private extension MarkdownHTMLRenderer {
         return isImage(url) || isAttachment(url)
     }
 
+    func isLocalAttachmentReference(_ destination: String) -> Bool {
+        guard let url = MarkdownAttachmentReferences.resolve(destination, assetBaseURL: context.assetBaseURL),
+              url.isFileURL
+        else {
+            return false
+        }
+        return isAttachment(url)
+    }
+
     mutating func renderImage(source: String?, alt: String) -> String {
         guard let source,
               let url = MarkdownAttachmentReferences.resolve(source, assetBaseURL: context.assetBaseURL)
@@ -388,6 +392,9 @@ private extension MarkdownHTMLRenderer {
         }
 
         if url.isFileURL {
+            if isAttachment(url) {
+                return ""
+            }
             guard isImage(url), mode == .preview || canDecodeImage(url) else {
                 return mode == .preview ? placeholder(alt) : ""
             }
@@ -480,16 +487,6 @@ private extension MarkdownHTMLRenderer {
         return TextBundleAssetKind(contentType: contentType, filename: url.lastPathComponent) == .attachment
     }
 
-    func attachmentURL(for destination: String) -> URL? {
-        guard let url = MarkdownAttachmentReferences.resolve(destination, assetBaseURL: context.assetBaseURL),
-              url.isFileURL,
-              isAttachment(url)
-        else {
-            return nil
-        }
-        return url
-    }
-
     func canDecodeImage(_ url: URL) -> Bool {
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else {
             return false
@@ -507,13 +504,6 @@ private extension MarkdownHTMLRenderer {
             .replacingOccurrences(of: "=", with: "")
         let id = "resource-\(encodedURL)"
         assets[id] = canonicalURL
-        return id
-    }
-
-    mutating func registerAttachment(_ url: URL) -> String {
-        let id = "attachment-\(nextResourceID)"
-        nextResourceID += 1
-        attachments[id] = url
         return id
     }
 

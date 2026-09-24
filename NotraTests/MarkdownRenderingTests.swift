@@ -2,6 +2,7 @@ import Foundation
 @testable import Notra
 import SwiftUI
 import Testing
+import UniformTypeIdentifiers
 
 @MainActor
 /// Checks parsing, styling, and native Markdown rendering inputs used by preview and PDF export.
@@ -24,6 +25,15 @@ struct MarkdownRenderingTests {
         #expect(webTheme.linkText == "LinkText")
         #expect(webTheme.inlineCodeText == "CanvasText")
         #expect(webTheme.codeColour(for: .keyword) == "CanvasText")
+    }
+
+    @Test
+    func `preview tag display truncates long names`() throws {
+        let longTag = try #require(NoteTag("abcdefghijklmnop"))
+        let shortTag = try #require(NoteTag("swift"))
+
+        #expect(PreviewTagDisplay.text(for: longTag) == "#abcdefghijklmno...")
+        #expect(PreviewTagDisplay.text(for: shortTag) == "#swift")
     }
 
     @Test func htmlRendererAppliesPreviewAndCodeSemanticColours() {
@@ -102,7 +112,6 @@ struct MarkdownRenderingTests {
 
         #expect(html.contains("<a href=\"#first-section\">First section</a>"))
         #expect(html.contains("<a href=\"#equipment\">Equipment</a>"))
-        #expect(!html.contains("notra-attachment://attachment/"))
         #expect(html.contains("<h1 id=\"first-section\">First section</h1>"))
         #expect(html.contains("<h2 id=\"first-section-1\">First section</h2>"))
         #expect(html.contains("<h2 id=\"equipment\">Equipment</h2>"))
@@ -310,6 +319,83 @@ struct MarkdownRenderingTests {
         #expect(MarkdownAttachmentReferences.resolve("../outside.jpg", assetBaseURL: context.assetBaseURL) == nil)
         #expect(MarkdownAttachmentReferences.resolve("assets/../outside.jpg", assetBaseURL: context.assetBaseURL) == nil)
         #expect(MarkdownAttachmentReferences.resolve("assets/%2e%2e/outside.jpg", assetBaseURL: context.assetBaseURL) == nil)
+    }
+
+    @Test
+    func `preview HTML omits local non image attachments`() throws {
+        let noteURL = URL.temporaryDirectory
+            .appendingPathComponent("MarkdownRenderingTests-\(UUID().uuidString)")
+            .appendingPathExtension(TextBundleNoteRepository.bundleExtension)
+        let assetsURL = noteURL.appendingPathComponent(TextBundleNoteRepository.assetsFolder, isDirectory: true)
+        try FileManager.default.createDirectory(at: assetsURL, withIntermediateDirectories: true)
+        defer {
+            try? FileManager.default.removeItem(at: noteURL)
+        }
+        try Data("report".utf8).write(to: assetsURL.appendingPathComponent("report.pdf"))
+
+        let document = SwiftMarkdownParser().parse(
+            "Before [Report](assets/report.pdf) and ![Report](assets/report.pdf) After"
+        )
+        var renderer = MarkdownHTMLRenderer(
+            style: .notra(previewFontName: AppearanceFont.defaultName),
+            mode: .preview,
+            context: .textBundle(noteURL: noteURL)
+        )
+
+        let html = renderer.render(document).html
+
+        #expect(html.contains("Before"))
+        #expect(html.contains("After"))
+        #expect(!html.contains("Report"))
+        #expect(!html.contains("notra-" + "attachment://"))
+        #expect(!html.contains("class=\"attachment\""))
+        #expect(!html.contains("<span class=\"image-placeholder\">"))
+    }
+
+    @Test
+    func `preview attachment overlay model uses current markdown links`() throws {
+        let noteURL = URL.temporaryDirectory
+            .appendingPathComponent("MarkdownRenderingTests-\(UUID().uuidString)")
+            .appendingPathExtension(TextBundleNoteRepository.bundleExtension)
+        let assetsURL = noteURL.appendingPathComponent(TextBundleNoteRepository.assetsFolder, isDirectory: true)
+        try FileManager.default.createDirectory(at: assetsURL, withIntermediateDirectories: true)
+        defer {
+            try? FileManager.default.removeItem(at: noteURL)
+        }
+
+        let report = TextBundleAsset(
+            url: assetsURL.appendingPathComponent("report.pdf"),
+            contentType: .pdf,
+            byteCount: 1,
+            isLinked: false
+        )
+        let photo = TextBundleAsset(
+            url: assetsURL.appendingPathComponent("photo.png"),
+            contentType: .png,
+            byteCount: 1,
+            isLinked: true
+        )
+        let archive = TextBundleAsset(
+            url: assetsURL.appendingPathComponent("archive.zip"),
+            contentType: .zip,
+            byteCount: 1,
+            isLinked: false
+        )
+        let attachments = [archive, photo, report]
+
+        let linked = PreviewAttachmentOverlayModel.linkedNonImageAttachments(
+            from: attachments,
+            markdown: "[Report](assets/report.pdf) ![Photo](assets/photo.png)",
+            noteURL: noteURL
+        )
+        let noReportLink = PreviewAttachmentOverlayModel.linkedNonImageAttachments(
+            from: attachments,
+            markdown: "![Photo](assets/photo.png)",
+            noteURL: noteURL
+        )
+
+        #expect(linked == [report])
+        #expect(noReportLink.isEmpty)
     }
 
     @Test

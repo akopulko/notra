@@ -16,17 +16,20 @@ struct TagCapsule: View {
     let tag: NoteTag
     var size: Size = .regular
     var style: Style = .standard
+    var displayText: String?
     var removeAction: (() -> Void)?
 
     init(
         tag: NoteTag,
         size: Size = .regular,
         style: Style = .standard,
+        displayText: String? = nil,
         removeAction: (() -> Void)? = nil
     ) {
         self.tag = tag
         self.size = size
         self.style = style
+        self.displayText = displayText
         self.removeAction = removeAction
     }
 
@@ -46,7 +49,7 @@ struct TagCapsule: View {
                 .accessibilityLabel("Remove tag \(tag.displayName)")
             }
 
-            Text(tag.prefixedDisplayName)
+            Text(displayText ?? tag.prefixedDisplayName)
                 .font(font)
                 .foregroundStyle(tagColors.foregroundColor)
                 .lineLimit(1)
