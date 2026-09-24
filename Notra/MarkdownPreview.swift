@@ -59,7 +59,16 @@ struct MarkdownPreview: View {
         .accessibilityLabel("Note preview")
         #if os(iOS)
         .sheet(item: $previewedAttachment) { item in
-            AttachmentPreviewController(item: item)
+            NavigationStack {
+                AttachmentPreviewController(item: item)
+                    .toolbar {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button("Done") {
+                                previewedAttachment = nil
+                            }
+                        }
+                    }
+            }
         }
         #endif
     }
