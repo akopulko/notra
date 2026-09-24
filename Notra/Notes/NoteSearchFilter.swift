@@ -43,10 +43,6 @@ enum NoteSearchFilter: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    nonisolated static func hasChecklist(in markdown: String) -> Bool {
-        MarkdownDocumentAnalysis.analyse(markdown: markdown).hasChecklist
-    }
-
     nonisolated static func hasLinkedAttachment(noteURL: URL, markdown: String) -> Bool {
         hasLinkedAttachment(
             noteURL: noteURL,

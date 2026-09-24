@@ -303,17 +303,6 @@ final class NotesStore {
         }
     }
 
-    /// Deletes the selected row through the same multi-note path used by context menus.
-    func deleteSelectedNote() async {
-        guard let selectedNoteID,
-              let summary = notes.first(where: { $0.id == selectedNoteID })
-        else {
-            return
-        }
-
-        await deleteNotes([summary])
-    }
-
     /// Converts list offsets to stable summaries before the list can change during deletion.
     func deleteNotes(at offsets: IndexSet) async {
         let summaries = offsets.map { notes[$0] }

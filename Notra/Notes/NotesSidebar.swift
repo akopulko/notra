@@ -610,15 +610,3 @@ private extension View {
         #endif
     }
 }
-
-/// The file formats offered by the note-list export submenu.
-private enum NoteExportFormat {
-    case pdf
-    case markdown
-}
-
-/// Identifies whether export is presented as a share sheet or a save panel.
-private enum NoteExportDestination {
-    case share
-    case save
-}
