@@ -128,11 +128,11 @@ extension MarkdownNativeTextEditor {
         private func makeHeadingButton() -> UIButton {
             let button = UIButton(type: .system)
             button.setImage(UIImage(systemName: NoteFormattingCommand.heading.systemImage), for: .normal)
-            button.accessibilityLabel = NoteFormattingCommand.heading.title
+            button.accessibilityLabel = String(localized: NoteFormattingCommand.heading.title)
             button.tintColor = .label
             button.menu = UIMenu(
                 children: MarkdownHeadingLevel.allCases.map { level in
-                    UIAction(title: level.menuTitle) { [weak self] _ in
+                    UIAction(title: String(localized: level.menuTitle)) { [weak self] _ in
                         self?.applyHeading(level)
                     }
                 }
@@ -144,7 +144,7 @@ extension MarkdownNativeTextEditor {
         private func makeFormattingButton(for command: NoteFormattingCommand) -> UIButton {
             let button = UIButton(type: .system)
             button.setImage(UIImage(systemName: command.systemImage), for: .normal)
-            button.accessibilityLabel = command.title
+            button.accessibilityLabel = String(localized: command.title)
             button.tintColor = .label
             button.addAction(
                 UIAction { [weak self] _ in
@@ -158,12 +158,12 @@ extension MarkdownNativeTextEditor {
         private func makeAttachmentMenuButton() -> UIButton {
             let button = UIButton(type: .system)
             button.setImage(UIImage(systemName: "paperclip"), for: .normal)
-            button.accessibilityLabel = "Attachments"
-            button.accessibilityHint = "Choose a photo or attach a file"
+            button.accessibilityLabel = String(localized: "Attachments")
+            button.accessibilityHint = String(localized: "Choose a photo or attach a file")
             button.tintColor = .label
             button.menu = UIMenu(
                 children: AttachmentKeyboardMenuItem.allCases.map { item in
-                    UIAction(title: item.title, image: UIImage(systemName: item.systemImage)) { [weak self] _ in
+                    UIAction(title: String(localized: item.title), image: UIImage(systemName: item.systemImage)) { [weak self] _ in
                         self?.performAttachmentMenuItem(item)
                     }
                 }
@@ -377,10 +377,10 @@ extension MarkdownNativeTextEditor {
 
         private func buildFormattingMenu() -> [UIMenuElement] {
             let headingMenu = UIMenu(
-                title: NoteFormattingCommand.heading.title,
+                title: String(localized: NoteFormattingCommand.heading.title),
                 image: UIImage(systemName: NoteFormattingCommand.heading.systemImage),
                 children: MarkdownHeadingLevel.allCases.map { level in
-                    UIAction(title: level.menuTitle) { [weak self] _ in
+                    UIAction(title: String(localized: level.menuTitle)) { [weak self] _ in
                         self?.parent.bridge.applyHeading?(level)
                     }
                 }
@@ -389,7 +389,10 @@ extension MarkdownNativeTextEditor {
             var items: [UIMenuElement] = [headingMenu]
             for command in formattingCommands {
                 items.append(
-                    UIAction(title: command.title, image: UIImage(systemName: command.systemImage)) { [weak self] _ in
+                    UIAction(
+                        title: String(localized: command.title),
+                        image: UIImage(systemName: command.systemImage)
+                    ) { [weak self] _ in
                         self?.parent.bridge.applyFormattingCommand?(command)
                     }
                 )

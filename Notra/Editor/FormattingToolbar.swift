@@ -8,8 +8,10 @@ struct HeadingToolbarMenu: View {
     var body: some View {
         Menu {
             ForEach(MarkdownHeadingLevel.allCases, id: \.self) { level in
-                Button(level.menuTitle) {
+                Button {
                     action(level)
+                } label: {
+                    Text(level.menuTitle)
                 }
             }
         } label: {
@@ -28,11 +30,17 @@ struct FormatToolbarButton: View {
     let action: () -> Void
 
     var body: some View {
-        Button(command.title, systemImage: command.systemImage, action: action)
-            .labelStyle(.iconOnly)
-            .help(command.title)
-            .accessibilityLabel(command.title)
-            .disabled(!isEnabled)
+        Button(action: action) {
+            Label {
+                Text(command.title)
+            } icon: {
+                Image(systemName: command.systemImage)
+            }
+        }
+        .labelStyle(.iconOnly)
+        .help(command.title)
+        .accessibilityLabel(command.title)
+        .disabled(!isEnabled)
     }
 }
 
@@ -94,8 +102,21 @@ struct EditorUndoRedoToolbar: ToolbarContent {
 }
 
 extension MarkdownHeadingLevel {
-    var menuTitle: String {
-        "\(markdownPrefix)H\(rawValue) Heading"
+    var menuTitle: LocalizedStringResource {
+        switch self {
+        case .h1:
+            "# H1 Heading"
+        case .h2:
+            "## H2 Heading"
+        case .h3:
+            "### H3 Heading"
+        case .h4:
+            "#### H4 Heading"
+        case .h5:
+            "##### H5 Heading"
+        case .h6:
+            "###### H6 Heading"
+        }
     }
 }
 
@@ -118,7 +139,7 @@ extension NoteFormattingCommand {
         toolbarCommandGroups.flatMap(\.self)
     }
 
-    var title: String {
+    var title: LocalizedStringResource {
         switch self {
         case .bold:
             "Bold"
@@ -182,7 +203,7 @@ enum AttachmentKeyboardMenuItem: CaseIterable, Hashable {
     case choosePhoto
     case attachFile
 
-    var title: String {
+    var title: LocalizedStringResource {
         switch self {
         case .choosePhoto:
             "Choose Photo"

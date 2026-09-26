@@ -174,18 +174,18 @@ extension MarkdownNativeTextEditor {
 
         private func appendHeadingMenu(to menu: NSMenu) {
             let headingItem = NSMenuItem(
-                title: NoteFormattingCommand.heading.title,
+                title: String(localized: NoteFormattingCommand.heading.title),
                 action: nil,
                 keyEquivalent: ""
             )
             headingItem.image = NSImage(
                 systemSymbolName: NoteFormattingCommand.heading.systemImage,
-                accessibilityDescription: NoteFormattingCommand.heading.title
+                accessibilityDescription: String(localized: NoteFormattingCommand.heading.title)
             )
             let submenu = NSMenu()
             for level in MarkdownHeadingLevel.allCases {
                 let item = NSMenuItem(
-                    title: level.menuTitle,
+                    title: String(localized: level.menuTitle),
                     action: #selector(applyHeadingFromMenu(_:)),
                     keyEquivalent: ""
                 )
@@ -454,7 +454,7 @@ extension MarkdownNativeTextEditor.Coordinator {
         for command in formattingCommands {
             appendMenuItem(
                 to: menu,
-                title: command.title,
+                title: String(localized: command.title),
                 systemImage: command.systemImage,
                 action: #selector(applyFormattingFromMenu(_:)),
                 target: self,
@@ -467,7 +467,7 @@ extension MarkdownNativeTextEditor.Coordinator {
     private func appendEditMenuItems(to menu: NSMenu, at characterIndex: Int) {
         appendMenuItem(
             to: menu,
-            title: "Select",
+            title: String(localized: "Select"),
             systemImage: "selection.pin.in.out",
             action: #selector(selectWordFromMenu(_:)),
             target: self,
@@ -476,7 +476,7 @@ extension MarkdownNativeTextEditor.Coordinator {
         )
         appendMenuItem(
             to: menu,
-            title: "Select All",
+            title: String(localized: "Select All"),
             systemImage: "selection.pin.in.out",
             action: #selector(NSText.selectAll(_:)),
             target: textView,
@@ -484,7 +484,7 @@ extension MarkdownNativeTextEditor.Coordinator {
         )
         appendMenuItem(
             to: menu,
-            title: "Cut",
+            title: String(localized: "Cut"),
             systemImage: "scissors",
             action: #selector(NSText.cut(_:)),
             target: textView,
@@ -492,7 +492,7 @@ extension MarkdownNativeTextEditor.Coordinator {
         )
         appendMenuItem(
             to: menu,
-            title: "Copy",
+            title: String(localized: "Copy"),
             systemImage: "doc.on.doc",
             action: #selector(NSText.copy(_:)),
             target: textView,
@@ -500,7 +500,7 @@ extension MarkdownNativeTextEditor.Coordinator {
         )
         appendMenuItem(
             to: menu,
-            title: "Paste",
+            title: String(localized: "Paste"),
             systemImage: "doc.on.clipboard",
             action: #selector(NSText.paste(_:)),
             target: textView,

@@ -35,11 +35,11 @@ enum NoteSearchIndexError: LocalizedError, Equatable, Sendable {
     var errorDescription: String? {
         switch self {
         case let .database(message):
-            "The note search index could not be opened: \(message)"
+            String(localized: "The note search index could not be opened: \(message)")
         case .notReady:
-            "The note search index is still being prepared."
+            String(localized: "The note search index is still being prepared.")
         case .invalidDatabaseLocation:
-            "The note search index location is unavailable."
+            String(localized: "The note search index location is unavailable.")
         }
     }
 }

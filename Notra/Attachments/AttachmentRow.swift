@@ -11,7 +11,7 @@ struct AttachmentRow: View {
         )
     }
 
-    private var linkState: String {
+    private var linkState: LocalizedStringResource {
         attachment.isLinked ? "Linked" : "Not Linked"
     }
 
@@ -32,11 +32,11 @@ struct AttachmentRow: View {
                     .lineLimit(1)
                     .truncationMode(.middle)
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Label(
-                        linkState,
-                        systemImage: attachment.isLinked ? "link" : "link.slash"
-                    )
-                    Text(formattedByteCount)
+                    Label {
+                        Text(linkState)
+                    } icon: {
+                        Image(systemName: attachment.isLinked ? "link" : "link.slash")
+                    }
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -44,7 +44,7 @@ struct AttachmentRow: View {
         }
         .padding(.vertical, 4)
         .accessibilityElement(children: .combine)
-        .accessibilityValue("\(linkState), \(formattedByteCount)")
+        .accessibilityValue("\(String(localized: linkState)), \(formattedByteCount)")
     }
 }
 

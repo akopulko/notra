@@ -37,6 +37,30 @@ final class NotraUITests: XCTestCase {
         // XCUIAutomation Documentation
         // https://developer.apple.com/documentation/xcuiautomation
     }
+    @MainActor
+    func testLocalisedNewNoteButtonAppears() {
+        let locales = [
+            ("de_DE", "(de)", "Neue Notiz"),
+            ("fr_FR", "(fr)", "Nouvelle note"),
+            ("es_ES", "(es)", "Nueva nota"),
+            ("ru_RU", "(ru)", "Новая заметка")
+        ]
+
+        for (locale, language, expectedLabel) in locales {
+            let app = XCUIApplication()
+            app.launchArguments += [
+                "-AppleLanguages", language,
+                "-AppleLocale", locale
+            ]
+            app.launch()
+
+            XCTAssertTrue(
+                app.buttons[expectedLabel].firstMatch.waitForExistence(timeout: 10),
+                "Expected New Note button for \(locale)"
+            )
+            app.terminate()
+        }
+    }
 
     #if os(iOS)
     /// A collapsed iPad sidebar must stay reachable while the split view has an inspector.

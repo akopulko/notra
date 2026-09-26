@@ -9,7 +9,7 @@ enum NoteStorageLocation: String, CaseIterable, Identifiable, Sendable {
         self
     }
 
-    var title: String {
+    var title: LocalizedStringResource {
         switch self {
         case .iCloud:
             "iCloud"

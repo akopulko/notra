@@ -41,7 +41,7 @@ struct AppearanceFontChoice: Identifiable, Hashable {
 /// Converts the persisted font preference into SwiftUI and platform-native font values.
 enum AppearanceFont {
     static let defaultName = ""
-    static let defaultDisplayName = "System Default"
+    static let defaultDisplayName: LocalizedStringResource = "System Default"
     static let defaultSize = 17.0
 
     private static var availableChoicesCache: [Bool: [AppearanceFontChoice]] = [:]
@@ -68,7 +68,10 @@ enum AppearanceFont {
         }
         .sorted { $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending }
 
-        let choices = [AppearanceFontChoice(fontName: defaultName, displayName: defaultDisplayName)] + installedChoices
+        let choices = [AppearanceFontChoice(
+            fontName: defaultName,
+            displayName: String(localized: defaultDisplayName)
+        )] + installedChoices
         availableChoicesCache[fixedPitchOnly] = choices
         return choices
     }

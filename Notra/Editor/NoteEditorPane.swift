@@ -208,7 +208,7 @@ struct NoteEditorPane: View {
         ToolbarItem(placement: .primaryAction) {
             switch shareState {
             case .idle:
-                Button("Share", systemImage: "square.and.arrow.up") {
+                Button("share", systemImage: "square.and.arrow.up") {
                     requestShare()
                 }
                 .labelStyle(.iconOnly)

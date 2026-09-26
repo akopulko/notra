@@ -521,7 +521,10 @@ extension NotesStore {
             }
             var note = try repository.loadNote(at: summary.url)
             if note.metadata.pinnedAt == nil, notes.filter(\.isPinned).count >= NotePinning.maximumPinnedNotes {
-                errorMessage = "You can pin up to \(NotePinning.maximumPinnedNotes) notes."
+                errorMessage = String(
+                    localized: "You can pin up to \(NotePinning.maximumPinnedNotes) notes.",
+                    comment: "Error shown when the maximum number of pinned notes has been reached."
+                )
                 return
             }
 

@@ -40,7 +40,7 @@ struct GeneralSettingsDetailView: View {
                 LabeledContent {
                     Text(store.notes.count, format: .number)
                 } label: {
-                    Text("Notes", comment: "Settings row showing the number of notes in the active library.")
+                    Text("notesCount", comment: "Settings row showing the number of notes in the active library.")
                 }
 
                 LabeledContent {

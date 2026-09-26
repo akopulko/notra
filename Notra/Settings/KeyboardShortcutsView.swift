@@ -253,7 +253,7 @@ private enum KeyboardShortcutKey: Identifiable {
         }
     }
 
-    var accessibilityLabel: String {
+    var accessibilityLabel: LocalizedStringResource {
         switch self {
         case .command:
             "Command"
@@ -266,7 +266,7 @@ private enum KeyboardShortcutKey: Identifiable {
         case .delete:
             "Delete"
         case let .letter(value), let .number(value), let .character(value):
-            value
+            LocalizedStringResource(stringLiteral: value)
         }
     }
 }

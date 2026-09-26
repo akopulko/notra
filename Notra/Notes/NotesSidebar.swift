@@ -465,7 +465,7 @@ private extension NotesSidebar {
                 }
             }
             Divider()
-            Button("Share…", systemImage: "square.and.arrow.up") {
+            Button("shareWithEllipsis", systemImage: "square.and.arrow.up") {
                 exportNote(note, .sharePDF)
             }
             .disabled(isEditing)
@@ -531,10 +531,8 @@ private struct NotePinContextMenuButton: View {
 private struct NoteDeletionRequest {
     let summaries: [NoteSummary]
 
-    var message: String {
-        summaries.count == 1
-            ? "This note will be permanently deleted."
-            : "These notes will be permanently deleted."
+    var message: LocalizedStringResource {
+        "\(summaries.count) notes will be permanently deleted."
     }
 }
 
@@ -559,7 +557,9 @@ private struct NoteDeletionConfirmationModifier: ViewModifier {
                 request = nil
             }
         } message: {
-            Text(request?.message ?? "")
+            if let message = request?.message {
+                Text(message)
+            }
         }
     }
 

@@ -5,7 +5,7 @@ enum NoteSortField: String, CaseIterable, Sendable {
     case dateEdited
     case dateCreated
 
-    var menuTitle: String {
+    var menuTitle: LocalizedStringResource {
         switch self {
         case .dateEdited:
             "Date Edited"
@@ -20,7 +20,7 @@ enum NoteSortDirection: String, CaseIterable, Sendable {
     case latestFirst
     case oldestFirst
 
-    var menuTitle: String {
+    var menuTitle: LocalizedStringResource {
         switch self {
         case .latestFirst:
             "Latest First"

@@ -14,24 +14,23 @@ enum NoteRepositoryError: Equatable, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidBundle:
-            "The note bundle is invalid."
+            return String(localized: "The note bundle is invalid.")
         case .noteNotFound:
-            "The selected note could not be found."
+            return String(localized: "The selected note could not be found.")
         case .storageUnavailable:
-            "The note storage location is unavailable."
+            return String(localized: "The note storage location is unavailable.")
         case .invalidMetadata:
-            "The note metadata could not be updated."
+            return String(localized: "The note metadata could not be updated.")
         case .invalidImageData:
-            "The selected file is not a supported image."
+            return String(localized: "The selected file is not a supported image.")
         case .imageEncodingFailed:
-            "The image could not be saved."
+            return String(localized: "The image could not be saved.")
         case .invalidAttachment:
-            "The selected attachment is invalid."
+            return String(localized: "The selected attachment is invalid.")
         case let .attachmentTooLarge(filename, byteCount, limit):
-            """
-            "\(filename)" is \(ByteCountFormatter.string(fromByteCount: byteCount, countStyle: .file)). \
-            The maximum attachment size is \(ByteCountFormatter.string(fromByteCount: limit, countStyle: .file)).
-            """
+            let byteCount = ByteCountFormatter.string(fromByteCount: byteCount, countStyle: .file)
+            let maximumByteCount = ByteCountFormatter.string(fromByteCount: limit, countStyle: .file)
+            return String(localized: "\(filename) is \(byteCount). The maximum attachment size is \(maximumByteCount).")
         }
     }
 }

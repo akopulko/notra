@@ -167,7 +167,7 @@ struct NotraCommands: Commands {
             Button {
                 context?.requestExport(.sharePDF)
             } label: {
-                Label("Share", systemImage: "square.and.arrow.up")
+                Label("share", systemImage: "square.and.arrow.up")
             }
             .disabled(!(context?.canExportSelectedNote ?? false))
 

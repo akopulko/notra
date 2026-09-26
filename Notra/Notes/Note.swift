@@ -23,7 +23,7 @@ struct NoteAttachmentSummary: Equatable, Sendable {
     }
 
     /// Accessibility text that distinguishes image content from other attachments.
-    var accessibilityDescription: String {
+    var accessibilityDescription: LocalizedStringResource {
         if firstLinkedImageURL != nil {
             return "Contains image"
         }

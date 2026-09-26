@@ -271,7 +271,7 @@ struct AttachmentInspectorView: View {
         #if os(macOS)
         let didOpen = NSWorkspace.shared.open(attachment.url)
         if !didOpen {
-            store.errorMessage = "The attachment could not be opened."
+            store.errorMessage = String(localized: "The attachment could not be opened.")
         }
         #else
         previewedAttachment = AttachmentPreviewItem(url: attachment.url)
@@ -290,9 +290,11 @@ struct AttachmentInspectorView: View {
 
     private var deletionMessage: String {
         if pendingDeletion?.isLinked == true {
-            return "This attachment is used in the note. All references to it will also be removed."
+            return String(
+                localized: "This attachment is used in the note. All references to it will also be removed."
+            )
         }
-        return "This permanently deletes the attachment from this note."
+        return String(localized: "This permanently deletes the attachment from this note.")
     }
 }
 
@@ -301,7 +303,7 @@ private enum TagEntryFeedback {
     case invalid
     case duplicate
 
-    var message: String {
+    var message: LocalizedStringResource {
         switch self {
         case .invalid:
             "Use letters, numbers, hyphens, or underscores."

@@ -144,7 +144,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable, Hashable {
         self
     }
 
-    var title: String {
+    var title: LocalizedStringResource {
         switch self {
         case .general:
             "General"
@@ -166,7 +166,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable, Hashable {
         }
     }
 
-    var description: String {
+    var description: LocalizedStringResource {
         switch self {
         case .general:
             "Configure common note and attachment behaviour."
@@ -251,7 +251,7 @@ extension View {
     }
 
     @ViewBuilder
-    func settingsDetailNavigationTitle(_ title: String) -> some View {
+    func settingsDetailNavigationTitle(_ title: LocalizedStringResource) -> some View {
         #if os(iOS)
         navigationTitle(title)
         #else

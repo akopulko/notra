@@ -85,8 +85,13 @@ struct AppearanceSettingsDetailView: View {
 
     private func fontChoices(fixedPitchOnly: Bool) -> some View {
         ForEach(AppearanceFont.availableChoices(fixedPitchOnly: fixedPitchOnly)) { choice in
-            Text(choice.displayName)
-                .tag(choice.fontName)
+            if choice.fontName.isEmpty {
+                Text(AppearanceFont.defaultDisplayName)
+                    .tag(choice.fontName)
+            } else {
+                Text(verbatim: choice.displayName)
+                    .tag(choice.fontName)
+            }
         }
     }
 
