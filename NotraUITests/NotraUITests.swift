@@ -37,6 +37,30 @@ final class NotraUITests: XCTestCase {
         // XCUIAutomation Documentation
         // https://developer.apple.com/documentation/xcuiautomation
     }
+    @MainActor
+    func testLocalisedNewNoteButtonAppears() {
+        let locales = [
+            ("de_DE", "(de)", "Neue Notiz"),
+            ("fr_FR", "(fr)", "Nouvelle note"),
+            ("es_ES", "(es)", "Nueva nota"),
+            ("ru_RU", "(ru)", "Новая заметка")
+        ]
+
+        for (locale, language, expectedLabel) in locales {
+            let app = XCUIApplication()
+            app.launchArguments += [
+                "-AppleLanguages", language,
+                "-AppleLocale", locale
+            ]
+            app.launch()
+
+            XCTAssertTrue(
+                app.buttons[expectedLabel].firstMatch.waitForExistence(timeout: 10),
+                "Expected New Note button for \(locale)"
+            )
+            app.terminate()
+        }
+    }
 
     #if os(iOS)
     /// A collapsed iPad sidebar must stay reachable while the split view has an inspector.
@@ -176,6 +200,54 @@ final class NotraUITests: XCTestCase {
         confirmation.buttons["Delete"].tap()
         XCTAssertTrue(note.waitForNonExistence(timeout: 10))
         revealSidebar(in: app)
+    }
+
+    /// Verifies edit-mode content starts below the visible top toolbar.
+    @MainActor
+    func testEditorStartsBelowTopChromeWhenEnteringEditMode() {
+        XCUIDevice.shared.orientation = .portrait
+        defer { XCUIDevice.shared.orientation = .portrait }
+
+        let app = XCUIApplication()
+        app.launchArguments += ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        revealSidebar(in: app)
+
+        app.buttons["New Note"].firstMatch.tap()
+        let editor = app.textViews.firstMatch
+        XCTAssertTrue(editor.waitForExistence(timeout: 10), app.debugDescription)
+        let title = "Editor Top Inset Regression \(UUID().uuidString)"
+        editor.tap()
+        editor.typeText("\(title)\nSecond line\nThird line")
+        app.buttons["Done"].firstMatch.tap()
+
+        revealSidebar(in: app)
+        let note = app.cells.containing(.staticText, identifier: title).firstMatch
+        XCTAssertTrue(note.waitForExistence(timeout: 10), app.debugDescription)
+        note.tap()
+
+        let editButton = app.buttons["Edit"].firstMatch
+        XCTAssertTrue(editButton.waitForExistence(timeout: 10), app.debugDescription)
+        editButton.tap()
+        let doneButton = app.buttons["Done"].firstMatch
+        XCTAssertTrue(doneButton.waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertTrue(editor.waitForExistence(timeout: 10), app.debugDescription)
+
+        let topChromeBottom = doneButton.frame.maxY
+        XCTAssertGreaterThanOrEqual(
+            editor.frame.minY,
+            topChromeBottom - 1,
+            app.debugDescription
+        )
+
+        doneButton.tap()
+        revealSidebar(in: app)
+        note.press(forDuration: 1)
+        app.buttons["Delete"].firstMatch.tap()
+        let confirmation = app.alerts["Delete Note?"]
+        XCTAssertTrue(confirmation.waitForExistence(timeout: 5), app.debugDescription)
+        confirmation.buttons["Delete"].tap()
+        XCTAssertTrue(note.waitForNonExistence(timeout: 10), app.debugDescription)
     }
 
     /// Uses the system sidebar control or compact back button without relying on screen coordinates.

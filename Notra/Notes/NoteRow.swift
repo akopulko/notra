@@ -100,7 +100,7 @@ struct NoteRow: View {
     }
 
     private var accessibilityValue: String {
-        [note.isPinned ? "Pinned" : nil, note.attachmentSummary.accessibilityDescription]
+        [note.isPinned ? String(localized: "Pinned") : nil, String(localized: note.attachmentSummary.accessibilityDescription)]
             .compactMap { $0 }
             .filter { !$0.isEmpty }
             .joined(separator: ", ")

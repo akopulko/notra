@@ -65,9 +65,3 @@ private extension Error {
     }
 }
 #endif
-
-struct EmptyModifier: ViewModifier {
-    func body(content: Content) -> some View {
-        content
-    }
-}

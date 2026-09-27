@@ -142,6 +142,11 @@ struct NoteEditorPane: View {
             markdown: store.editorText,
             context: .textBundle(noteURL: store.selectedNoteURL),
             tags: store.selectedNoteTags,
+            attachments: PreviewAttachmentOverlayModel.linkedNonImageAttachments(
+                from: store.attachments,
+                markdown: store.editorText,
+                noteURL: store.selectedNoteURL
+            ),
             toggleTask: store.toggleTask
         )
     }
@@ -203,7 +208,7 @@ struct NoteEditorPane: View {
         ToolbarItem(placement: .primaryAction) {
             switch shareState {
             case .idle:
-                Button("Share", systemImage: "square.and.arrow.up") {
+                Button("share", systemImage: "square.and.arrow.up") {
                     requestShare()
                 }
                 .labelStyle(.iconOnly)

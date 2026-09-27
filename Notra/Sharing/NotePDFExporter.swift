@@ -7,6 +7,7 @@ struct NotePDFSnapshot: Equatable, Sendable {
     let markdown: String
     let noteURL: URL
     let previewFontName: String
+    let previewFixedWidthFontName: String
     let suggestedFilename: String
 }
 
@@ -30,6 +31,7 @@ struct NotePDFExporter {
         let document = SwiftMarkdownParser().parse(snapshot.markdown)
         let style = MarkdownStyle.notra(
             previewFontName: snapshot.previewFontName,
+            previewFixedWidthFontName: snapshot.previewFixedWidthFontName,
             renderMode: .pdf
         )
         var htmlRenderer = MarkdownHTMLRenderer(style: style, mode: .pdf, context: context)
