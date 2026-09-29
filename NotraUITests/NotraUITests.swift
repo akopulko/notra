@@ -183,6 +183,25 @@ final class NotraUITests: XCTestCase {
             let bottom = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.95))
             grabber.press(forDuration: 0.1, thenDragTo: bottom)
             XCTAssertTrue(app.textFields["Add Tag"].waitForNonExistence(timeout: 10))
+            let reopenButton = app.buttons["Attachments"].firstMatch
+            let reopenButtonHittable = XCTNSPredicateExpectation(
+                predicate: NSPredicate(format: "exists == true AND hittable == true"),
+                object: reopenButton
+            )
+            XCTAssertEqual(XCTWaiter.wait(for: [reopenButtonHittable], timeout: 10), .completed)
+            reopenButton.tap()
+            let tagField = app.textFields["Add Tag"]
+            let tagFieldHittable = XCTNSPredicateExpectation(
+                predicate: NSPredicate(format: "exists == true AND hittable == true"),
+                object: tagField
+            )
+            XCTAssertEqual(XCTWaiter.wait(for: [tagFieldHittable], timeout: 10), .completed)
+            let reopenedInspector = app.collectionViews.containing(.textField, identifier: "Add Tag").firstMatch
+            XCTAssertTrue(reopenedInspector.waitForExistence(timeout: 5), app.debugDescription)
+            let reopenedGrabber = reopenedInspector.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0))
+                .withOffset(CGVector(dx: 0, dy: 2))
+            reopenedGrabber.press(forDuration: 0.1, thenDragTo: bottom)
+            XCTAssertTrue(tagField.waitForNonExistence(timeout: 10))
         }
 
         revealSidebar(in: app)

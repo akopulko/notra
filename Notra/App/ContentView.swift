@@ -1,6 +1,10 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+#if os(iOS)
+import UIKit
+#endif
+
 /// Owns the app's split-view shell and connects note-store state to its sidebar and editor.
 struct ContentView: View {
     /// Shared store bound into both columns of the split view.
@@ -84,23 +88,13 @@ struct ContentView: View {
         .navigationSplitViewStyle(.balanced)
         // Placing the inspector outside the split view preserves its system sidebar navigation.
         // An inspector on the detail content can hide the sidebar toggle on iPadOS 26.
-        .inspector(isPresented: $isAttachmentInspectorPresented) {
-            AttachmentInspectorView(
-                store: store,
-                isEditing: commandContext.isEditing,
-                linkAttachment: { attachment in
-                    if commandContext.isEditing {
-                        attachmentToInsert = attachment
-                    } else {
-                        store.linkAttachment(attachment)
-                    }
-                },
-                unlinkAttachment: { attachment in
-                    store.unlinkAttachment(attachment)
-                },
-                removeTag: removeTag
-            )
-        }
+        .modifier(
+            AttachmentInspectorPresentationModifier(
+                isPresented: $isAttachmentInspectorPresented
+            ) {
+                attachmentInspectorContent
+            }
+        )
         .task {
             await store.loadNotes()
         }
@@ -172,6 +166,24 @@ struct ContentView: View {
             }
             pendingFileExport = nil
         }
+    }
+
+    private var attachmentInspectorContent: some View {
+        AttachmentInspectorView(
+            store: store,
+            isEditing: commandContext.isEditing,
+            linkAttachment: { attachment in
+                if commandContext.isEditing {
+                    attachmentToInsert = attachment
+                } else {
+                    store.linkAttachment(attachment)
+                }
+            },
+            unlinkAttachment: { attachment in
+                store.unlinkAttachment(attachment)
+            },
+            removeTag: removeTag
+        )
     }
 
     /// Routes inspector tag changes through the same store used by the sidebar and editor.
@@ -301,6 +313,23 @@ struct ContentView: View {
             AppLog.error("Failed to load note export: \(error.localizedDescription)")
             store.errorMessage = error.localizedDescription
         }
+    }
+}
+
+private struct AttachmentInspectorPresentationModifier<InspectorContent: View>: ViewModifier {
+    @Binding var isPresented: Bool
+    @ViewBuilder var inspectorContent: () -> InspectorContent
+
+    func body(content: Content) -> some View {
+        #if os(iOS)
+        if UIDevice.current.userInterfaceIdiom == .phone {
+            content.sheet(isPresented: $isPresented, content: inspectorContent)
+        } else {
+            content.inspector(isPresented: $isPresented, content: inspectorContent)
+        }
+        #else
+        content.inspector(isPresented: $isPresented, content: inspectorContent)
+        #endif
     }
 }
 
