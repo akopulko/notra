@@ -126,6 +126,28 @@ enum MarkdownFormatting {
         return applyBlockResult(to: text, selection: selection, content: attachmentMarkdown)
     }
 
+    /// Appends an attachment reference as a block at the end of the document.
+    static func appendAttachmentReferenceResult(
+        to text: String,
+        kind: TextBundleAssetKind,
+        source: String,
+        label: String
+    ) -> MarkdownFormattingResult {
+        let insertionRange = text.endIndex..<text.endIndex
+
+        switch kind {
+        case .image:
+            return applyImageResult(to: text, selection: insertionRange, source: source)
+        case .attachment:
+            return applyAttachmentLinkResult(
+                to: text,
+                selection: insertionRange,
+                label: label,
+                source: source
+            )
+        }
+    }
+
     /// Inserts one block at the active selection and isolates it from surrounding Markdown.
     private static func applyBlockResult(
         to text: String,

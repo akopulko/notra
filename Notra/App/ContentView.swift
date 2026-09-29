@@ -87,8 +87,17 @@ struct ContentView: View {
         .inspector(isPresented: $isAttachmentInspectorPresented) {
             AttachmentInspectorView(
                 store: store,
-                isEditing: commands.isEditing,
-                insertAttachment: { attachmentToInsert = $0 },
+                isEditing: commandContext.isEditing,
+                linkAttachment: { attachment in
+                    if commandContext.isEditing {
+                        attachmentToInsert = attachment
+                    } else {
+                        store.linkAttachment(attachment)
+                    }
+                },
+                unlinkAttachment: { attachment in
+                    store.unlinkAttachment(attachment)
+                },
                 removeTag: removeTag
             )
         }

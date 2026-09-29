@@ -711,6 +711,65 @@ struct NotesStoreTests {
     }
 
     @Test
+    func `linking unlinked image appends preview markdown at bottom and updates link state`() async throws {
+        let harness = try makeHarness()
+        defer {
+            harness.cleanup()
+        }
+
+        let note = try harness.makeNote(markdown: "Body")
+        let importedAsset = try harness.repository.importImage(data: onePixelPNGData, into: note.url)
+
+        await harness.store.loadNotes()
+        harness.store.selectedNoteID = note.id
+        await harness.store.selectionChanged()
+
+        let attachment = try #require(harness.store.attachments.first)
+        #expect(!attachment.isLinked)
+        harness.store.linkAttachment(attachment)
+
+        #expect(harness.store.editorText == "Body\n![](\(importedAsset.source))\n")
+        #expect(harness.store.attachments.first?.isLinked == true)
+
+        await harness.store.saveNow()
+        #expect(try harness.repository.loadNote(at: note.url).markdown == harness.store.editorText)
+    }
+
+    @Test
+    func `unlinking linked attachment removes references without deleting asset`() async throws {
+        let harness = try makeHarness()
+        defer {
+            harness.cleanup()
+        }
+
+        let note = try harness.makeNote(markdown: "")
+        let importedAsset = try harness.repository.importImage(data: onePixelPNGData, into: note.url)
+        var updatedNote = note
+        updatedNote.markdown = "Before\n![One](\(importedAsset.source))\nAfter\n![Two](\(importedAsset.source))"
+        try harness.repository.save(updatedNote)
+
+        await harness.store.loadNotes()
+        harness.store.selectedNoteID = note.id
+        await harness.store.selectionChanged()
+
+        let attachment = try #require(harness.store.attachments.first)
+        #expect(attachment.isLinked)
+        harness.store.unlinkAttachment(attachment)
+
+        #expect(!harness.store.editorText.contains(importedAsset.source))
+        #expect(
+            FileManager.default.fileExists(
+                atPath: note.url.appendingPathComponent(importedAsset.source).path
+            )
+        )
+        #expect(harness.store.attachments.first?.isLinked == false)
+
+        await harness.store.saveNow()
+        let loadedNote = try harness.repository.loadNote(at: note.url)
+        #expect(!loadedNote.markdown.contains(importedAsset.source))
+    }
+
+    @Test
     func `attachment projection publishes stored byte count`() async throws {
         let harness = try makeHarness()
         let byteCount = 4_096

@@ -8,7 +8,8 @@ import AppKit
 struct AttachmentInspectorView: View {
     let store: NotesStore
     let isEditing: Bool
-    let insertAttachment: (TextBundleAsset) -> Void
+    let linkAttachment: (TextBundleAsset) -> Void
+    let unlinkAttachment: (TextBundleAsset) -> Void
     let removeTag: (NoteTag) -> Void
     @State private var selectedAttachmentURL: URL?
     @State private var pendingDeletion: TextBundleAsset?
@@ -240,26 +241,26 @@ struct AttachmentInspectorView: View {
         attachmentRowWithActions(row, attachment: attachment)
     }
 
-    @ViewBuilder
     private func attachmentRowWithActions(
         _ row: some View,
         attachment: TextBundleAsset
     ) -> some View {
-        if isEditing {
-            row.contextMenu {
-                attachmentActions(for: attachment)
-            }
-        } else {
-            row
+        row.contextMenu {
+            attachmentActions(for: attachment)
         }
     }
 
     @ViewBuilder
     private func attachmentActions(for attachment: TextBundleAsset) -> some View {
-        Button("Insert", systemImage: "plus") {
-            insertAttachment(attachment)
+        if attachment.isLinked {
+            Button("Unlink", systemImage: "link.slash") {
+                unlinkAttachment(attachment)
+            }
+        } else {
+            Button("Link", systemImage: "link") {
+                linkAttachment(attachment)
+            }
         }
-        .disabled(attachment.isLinked)
 
         Button("Delete", systemImage: "trash", role: .destructive) {
             pendingDeletion = attachment
