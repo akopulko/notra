@@ -74,9 +74,6 @@ struct NoteEditorPane: View {
             }
         }
         #if os(iOS)
-        .scrollEdgeEffectStyle(.soft, for: .top)
-        #endif
-        #if os(iOS)
         .modifier(imagePickerPresentationModifier)
         #endif
         .onChange(of: attachmentSelectionRequest) {

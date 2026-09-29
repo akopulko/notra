@@ -276,6 +276,7 @@ extension MarkdownNativeTextEditor {
             textView.textContainer.lineFragmentPadding = 0
             textView.layoutManager.allowsNonContiguousLayout = true
             // Keep the editor canvas owned by SwiftUI/system chrome; themes only change text colours.
+            textView.isOpaque = false
             textView.backgroundColor = .clear
             textView.autocapitalizationType = .sentences
             textView.autocorrectionType = .default

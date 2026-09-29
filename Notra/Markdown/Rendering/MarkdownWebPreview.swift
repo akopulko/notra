@@ -37,7 +37,6 @@ struct MarkdownWebPreview: View {
                 }
             }
         }
-        .ignoresSafeArea(.container, edges: .top)
         .task(id: PreviewRequestID(markdown: markdown, context: context, style: style)) {
             model.update(markdown: markdown, context: context, style: style)
         }
