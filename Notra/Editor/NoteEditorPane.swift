@@ -162,19 +162,24 @@ struct NoteEditorPane: View {
 
     @ToolbarContentBuilder
     private var editorToolbar: some ToolbarContent {
-        #if os(macOS) || os(iOS)
+        #if os(macOS)
         ToolbarItem(placement: .primaryAction) {
-            Button {
-                isEditing.toggle()
-            } label: {
-                Image(systemName: isEditing ? "checkmark" : "pencil")
-            }
-            .help(isEditing ? "Done" : "Edit")
-            .accessibilityLabel(isEditing ? "Done" : "Edit")
-            .disabled(!store.hasSelection)
+            macEditToolbarButton
         }
-        #endif
-        #if os(iOS)
+        MarkdownFormattingToolbar(
+            applyHeading: handleHeading,
+            applyFormatting: handleFormattingCommand,
+            isEnabled: store.hasSelection && isEditing,
+            attachFile: presentAttachmentPicker
+        )
+        ToolbarItemGroup(placement: .primaryAction) {
+            shareToolbarButton
+            inspectorToolbarButton
+        }
+        #else
+        ToolbarItem(placement: .primaryAction) {
+            editToolbarButton
+        }
         if isEditing {
             EditorUndoRedoToolbar(
                 availability: undoRedoAvailability,
@@ -182,61 +187,79 @@ struct NoteEditorPane: View {
                 redo: redo
             )
         }
-        #endif
-        #if os(macOS)
-        MarkdownFormattingToolbar(
-            applyHeading: handleHeading,
-            applyFormatting: handleFormattingCommand,
-            isEnabled: store.hasSelection && isEditing
-        )
-        #endif
-        #if os(macOS)
         ToolbarItem(placement: .primaryAction) {
-            Button("Attach File", systemImage: "paperclip") {
-                presentAttachmentPicker()
+            shareToolbarButton
+        }
+        ToolbarItem(placement: .primaryAction) {
+            inspectorToolbarButton
+        }
+        #endif
+    }
+
+    @ViewBuilder
+    private var macEditToolbarButton: some View {
+        if isEditing {
+            editToolbarButton
+                .buttonStyle(.borderedProminent)
+                .tint(.accentColor)
+        } else {
+            editToolbarButton
+                .buttonStyle(.bordered)
+        }
+    }
+
+    private var editToolbarButton: some View {
+        Button {
+            isEditing.toggle()
+        } label: {
+            #if os(macOS)
+            Image(systemName: "pencil.tip.crop.circle")
+            #else
+            Image(systemName: isEditing ? "checkmark" : "pencil")
+            #endif
+        }
+        .help(isEditing ? "Done" : "Edit")
+        .accessibilityLabel(isEditing ? "Done" : "Edit")
+        .disabled(!store.hasSelection)
+    }
+
+    @ViewBuilder
+    private var shareToolbarButton: some View {
+        switch shareState {
+        case .idle:
+            Button("share", systemImage: "square.and.arrow.up") {
+                requestShare()
             }
             .labelStyle(.iconOnly)
-            .help("Attach File")
-            .accessibilityLabel("Attach File")
-            .disabled(!store.hasSelection || !isEditing)
-        }
-        #endif
-        ToolbarItem(placement: .primaryAction) {
-            switch shareState {
-            case .idle:
-                Button("share", systemImage: "square.and.arrow.up") {
-                    requestShare()
-                }
-                .labelStyle(.iconOnly)
-                .help("Share")
-                .accessibilityLabel("Share")
-                .disabled(!canShare)
-            case .failed:
-                Button("Retry Share", systemImage: "arrow.clockwise") {
-                    requestShare()
-                }
-                .labelStyle(.iconOnly)
-                .help("Retry Share")
-                .accessibilityLabel("Retry Share")
-                .disabled(!canShare)
-            case .generating:
-                Button("Preparing Share", systemImage: "square.and.arrow.up") {}
-                    .labelStyle(.iconOnly)
-                    .help("Preparing PDF to share")
-                    .accessibilityLabel("Preparing PDF to share")
-                    .disabled(true)
+            .help("Share")
+            .accessibilityLabel("Share")
+            .disabled(!canShare)
+        case .failed:
+            Button("Retry Share", systemImage: "arrow.clockwise") {
+                requestShare()
             }
+            .labelStyle(.iconOnly)
+            .help("Retry Share")
+            .accessibilityLabel("Retry Share")
+            .disabled(!canShare)
+        case .generating:
+            Button("Preparing Share", systemImage: "square.and.arrow.up") {}
+                .labelStyle(.iconOnly)
+                .help("Preparing PDF to share")
+                .accessibilityLabel("Preparing PDF to share")
+                .disabled(true)
         }
-        ToolbarItem(placement: .primaryAction) {
-            Button {
-                isAttachmentInspectorPresented.toggle()
-            } label: {
-                Image(systemName: "info.circle")
-            }
-            .accessibilityLabel("Attachments")
-            .help("Attachments")
-            .disabled(!store.hasSelection)
+    }
+
+    private var inspectorToolbarButton: some View {
+        Button {
+            isAttachmentInspectorPresented.toggle()
+        } label: {
+            Image(systemName: "info.circle")
         }
+        .accessibilityLabel("Attachments")
+        .help("Attachments")
+        .disabled(!store.hasSelection)
     }
 
     #if os(iOS)
