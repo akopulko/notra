@@ -21,12 +21,9 @@ struct MarkdownEditor: View {
     let imageFormattingRequest: MarkdownImageFormattingRequest
     let attachmentFormattingRequest: MarkdownAttachmentFormattingRequest
     let linePrefixFormattingRequest: MarkdownLinePrefixFormattingRequest
-    let undoRequest: Int
-    let redoRequest: Int
     let focusFirstLineRequest: Int
     /// Focuses the native editor without changing its current selection.
     let focusEditorRequest: Int
-    let onUndoRedoAvailabilityChanged: (EditorUndoRedoAvailability) -> Void
     /// Marks a new-note first-line focus request as consumed after the native editor receives it.
     let onFocusFirstLineHandled: () -> Void
 
@@ -77,19 +74,10 @@ struct MarkdownEditor: View {
         .onChange(of: linePrefixFormattingRequest) {
             applyLinePrefixFormatting()
         }
-        .onChange(of: undoRequest) {
-            bridge.performUndo?()
-        }
-        .onChange(of: redoRequest) {
-            bridge.performRedo?()
-        }
         .onChange(of: focusFirstLineRequest) {
             focusFirstLineIfRequested()
         }
         .onAppear(perform: configureBridge)
-        .onDisappear {
-            onUndoRedoAvailabilityChanged(.disabled)
-        }
     }
 }
 
@@ -98,9 +86,6 @@ private extension MarkdownEditor {
         bridge.applyFormattingCommand = applyFormattingCommand
         bridge.applyHeading = applyHeading
         bridge.requestAttachmentSelection = requestAttachmentSelection
-        bridge.reportUndoRedoAvailability = onUndoRedoAvailabilityChanged
-        bridge.refreshUndoRedoAvailability?()
-
         if focusFirstLineRequest > 0 {
             focusFirstLineIfRequested()
         }

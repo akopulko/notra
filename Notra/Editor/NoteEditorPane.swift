@@ -47,9 +47,6 @@ struct NoteEditorPane: View {
         source: "",
         label: ""
     )
-    @State private var undoRequest = 0
-    @State private var redoRequest = 0
-    @State private var undoRedoAvailability = EditorUndoRedoAvailability.disabled
     @State private var linePrefixFormattingRequest = MarkdownLinePrefixFormattingRequest(
         id: 0,
         command: .unorderedList
@@ -91,7 +88,6 @@ struct NoteEditorPane: View {
         }
         .onChange(of: store.selectedNoteID) {
             isEditing = false
-            undoRedoAvailability = .disabled
             pendingFocusFirstLineRequest = 0
         }
         .onChange(of: editorFocusRequest) {
@@ -125,11 +121,8 @@ struct NoteEditorPane: View {
             imageFormattingRequest: imageFormattingRequest,
             attachmentFormattingRequest: attachmentFormattingRequest,
             linePrefixFormattingRequest: linePrefixFormattingRequest,
-            undoRequest: undoRequest,
-            redoRequest: redoRequest,
             focusFirstLineRequest: pendingFocusFirstLineRequest,
             focusEditorRequest: commandEditorFocusRequest,
-            onUndoRedoAvailabilityChanged: updateUndoRedoAvailability,
             onFocusFirstLineHandled: consumeFocusFirstLineRequest
         )
     }
@@ -164,7 +157,7 @@ struct NoteEditorPane: View {
     private var editorToolbar: some ToolbarContent {
         #if os(macOS)
         ToolbarItem(placement: .primaryAction) {
-            macEditToolbarButton
+            styledEditToolbarButton
         }
         MarkdownFormattingToolbar(
             applyHeading: handleHeading,
@@ -178,14 +171,7 @@ struct NoteEditorPane: View {
         }
         #else
         ToolbarItem(placement: .primaryAction) {
-            editToolbarButton
-        }
-        if isEditing {
-            EditorUndoRedoToolbar(
-                availability: undoRedoAvailability,
-                undo: undo,
-                redo: redo
-            )
+            styledEditToolbarButton
         }
         ToolbarItem(placement: .primaryAction) {
             shareToolbarButton
@@ -197,14 +183,18 @@ struct NoteEditorPane: View {
     }
 
     @ViewBuilder
-    private var macEditToolbarButton: some View {
+    private var styledEditToolbarButton: some View {
         if isEditing {
+            #if os(iOS)
+            editToolbarButton
+                .foregroundStyle(Color.accentColor)
+            #else
             editToolbarButton
                 .buttonStyle(.borderedProminent)
                 .tint(.accentColor)
+            #endif
         } else {
             editToolbarButton
-                .buttonStyle(.bordered)
         }
     }
 
@@ -212,11 +202,7 @@ struct NoteEditorPane: View {
         Button {
             isEditing.toggle()
         } label: {
-            #if os(macOS)
             Image(systemName: "pencil.tip.crop.circle")
-            #else
-            Image(systemName: isEditing ? "checkmark" : "pencil")
-            #endif
         }
         .help(isEditing ? "Done" : "Edit")
         .accessibilityLabel(isEditing ? "Done" : "Edit")
@@ -279,18 +265,6 @@ struct NoteEditorPane: View {
 private extension NoteEditorPane {
     private var canShare: Bool {
         !isEditing && store.hasSelection
-    }
-
-    private func undo() {
-        undoRequest += 1
-    }
-
-    private func redo() {
-        redoRequest += 1
-    }
-
-    private func updateUndoRedoAvailability(_ availability: EditorUndoRedoAvailability) {
-        undoRedoAvailability = availability
     }
 
     private func insertAttachment(_ attachment: TextBundleAsset) {

@@ -105,28 +105,6 @@ struct MarkdownFormattingToolbar: ToolbarContent {
     }
 }
 
-/// Exposes native undo and redo actions while reflecting bridge availability.
-struct EditorUndoRedoToolbar: ToolbarContent {
-    let availability: EditorUndoRedoAvailability
-    let undo: () -> Void
-    let redo: () -> Void
-
-    var body: some ToolbarContent {
-        ToolbarItemGroup(placement: .primaryAction) {
-            Button("Undo", systemImage: "arrow.uturn.backward", action: undo)
-                .labelStyle(.iconOnly)
-                .help("Undo")
-                .accessibilityLabel("Undo")
-                .disabled(!availability.canUndo)
-            Button("Redo", systemImage: "arrow.uturn.forward", action: redo)
-                .labelStyle(.iconOnly)
-                .help("Redo")
-                .accessibilityLabel("Redo")
-                .disabled(!availability.canRedo)
-        }
-    }
-}
-
 extension MarkdownHeadingLevel {
     var menuTitle: LocalizedStringResource {
         switch self {

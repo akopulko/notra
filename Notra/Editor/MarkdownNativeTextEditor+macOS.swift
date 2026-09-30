@@ -61,7 +61,7 @@ extension MarkdownNativeTextEditor {
             highlightTask?.cancel()
         }
 
-        /// Applies pending text, font, theme, selection, and undo-state changes to AppKit.
+        /// Applies pending text, font, theme, and selection changes to AppKit.
         func update(scrollView _: NSScrollView) {
             let font = currentFont
 
@@ -161,15 +161,6 @@ extension MarkdownNativeTextEditor {
             parent.bridge.refreshHighlight = { [weak self] in
                 self?.refreshHighlight()
             }
-            parent.bridge.performUndo = { [weak self] in
-                self?.performUndo()
-            }
-            parent.bridge.performRedo = { [weak self] in
-                self?.performRedo()
-            }
-            parent.bridge.refreshUndoRedoAvailability = { [weak self] in
-                self?.updateUndoRedoAvailability()
-            }
         }
 
         private func appendHeadingMenu(to menu: NSMenu) {
@@ -229,7 +220,6 @@ extension MarkdownNativeTextEditor {
             pendingTextEdit = nil
             scheduleHighlight(for: newText, edit: edit)
             parent.text = newText
-            updateUndoRedoAvailability()
         }
 
         /// Replaces native text during external selection changes without echoing a stale callback.
@@ -272,39 +262,6 @@ extension MarkdownNativeTextEditor {
             textView.undoManager?.registerUndo(withTarget: self) { target in
                 target.applyUndoableTextReplacement(text: oldText, selection: oldSelection)
             }
-            updateUndoRedoAvailability()
-        }
-
-        private func performUndo() {
-            guard let undoManager = textView.undoManager, undoManager.canUndo else {
-                updateUndoRedoAvailability()
-                return
-            }
-
-            undoManager.undo()
-            handleTextChanged()
-            updateUndoRedoAvailability()
-        }
-
-        private func performRedo() {
-            guard let undoManager = textView.undoManager, undoManager.canRedo else {
-                updateUndoRedoAvailability()
-                return
-            }
-
-            undoManager.redo()
-            handleTextChanged()
-            updateUndoRedoAvailability()
-        }
-
-        private func updateUndoRedoAvailability() {
-            let undoManager = textView.undoManager
-            parent.bridge.reportUndoRedoAvailability?(
-                EditorUndoRedoAvailability(
-                    canUndo: undoManager?.canUndo ?? false,
-                    canRedo: undoManager?.canRedo ?? false
-                )
-            )
         }
 
         private func refreshHighlight() {
