@@ -159,7 +159,7 @@ struct NoteEditorPane: View {
     private var editorToolbar: some ToolbarContent {
         #if os(macOS)
         ToolbarItem(placement: .primaryAction) {
-            styledEditToolbarButton
+            editToolbarButton
         }
         MarkdownFormattingToolbar(
             applyHeading: handleHeading,
@@ -173,7 +173,7 @@ struct NoteEditorPane: View {
         }
         #else
         ToolbarItem(placement: .primaryAction) {
-            styledEditToolbarButton
+            editToolbarButton
         }
         ToolbarItem(placement: .primaryAction) {
             shareToolbarButton
@@ -184,27 +184,13 @@ struct NoteEditorPane: View {
         #endif
     }
 
-    @ViewBuilder
-    private var styledEditToolbarButton: some View {
-        if isEditing {
-            #if os(iOS)
-            editToolbarButton
-                .foregroundStyle(Color.accentColor)
-            #else
-            editToolbarButton
-                .buttonStyle(.borderedProminent)
-                .tint(.accentColor)
-            #endif
-        } else {
-            editToolbarButton
-        }
-    }
-
     private var editToolbarButton: some View {
         Button {
             isEditing.toggle()
         } label: {
-            Image(systemName: "pencil.tip.crop.circle")
+            Image(systemName: isEditing ? "pencil.tip.crop.circle.fill" : "pencil.tip.crop.circle")
+                .symbolRenderingMode(.monochrome)
+                .foregroundStyle(isEditing ? Color.accentColor : Color.primary)
         }
         .help(isEditing ? "Done" : "Edit")
         .accessibilityLabel(isEditing ? "Done" : "Edit")
@@ -243,7 +229,9 @@ struct NoteEditorPane: View {
         Button {
             isAttachmentInspectorPresented.toggle()
         } label: {
-            Image(systemName: "info.circle")
+            Image(systemName: isAttachmentInspectorPresented ? "info.circle.fill" : "info")
+                .symbolRenderingMode(.monochrome)
+                .foregroundStyle(isAttachmentInspectorPresented ? Color.accentColor : Color.primary)
         }
         .accessibilityLabel("Attachments")
         .help("Attachments")
