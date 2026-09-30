@@ -22,6 +22,8 @@ struct MarkdownHTMLRenderer {
     private let context: MarkdownRenderContext
     private var assets: [String: URL] = [:]
     private var includedImageURLs = Set<URL>()
+    private var mermaidSectionCount = 0
+    private var hasMermaidBlocks = false
     private var headingAnchorCounts: [String: Int] = [:]
     private var headingAnchorIDs: [String: String] = [:]
     private var headingAnchorsBySlug: [String: String] = [:]
@@ -37,12 +39,20 @@ struct MarkdownHTMLRenderer {
         headingAnchorCounts.removeAll(keepingCapacity: true)
         headingAnchorIDs.removeAll(keepingCapacity: true)
         headingAnchorsBySlug.removeAll(keepingCapacity: true)
+        mermaidSectionCount = 0
+        hasMermaidBlocks = false
         indexHeadingAnchors(in: document.blocks)
         let content = document.blocks.map { render($0) }.joined(separator: "\n")
-        let body = mode == .pdf ? "<main class=\"pdf-content\">\(content)</main>" : content
+        let bodyContent = mode == .pdf ? "<main class=\"pdf-content\">\(content)</main>" : content
+        let modeAttribute = mode == .pdf ? "pdf" : "preview"
+        let runtime = hasMermaidBlocks ? "<script src=\"notra-mermaid://bundle/mermaid.min.js\"></script>" : ""
         let head = "<meta charset=\"utf-8\">\(viewportMetadata)\(stylesheet)"
+        let html = """
+        <!doctype html><html data-notra-render-mode="\(modeAttribute)">
+        <head>\(head)</head><body>\(bodyContent)\(runtime)</body></html>
+        """
         return MarkdownHTMLDocument(
-            html: "<!doctype html><html><head>\(head)</head><body>\(body)</body></html>",
+            html: html,
             assets: assets,
             includedImageURLs: includedImageURLs
         )
@@ -91,9 +101,15 @@ private extension MarkdownHTMLRenderer {
         strong { color: \(theme.boldText); } em { color: \(theme.italicText); } del { color: \(theme.strikethroughText); }
         .inline-code { color: \(theme.inlineCodeText); padding: 1px 4px; border-radius: 4px; }
         .inline-code { background: \(theme.inlineCodeBackground); }
-        pre { margin: 0 0 16px; padding: 16px; overflow-x: auto; border-radius: 6px; }
         pre { background: color-mix(in srgb, currentColor 10%, transparent); white-space: pre-wrap; }
         pre code { color: \(theme.codeBlockText); }
+        .notra-mermaid { margin: 0 0 16px; }
+        .notra-mermaid-output svg { display: block; max-width: 100%; height: auto; }
+        .notra-mermaid-source[hidden], .notra-mermaid-error[hidden] { display: none; }
+        .notra-mermaid-source { margin: 0; }
+        .notra-mermaid-error { margin: 0 0 8px; color: \(theme.secondaryText); }
+        .notra-mermaid[data-notra-mermaid-state="rendered"] .notra-mermaid-output { background: transparent; }
+        .notra-mermaid[data-notra-mermaid-state="rendered"] { break-inside: avoid-column; }
         .code-comment { color: \(theme.codeComment); }
         .code-keyword { color: \(theme.codeKeyword); }
         .code-string { color: \(theme.codeString); }
@@ -185,7 +201,22 @@ private extension MarkdownHTMLRenderer {
         case let .blockQuote(_, blocks):
             return "<blockquote>\(blocks.map { render($0) }.joined())</blockquote>"
         case let .codeBlock(_, language, code):
-            return "<pre><code>\(renderCode(code, language: language))</code></pre>"
+            guard let language, MarkdownCodeLanguage(fenceTag: language) == .mermaid else {
+                return "<pre><code>\(renderCode(code, language: language))</code></pre>"
+            }
+            mermaidSectionCount += 1
+            hasMermaidBlocks = true
+            let id = "notra-mermaid-section-\(mermaidSectionCount)"
+            let label = escapeAttribute(String(localized: "mermaidDiagram"))
+            let error = escape(String(localized: "mermaidRenderError"))
+            let source = renderCode(code, language: language)
+            return """
+            <section id="\(id)" class="notra-mermaid" aria-label="\(label)" data-notra-mermaid-state="pending">
+              <div class="notra-mermaid-output"></div>
+              <p class="notra-mermaid-error" hidden>\(error)</p>
+              <pre class="notra-mermaid-source"><code>\(source)</code></pre>
+            </section>
+            """
         case let .table(_, table):
             return render(table)
         case .horizontalRule:

@@ -93,12 +93,13 @@ struct MarkdownSyntaxHighlightingTests {
             "swift", "python", "py", "javascript", "js", "jsx", "typescript", "ts", "tsx", "json",
             "html", "htm", "css", "bash", "sh", "zsh", "shell", "sql", "yaml", "yml", "c", "cpp",
             "cxx", "cc", "csharp", "cs", "java", "go", "rust", "rs", "kotlin", "kt", "ruby", "rb",
-            "php", "xml", "markdown", "md",
+            "php", "xml", "markdown", "md", "mermaid",
         ]
 
         for tag in supportedTags {
             #expect(MarkdownCodeLanguage(fenceTag: tag) != nil)
         }
+        #expect(MarkdownCodeLanguage(fenceTag: " MeRmAiD \n") == .mermaid)
         #expect(MarkdownCodeLanguage(fenceTag: "unknown") == nil)
     }
 
@@ -113,6 +114,19 @@ struct MarkdownSyntaxHighlightingTests {
 
         #expect(!roles.contains(.codeKeyword))
         #expect(!roles.contains(.codeNumber))
+    }
+    @Test func highlightsMermaidDeclarationsCommentsAndQuotedLabels() {
+        let code = "flowchart TD\nA[\"%% label\"] --> B\n%% comment"
+        let spans = MarkdownCodeSyntaxHighlighter().spans(in: code, language: .mermaid)
+        let roles = spans.map { ($0.role, String(code[$0.range])) }
+
+        #expect(roles.contains { $0.0 == .keyword && $0.1 == "flowchart" })
+        #expect(roles.contains { $0.0 == .keyword && $0.1 == "TD" })
+        #expect(roles.contains { $0.0 == .operator && $0.1 == "-" })
+        #expect(roles.contains { $0.0 == .string && $0.1 == "\"%% label\"" })
+        #expect(roles.contains { $0.0 == .comment && $0.1 == "%% comment" })
+        #expect(!roles.contains { $0.0 == .comment && $0.1.contains("label") })
+        #expect(!roles.contains { $0.0 == .function })
     }
 
     @Test func malformedMarkdownDoesNotCreateInlineSpans() {

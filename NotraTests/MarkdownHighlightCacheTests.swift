@@ -208,6 +208,19 @@ struct MarkdownHighlightCacheTests {
     }
     #endif
 
+    @Test func changingMermaidFenceLanguageMatchesFullHighlightParse() {
+        let original = "```mermaid\nflowchart TD\nA --> B\n```"
+        var cache = MarkdownHighlightCache()
+        cache.setText(original)
+
+        let swiftFence = original.replacingOccurrences(of: "mermaid", with: "swift")
+        _ = cache.updateText(swiftFence)
+        #expect(flattenedSpans(in: cache) == utf16Spans(in: swiftFence))
+
+        _ = cache.updateText(original)
+        #expect(flattenedSpans(in: cache) == utf16Spans(in: original))
+    }
+
     private func expectConsistentCache(afterEditingTo edited: String) {
         var cache = MarkdownHighlightCache()
         cache.setText(sampleMarkdown)

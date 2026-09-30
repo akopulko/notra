@@ -21,22 +21,37 @@ enum MarkdownFormatting {
             return applyStrikethroughResult(to: text, selection: selectedRange).text
         case .heading:
             return applyHeading(level: .h1, to: text, selection: selection)
-        case .unorderedList:
-            return applyUnorderedListResult(to: text, selection: selectedRange).text
-        case .orderedList:
-            return applyOrderedListResult(to: text, selection: selectedRange).text
-        case .quote:
-            return applyQuoteResult(to: text, selection: selectedRange).text
-        case .todo:
-            return applyTodoResult(to: text, selection: selectedRange).text
+        case .unorderedList, .orderedList, .quote, .todo:
+            return applyLineFormatting(command, to: text, selection: selectedRange)
         case .code:
             return applyCodeResult(to: text, selection: selectedRange).text
         case .link:
             return applyLinkResult(to: text, selection: selectedRange).text
         case .table:
             return applyTableResult(to: text, selection: selectedRange).text
+        case .mermaid:
+            return applyMermaidResult(to: text, selection: selectedRange).text
         case .image:
             return text
+        }
+    }
+
+    private static func applyLineFormatting(
+        _ command: NoteFormattingCommand,
+        to text: String,
+        selection: Range<String.Index>
+    ) -> String {
+        switch command {
+        case .unorderedList:
+            applyUnorderedListResult(to: text, selection: selection).text
+        case .orderedList:
+            applyOrderedListResult(to: text, selection: selection).text
+        case .quote:
+            applyQuoteResult(to: text, selection: selection).text
+        case .todo:
+            applyTodoResult(to: text, selection: selection).text
+        case .bold, .italic, .strikethrough, .heading, .code, .mermaid, .link, .table, .image:
+            text
         }
     }
 
@@ -435,6 +450,34 @@ enum MarkdownFormatting {
         }
 
         return text[text.index(before: index)] != "\n"
+    }
+}
+
+extension MarkdownFormatting {
+    /// Inserts a Mermaid fence and selects its editable diagram source.
+    static func applyMermaidResult(to text: String, selection: Range<String.Index>) -> MarkdownFormattingResult {
+        let body = selection.isEmpty ? "flowchart TD\n    A --> B" : String(text[selection])
+        var longestBacktickRun = 0
+        var currentBacktickRun = 0
+        for character in body {
+            if character == "`" {
+                currentBacktickRun += 1
+                longestBacktickRun = max(longestBacktickRun, currentBacktickRun)
+            } else {
+                currentBacktickRun = 0
+            }
+        }
+        let fenceLength = max(3, longestBacktickRun + 1)
+        let fence = String(repeating: "`", count: fenceLength)
+        let terminatedBody = body.hasSuffix("\n") ? body : body + "\n"
+        let content = "\(fence)mermaid\n\(terminatedBody)\(fence)"
+        let result = applyBlockResult(to: text, selection: selection, content: content)
+        let insertionOffset = text.distance(from: text.startIndex, to: selection.lowerBound)
+        let leadingBreak = needsLeadingLineBreak(in: text, at: selection.lowerBound) ? 1 : 0
+        let bodyStartOffset = insertionOffset + leadingBreak + fenceLength + "mermaid\n".count
+        let lower = result.text.index(result.text.startIndex, offsetBy: bodyStartOffset)
+        let upper = result.text.index(result.text.startIndex, offsetBy: bodyStartOffset + body.count)
+        return MarkdownFormattingResult(text: result.text, selection: lower..<upper)
     }
 }
 

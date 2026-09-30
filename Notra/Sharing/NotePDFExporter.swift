@@ -74,6 +74,7 @@ private extension NotePDFExporter {
         assetHandler.update(document.assets)
 
         let configuration = WKWebViewConfiguration()
+        MarkdownMermaidRuntime.configure(configuration)
         configuration.setURLSchemeHandler(assetHandler, forURLScheme: MarkdownWebAssetHandler.scheme)
         let webView = WKWebView(
             frame: CGRect(origin: .zero, size: Self.pageSize),
@@ -87,6 +88,7 @@ private extension NotePDFExporter {
             // Navigation completion can precede remote image decoding, so settle each web image before measuring pages.
             _ = try await webView.callAsyncJavaScript(
                 """
+                await window.notraMermaidReady;
                 await document.fonts.ready;
                 const remoteImages = Array.from(document.images).filter(image => {
                     const source = image.currentSrc || image.src;

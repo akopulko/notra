@@ -10,9 +10,10 @@ struct NoteMarkdownExporterTests {
             .appendingPathComponent("NotraMarkdownExporterTests-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: directoryURL) }
 
+        let markdown = "# Heading\n\n![Photo](assets/photo.jpg)\n\n```mermaid\nflowchart TD\nA --> B\n```"
         let item = try NoteMarkdownExporter().export(
             payload: NoteExportPayload(
-                markdown: "# Heading\n\n![Photo](assets/photo.jpg)",
+                markdown: markdown,
                 noteURL: directoryURL.appendingPathComponent("Test Note.textbundle"),
                 suggestedFilename: "Test Note.textbundle"
             )
@@ -20,7 +21,7 @@ struct NoteMarkdownExporterTests {
         defer { try? FileManager.default.removeItem(at: item.fileURL.deletingLastPathComponent()) }
 
         #expect(item.suggestedFilename == "Test Note.markdown")
-        #expect(try String(contentsOf: item.fileURL, encoding: .utf8) == "# Heading\n\n![Photo](assets/photo.jpg)")
+        #expect(try String(contentsOf: item.fileURL, encoding: .utf8) == markdown)
     }
 
     @Test

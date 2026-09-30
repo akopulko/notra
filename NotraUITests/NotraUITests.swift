@@ -221,6 +221,57 @@ final class NotraUITests: XCTestCase {
         revealSidebar(in: app)
     }
 
+    /// Inserts a Mermaid fence through the iOS keyboard accessory and verifies its rendered preview.
+    @MainActor
+    func testMermaidInsertionCanBeEditedAndRendered() {
+        XCUIDevice.shared.orientation = .portrait
+        defer { XCUIDevice.shared.orientation = .portrait }
+
+        let app = XCUIApplication()
+        app.launchArguments += ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        revealSidebar(in: app)
+
+        app.buttons["New Note"].firstMatch.tap()
+        let editor = app.textViews.firstMatch
+        XCTAssertTrue(editor.waitForExistence(timeout: 10), app.debugDescription)
+        let title = "Mermaid Smoke \(UUID().uuidString)"
+        editor.tap()
+        editor.typeText("\(title)\n")
+        defer {
+            revealSidebar(in: app)
+            let note = app.cells.containing(.staticText, identifier: title).firstMatch
+            if note.waitForExistence(timeout: 3) {
+                note.press(forDuration: 1)
+                let deleteButton = app.buttons["Delete"].firstMatch
+                if deleteButton.waitForExistence(timeout: 3) {
+                    deleteButton.tap()
+                    let confirmation = app.alerts["Delete Note?"]
+                    if confirmation.waitForExistence(timeout: 3) {
+                        confirmation.buttons["Delete"].tap()
+                    }
+                }
+            }
+        }
+
+        let mermaidButton = app.buttons["Insert Mermaid Diagram"].firstMatch
+        XCTAssertTrue(mermaidButton.waitForExistence(timeout: 10), app.debugDescription)
+        let accessoryScrollView = app.scrollViews.firstMatch
+        for _ in 0..<3 where !mermaidButton.isHittable && accessoryScrollView.exists {
+            accessoryScrollView.swipeLeft()
+        }
+        XCTAssertTrue(mermaidButton.isHittable, app.debugDescription)
+        mermaidButton.tap()
+        editor.typeText("flowchart TD\n    UIStart --> UIEnd")
+        XCTAssertTrue((editor.value as? String)?.contains("UIStart --> UIEnd") == true, app.debugDescription)
+
+        app.buttons["Done"].firstMatch.tap()
+        let webView = app.webViews.firstMatch
+        XCTAssertTrue(webView.waitForExistence(timeout: 10), app.debugDescription)
+        let renderedDiagram = webView.images["Mermaid diagram"].firstMatch
+        XCTAssertTrue(renderedDiagram.waitForExistence(timeout: 15), app.debugDescription)
+    }
+
     /// Verifies edit-mode content starts below the visible top toolbar.
     @MainActor
     func testEditorStartsBelowTopChromeWhenEnteringEditMode() {

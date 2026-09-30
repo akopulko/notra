@@ -39,6 +39,7 @@ struct NoteEditorPane: View {
     @State private var italicFormattingRequest = 0
     @State private var strikethroughFormattingRequest = 0
     @State private var codeFormattingRequest = 0
+    @State private var mermaidFormattingRequest = 0
     @State private var linkFormattingRequest = 0
     @State private var tableFormattingRequest = 0
     @State private var imageFormattingRequest = MarkdownImageFormattingRequest(id: 0, source: "")
@@ -116,6 +117,7 @@ struct NoteEditorPane: View {
             italicFormattingRequest: italicFormattingRequest,
             strikethroughFormattingRequest: strikethroughFormattingRequest,
             codeFormattingRequest: codeFormattingRequest,
+            mermaidFormattingRequest: mermaidFormattingRequest,
             linkFormattingRequest: linkFormattingRequest,
             tableFormattingRequest: tableFormattingRequest,
             imageFormattingRequest: imageFormattingRequest,
@@ -299,6 +301,8 @@ private extension NoteEditorPane {
             strikethroughFormattingRequest += 1
         case .code:
             codeFormattingRequest += 1
+        case .mermaid:
+            mermaidFormattingRequest += 1
         case .link:
             linkFormattingRequest += 1
         case .table:

@@ -16,6 +16,7 @@ struct MarkdownEditor: View {
     let italicFormattingRequest: Int
     let strikethroughFormattingRequest: Int
     let codeFormattingRequest: Int
+    let mermaidFormattingRequest: Int
     let linkFormattingRequest: Int
     let tableFormattingRequest: Int
     let imageFormattingRequest: MarkdownImageFormattingRequest
@@ -58,6 +59,9 @@ struct MarkdownEditor: View {
         }
         .onChange(of: codeFormattingRequest) {
             applyCodeFormatting()
+        }
+        .onChange(of: mermaidFormattingRequest) {
+            applyMermaidFormatting()
         }
         .onChange(of: linkFormattingRequest) {
             applyLinkFormatting()
@@ -138,6 +142,13 @@ private extension MarkdownEditor {
         applyFormattingResult(result, command: .table, oldTextLength: currentText.count)
     }
 
+    private func applyMermaidFormatting() {
+        let currentText = text
+        let selectedRange = currentSelection(in: currentText)
+        let result = MarkdownFormatting.applyMermaidResult(to: currentText, selection: selectedRange)
+        applyFormattingResult(result, command: .mermaid, oldTextLength: currentText.count)
+    }
+
     private func applyImageFormatting() {
         guard !imageFormattingRequest.source.isEmpty else {
             return
@@ -202,7 +213,7 @@ private extension MarkdownEditor {
             result = MarkdownFormatting.applyQuoteResult(to: currentText, selection: selectedRange)
         case .todo:
             result = MarkdownFormatting.applyTodoResult(to: currentText, selection: selectedRange)
-        case .bold, .italic, .strikethrough, .heading, .code, .link, .table, .image:
+        case .bold, .italic, .strikethrough, .heading, .code, .mermaid, .link, .table, .image:
             return
         }
 
@@ -229,7 +240,7 @@ private extension MarkdownEditor {
             result = MarkdownFormatting.applyCodeResult(to: currentText, selection: selectedRange)
         case .link:
             result = MarkdownFormatting.applyLinkResult(to: currentText, selection: selectedRange)
-        case .heading, .unorderedList, .orderedList, .quote, .todo, .table, .image:
+        case .heading, .unorderedList, .orderedList, .quote, .todo, .table, .image, .mermaid:
             return
         }
 
@@ -414,6 +425,8 @@ private extension NoteFormattingCommand {
             "Todo"
         case .code:
             "Code"
+        case .mermaid:
+            "Insert Mermaid Diagram"
         case .link:
             "Link"
         case .table:

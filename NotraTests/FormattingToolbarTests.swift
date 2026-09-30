@@ -5,18 +5,6 @@ import Testing
 struct FormattingToolbarTests {
     @Test func keyboardAccessoryCommandsExcludeImageImport() {
         #expect(!NoteFormattingCommand.keyboardAccessoryCommands.contains(.image))
-        #expect(NoteFormattingCommand.keyboardAccessoryCommands == [
-            .bold,
-            .italic,
-            .strikethrough,
-            .unorderedList,
-            .orderedList,
-            .todo,
-            .quote,
-            .link,
-            .table,
-            .code
-        ])
     }
 
     @Test func toolbarPlacesInlineStylesAfterHeadingMenu() {

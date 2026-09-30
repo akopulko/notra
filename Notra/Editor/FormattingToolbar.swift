@@ -95,6 +95,9 @@ struct MarkdownFormattingToolbar: ToolbarContent {
                 FormatToolbarButton(command: .code, isEnabled: isEnabled) {
                     applyFormatting(.code)
                 }
+                FormatToolbarButton(command: .mermaid, isEnabled: isEnabled) {
+                    applyFormatting(.mermaid)
+                }
                 Button("Attach File", systemImage: "paperclip", action: attachFile)
                     .labelStyle(.iconOnly)
                     .help("Attach File")
@@ -128,7 +131,7 @@ extension NoteFormattingCommand {
     static let toolbarCommandGroups: [[NoteFormattingCommand]] = [
         [.bold, .italic, .strikethrough],
         [.unorderedList, .orderedList, .todo, .quote],
-        [.link, .table, .code]
+        [.link, .table, .code, .mermaid]
     ]
 
     static var editorMenuCommands: [NoteFormattingCommand] {
@@ -163,6 +166,8 @@ extension NoteFormattingCommand {
             "Checklist"
         case .code:
             "Code"
+        case .mermaid:
+            LocalizedStringResource("insertMermaidDiagram")
         case .link:
             "Link"
         case .table:
@@ -192,6 +197,8 @@ extension NoteFormattingCommand {
             "checklist"
         case .code:
             "chevron.left.forwardslash.chevron.right"
+        case .mermaid:
+            "point.3.connected.trianglepath.dotted"
         case .link:
             "link"
         case .table:

@@ -4,6 +4,39 @@
     "" : {
 
     },
+    "insertMermaidDiagram" : {
+      "comment" : "Editor action that inserts an editable Mermaid diagram fence.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Mermaid-Diagramm einfügen" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Insert Mermaid Diagram" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Insertar diagrama Mermaid" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Insérer un diagramme Mermaid" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Вставить диаграмму Mermaid" } }
+      }
+    },
+    "mermaidDiagram" : {
+      "comment" : "Accessible label for a rendered Mermaid diagram.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Mermaid-Diagramm" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Mermaid diagram" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Diagrama Mermaid" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Diagramme Mermaid" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Диаграмма Mermaid" } }
+      }
+    },
+    "mermaidRenderError" : {
+      "comment" : "Visible fallback message shown when a Mermaid diagram cannot be rendered.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Dieses Mermaid-Diagramm kann nicht dargestellt werden." } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Unable to render this Mermaid diagram." } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "No se puede mostrar este diagrama Mermaid." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Impossible d’afficher ce diagramme Mermaid." } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Не удалось отобразить эту диаграмму Mermaid." } }
+      }
+    },
     "# H1 Heading" : {
       "comment" : "Markdown heading menu item; keep the prefix and level unchanged and translate only Heading.",
       "extractionState" : "manual",

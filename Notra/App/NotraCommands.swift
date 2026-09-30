@@ -244,6 +244,12 @@ struct NotraCommands: Commands {
 
             formatButton(.table, shortcut: "t", modifiers: [.command, .option])
             formatButton(.link, shortcut: "k", modifiers: .command)
+            Button {
+                context?.applyFormatting(.mermaid)
+            } label: {
+                Label(NoteFormattingCommand.mermaid.title, systemImage: NoteFormattingCommand.mermaid.systemImage)
+            }
+            .disabled(!(context?.canEditSelectedNote ?? false))
         }
 
         CommandGroup(before: .sidebar) {
