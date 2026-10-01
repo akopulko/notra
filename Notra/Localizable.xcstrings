@@ -1,6 +1,27 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "importNotesWithEllipsis" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Importieren …" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Import…" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Importar…" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Importer…" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Импортировать…" } }
+      }
+    },
+    "noteImportFileError" : {
+      "comment" : "Failed Markdown note import: source filename followed by the underlying error.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "%1$@ konnte nicht importiert werden: %2$@" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Could not import %1$@: %2$@" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "No se pudo importar %1$@: %2$@" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Impossible d’importer %1$@ : %2$@" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Не удалось импортировать %1$@: %2$@" } }
+      }
+    },
     "" : {
 
     },

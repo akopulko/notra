@@ -2,6 +2,10 @@
 
 Notra is a SwiftUI notes app for iOS, iPadOS, and macOS. Notes are stored as TextBundle documents with Markdown content and local assets.
 
+## Markdown import on macOS
+
+Use **File → Import…** to select one or more Markdown files. Each file becomes a separate note; importing the same file again creates another note.
+
 ## Markdown diagrams
 
 Mermaid fenced blocks render locally in the preview and PDF export. The bundled Mermaid 12.0.0 runtime works offline; its upstream MIT license is included with the app resources. Diagram source stays editable Markdown and is preserved in Markdown exports. Use **Insert Mermaid Diagram** in the editor toolbar or iOS keyboard accessory to add a starter flowchart.

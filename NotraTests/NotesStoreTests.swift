@@ -866,6 +866,154 @@ struct NotesStoreTests {
         #expect(harness.store.notes.first { $0.id == note.id }?.tags.isEmpty == true)
     }
 
+#if os(macOS)
+    @Test
+    func `importing Markdown creates independent notes and indexes their bodies`() async throws {
+        let harness = try makeHarness()
+        let sourceDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: sourceDirectory, withIntermediateDirectories: true)
+        defer {
+            harness.cleanup()
+            try? FileManager.default.removeItem(at: harness.repository.rootURL)
+            try? FileManager.default.removeItem(at: sourceDirectory)
+        }
+
+        let alphaBody = "# Alpha\n\nuniquealpha café\n"
+        let betaBody = "# Beta\n\nuniquebeta\n"
+        let alphaURL = sourceDirectory.appendingPathComponent("alpha.md")
+        let betaURL = sourceDirectory.appendingPathComponent("beta.markdown")
+        try Data(alphaBody.utf8).write(to: alphaURL)
+        try Data(betaBody.utf8).write(to: betaURL)
+
+        await harness.store.loadNotes()
+        let firstResult = await harness.store.importNotes(from: [alphaURL, betaURL])
+        let importedSummaries = harness.store.notes
+        #expect(importedSummaries.count == 2)
+        let alphaSummary = try #require(importedSummaries.first { $0.previewText.contains("uniquealpha") })
+        let betaSummary = try #require(importedSummaries.first { $0.previewText.contains("uniquebeta") })
+        #expect(alphaSummary.id != betaSummary.id)
+        #expect(try harness.repository.loadNote(at: alphaSummary.url).markdown == alphaBody)
+        #expect(try harness.repository.loadNote(at: betaSummary.url).markdown == betaBody)
+        #expect(harness.store.selectedNoteID == betaSummary.id)
+        #expect(firstResult == betaSummary.id)
+        #expect(harness.store.editorText == betaBody)
+        #expect(try Data(contentsOf: alphaURL) == Data(alphaBody.utf8))
+        #expect(try Data(contentsOf: betaURL) == Data(betaBody.utf8))
+
+        let repeatedURL = await harness.store.importNotes(from: [alphaURL])
+        #expect(repeatedURL != nil)
+        #expect(repeatedURL != alphaSummary.id)
+        #expect(harness.store.notes.count == 3)
+        #expect(try harness.repository.loadNote(at: alphaSummary.url).markdown == alphaBody)
+        #expect(try harness.repository.loadNote(at: try #require(repeatedURL)).markdown == alphaBody)
+
+        for _ in 0..<50 where harness.store.searchStatus != .ready {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        let alphaSearch = await harness.store.searchNotes(query: "uniquealpha", limit: 20, offset: 0)
+        let betaSearch = await harness.store.searchNotes(query: "uniquebeta", limit: 20, offset: 0)
+        #expect(alphaSearch?.results.contains(where: { $0.noteID == alphaSummary.id }) == true)
+        #expect(betaSearch?.results.contains(where: { $0.noteID == betaSummary.id }) == true)
+    }
+
+    @Test
+    func `importing Markdown saves pending edits before switching selection`() async throws {
+        let harness = try makeHarness()
+        let sourceDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: sourceDirectory, withIntermediateDirectories: true)
+        defer {
+            harness.cleanup()
+            try? FileManager.default.removeItem(at: harness.repository.rootURL)
+            try? FileManager.default.removeItem(at: sourceDirectory)
+        }
+
+        let original = try harness.makeNote(markdown: "unsaved old")
+        let sourceURL = sourceDirectory.appendingPathComponent("import.md")
+        try Data("# Imported\n\nimported body".utf8).write(to: sourceURL)
+        await harness.store.loadNotes()
+        harness.store.selectedNoteID = original.id
+        await harness.store.selectionChanged()
+        harness.store.updateEditorText("unsaved original")
+
+        let importedURL = await harness.store.importNotes(from: [sourceURL])
+
+        #expect(try harness.repository.loadNote(at: original.url).markdown == "unsaved original")
+        #expect(harness.store.selectedNoteID == importedURL)
+        #expect(harness.store.editorText == "# Imported\n\nimported body")
+    }
+
+    @Test
+    func `importing Markdown continues after missing and invalid UTF8 sources`() async throws {
+        let harness = try makeHarness()
+        let sourceDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: sourceDirectory, withIntermediateDirectories: true)
+        defer {
+            harness.cleanup()
+            try? FileManager.default.removeItem(at: harness.repository.rootURL)
+            try? FileManager.default.removeItem(at: sourceDirectory)
+        }
+
+        let alphaBody = "# Alpha\n\nuniquealpha café\n"
+        let betaBody = "# Beta\n\nuniquebeta\n"
+        let alphaURL = sourceDirectory.appendingPathComponent("alpha.md")
+        let missingURL = sourceDirectory.appendingPathComponent("missing.md")
+        let invalidURL = sourceDirectory.appendingPathComponent("invalid.md")
+        let betaURL = sourceDirectory.appendingPathComponent("beta.md")
+        try Data(alphaBody.utf8).write(to: alphaURL)
+        try Data([0xFF, 0xFE, 0xFF]).write(to: invalidURL)
+        try Data(betaBody.utf8).write(to: betaURL)
+
+        await harness.store.loadNotes()
+        let selectedURL = await harness.store.importNotes(from: [alphaURL, missingURL, invalidURL, betaURL])
+
+        #expect(harness.store.notes.count == 2)
+        #expect(harness.store.notes.allSatisfy { !$0.previewText.contains("missing") && !$0.previewText.contains("invalid") })
+        #expect(harness.store.notes.contains { $0.previewText.contains("uniquealpha") })
+        #expect(harness.store.notes.contains { $0.previewText.contains("uniquebeta") })
+        #expect(harness.store.selectedNoteID == selectedURL)
+        #expect(harness.store.errorMessage?.contains("missing.md") == true)
+        #expect(harness.store.errorMessage?.contains("invalid.md") == true)
+    }
+
+    @Test
+    func `importing an empty Markdown file creates an empty note and rejects inactive batches`() async throws {
+        let harness = try makeHarness()
+        let sourceDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: sourceDirectory, withIntermediateDirectories: true)
+        defer {
+            harness.cleanup()
+            try? FileManager.default.removeItem(at: harness.repository.rootURL)
+            try? FileManager.default.removeItem(at: sourceDirectory)
+        }
+
+        let existing = try harness.makeNote(markdown: "Existing")
+        let emptyURL = sourceDirectory.appendingPathComponent("empty.md")
+        try Data().write(to: emptyURL)
+        await harness.store.loadNotes()
+        harness.store.selectedNoteID = existing.id
+        await harness.store.selectionChanged()
+        let initialIDs = harness.store.notes.map(\.id)
+        let initialSelection = harness.store.selectedNoteID
+
+        #expect(await harness.store.importNotes(from: []) == nil)
+        harness.store.isChangingStorage = true
+        #expect(await harness.store.importNotes(from: [emptyURL]) == nil)
+        harness.store.isChangingStorage = false
+        #expect(harness.store.notes.map(\.id) == initialIDs)
+        #expect(harness.store.selectedNoteID == initialSelection)
+
+        let importedURL = await harness.store.importNotes(from: [emptyURL])
+        let importedNote = try harness.repository.loadNote(at: try #require(importedURL))
+        #expect(importedNote.markdown.isEmpty)
+        #expect(harness.store.editorText.isEmpty)
+        #expect(harness.store.notes.count == 2)
+    }
+#endif
+
     private func makeHarness() throws -> NotesStoreHarness {
         let rootURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

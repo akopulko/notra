@@ -130,6 +130,17 @@ struct ContentView: View {
 
             requestExport(note, request.action)
         }
+        #if os(macOS)
+        .onChange(of: commandContext.noteImportRequestID) {
+            guard !store.isChangingStorage,
+                  !store.isImportingNotes,
+                  !commandContext.isNoteImportPickerPresented
+            else {
+                return
+            }
+            commandContext.isNoteImportPickerPresented = true
+        }
+        #endif
         .sheet(isPresented: $commands.isKeyboardShortcutsPresented) {
             NavigationStack {
                 KeyboardShortcutsView()
@@ -149,6 +160,35 @@ struct ContentView: View {
             Text(store.errorMessage ?? "")
         }
         .modifier(attachmentFileImporter)
+        #if os(macOS)
+        .fileImporter(
+            isPresented: $commands.isNoteImportPickerPresented,
+            allowedContentTypes: NoteMarkdownImporter.allowedContentTypes,
+            allowsMultipleSelection: true
+        ) { result in
+            switch result {
+            case let .success(urls):
+                Task {
+                    let importedURL = await store.importNotes(from: urls)
+                    guard importedURL == store.selectedNoteID else {
+                        return
+                    }
+                    searchText = ""
+                    preferredCompactColumn = .detail
+                    commandContext.isEditing = false
+                }
+            case let .failure(error):
+                let nsError = error as NSError
+                guard nsError.domain == NSCocoaErrorDomain,
+                      nsError.code == NSUserCancelledError
+                else {
+                    AppLog.error("Failed to present Markdown note importer: \(error.localizedDescription)")
+                    store.errorMessage = error.localizedDescription
+                    return
+                }
+            }
+        }
+        #endif
         .fileExporter(
             isPresented: Binding(
                 get: { pendingFileExport != nil },
