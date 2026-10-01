@@ -66,6 +66,9 @@ final class NotesStore {
     var storageLocation: NoteStorageLocation
     /// Prevents concurrent storage transitions from racing repository state.
     var isChangingStorage = false
+    #if os(macOS)
+    private(set) var isImportingNotes = false
+    #endif
 
     /// Editable in-memory note; this is intentionally separate from the lightweight summary list.
     private var selectedNote: Note?
@@ -427,6 +430,137 @@ final class NotesStore {
     }
 }
 
+#if os(macOS)
+extension NotesStore {
+    /// Imports Markdown sources serially and selects the last note created by the current batch.
+    func importNotes(from urls: [URL]) async -> URL? {
+        guard !urls.isEmpty, canMutateNotes, !isImportingNotes else {
+            return nil
+        }
+
+        isImportingNotes = true
+        defer { isImportingNotes = false }
+        let generation = repositoryGeneration
+        var failures: [String] = []
+        var lastCreatedURL: URL?
+
+        for url in urls {
+            guard isCurrentImportBatch(generation),
+                  let result = await createImportedNote(from: url, generation: generation)
+            else {
+                return nil
+            }
+            if let createdURL = result.createdURL {
+                lastCreatedURL = createdURL
+            }
+            if let failure = result.failureMessage {
+                failures.append(failure)
+            }
+        }
+
+        guard isCurrentImportBatch(generation),
+              let finalization = await finalizeImportedNotes(
+                  lastCreatedURL: lastCreatedURL,
+                  generation: generation,
+                  failures: failures
+              ),
+              isCurrentImportBatch(generation)
+        else {
+            return nil
+        }
+
+        if !finalization.failures.isEmpty {
+            errorMessage = finalization.failures.joined(separator: "\n")
+        }
+        return finalization.selectedURL
+    }
+
+    private func createImportedNote(
+        from url: URL,
+        generation: UInt64
+    ) async -> (createdURL: URL?, failureMessage: String?)? {
+        do {
+            let markdown = try await NoteMarkdownImporter.readMarkdown(from: url)
+            guard isCurrentImportBatch(generation) else {
+                return nil
+            }
+            let note = try repository.createNote(initialMarkdown: markdown)
+            _ = await indexNote(note, generation: generation)
+            guard isCurrentImportBatch(generation) else {
+                return nil
+            }
+            return (note.url, nil)
+        } catch {
+            guard isCurrentImportBatch(generation) else {
+                return nil
+            }
+            AppLog.error("Failed to import Markdown file \(url.lastPathComponent): \(error.localizedDescription)")
+            return (nil, importFailureMessage(filename: url.lastPathComponent, error: error))
+        }
+    }
+
+    private func finalizeImportedNotes(
+        lastCreatedURL: URL?,
+        generation: UInt64,
+        failures initialFailures: [String]
+    ) async -> (selectedURL: URL?, failures: [String])? {
+        var failures = initialFailures
+        var canSelectImportedNote = lastCreatedURL != nil
+        if lastCreatedURL != nil {
+            do {
+                try await saveCurrentNoteIfNeeded(generation: generation)
+            } catch {
+                guard isCurrentImportBatch(generation) else {
+                    return nil
+                }
+                canSelectImportedNote = false
+                AppLog.error("Failed to save the selected note before Markdown import: \(error.localizedDescription)")
+                failures.append(error.localizedDescription)
+            }
+            guard isCurrentImportBatch(generation) else {
+                return nil
+            }
+        }
+
+        do {
+            try refreshNotes()
+        } catch {
+            canSelectImportedNote = false
+            AppLog.error("Failed to refresh notes after Markdown import: \(error.localizedDescription)")
+            failures.append(error.localizedDescription)
+        }
+        guard isCurrentImportBatch(generation) else {
+            return nil
+        }
+
+        var selectedURL: URL?
+        if canSelectImportedNote, let lastCreatedURL {
+            do {
+                let note = try repository.loadNote(at: lastCreatedURL)
+                try select(note)
+                selectedURL = note.url
+            } catch {
+                AppLog.error("Failed to select the last imported Markdown note: \(error.localizedDescription)")
+                failures.append(error.localizedDescription)
+            }
+        }
+        return (selectedURL, failures)
+    }
+
+    private func isCurrentImportBatch(_ generation: UInt64) -> Bool {
+        !Task.isCancelled && isCurrentRepository(generation) && !isChangingStorage
+    }
+
+    private func importFailureMessage(filename: String, error: Error) -> String {
+        let detail = error.localizedDescription
+        return String(
+            localized: "noteImportFileError",
+            defaultValue: "Could not import \(filename): \(detail)",
+            comment: "Failed Markdown note import: source filename followed by the underlying error."
+        )
+    }
+}
+#endif
 extension NotesStore {
     /// Links an attachment from preview mode by appending a reference to the note.
     func linkAttachment(_ attachment: TextBundleAsset) {

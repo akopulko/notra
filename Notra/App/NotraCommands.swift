@@ -46,8 +46,25 @@ final class NotraCommandContext {
     private(set) var attachmentRequestID = 0
     private(set) var deleteSelectedNoteRequestID = 0
     private(set) var exportRequest: NoteExportRequest?
+    #if os(macOS)
+    private(set) var noteImportRequestID = 0
+    var isNoteImportPickerPresented = false
+    #endif
     /// Presents the shortcuts reference for the active scene.
     var isKeyboardShortcutsPresented = false
+    #if os(macOS)
+    var canImportNotes: Bool {
+        !store.isChangingStorage && !store.isImportingNotes && !isNoteImportPickerPresented
+    }
+
+    func requestNoteImport() {
+        guard canImportNotes else {
+            return
+        }
+        noteImportRequestID += 1
+    }
+    #endif
+
     var shareState = NoteShareState.idle
 
     init(store: NotesStore) {
@@ -190,6 +207,12 @@ struct NotraCommands: Commands {
             } label: {
                 Label("Export…", systemImage: "arrow.forward.folder.fill")
             }
+            #if os(macOS)
+            Button(.importNotesWithEllipsis, systemImage: "arrow.down.doc") {
+                context?.requestNoteImport()
+            }
+            .disabled(!(context?.canImportNotes ?? false))
+            #endif
         }
 
         #if os(macOS)
