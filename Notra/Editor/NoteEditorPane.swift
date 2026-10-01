@@ -102,6 +102,9 @@ struct NoteEditorPane: View {
         .toolbar {
             editorToolbar
         }
+        #if os(iOS)
+        .toolbarBackground(.regularMaterial, for: .navigationBar)
+        #endif
     }
 
     private var editor: some View {
@@ -129,6 +132,7 @@ struct NoteEditorPane: View {
             focusEditorRequest: commandEditorFocusRequest,
             onFocusFirstLineHandled: consumeFocusFirstLineRequest
         )
+        .backgroundExtensionEffect()
     }
 
     private var preview: some View {
