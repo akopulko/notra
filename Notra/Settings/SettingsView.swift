@@ -55,7 +55,13 @@ struct SettingsView: View {
                     NavigationLink {
                         KeyboardShortcutsView()
                     } label: {
-                        Label("Keyboard Shortcuts", systemImage: "keyboard")
+                        Label {
+                            Text("Keyboard Shortcuts")
+                        } icon: {
+                            Image(systemName: "keyboard")
+                                .symbolRenderingMode(.hierarchical)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
             }
