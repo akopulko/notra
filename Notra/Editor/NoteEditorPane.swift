@@ -30,6 +30,8 @@ struct NoteEditorPane: View {
     let requestShare: () -> Void
     /// Current state of the shared PDF preparation flow.
     let shareState: NoteShareState
+    /// Scene-owned native presenter anchoring PDF sharing to this editor's toolbar button.
+    let sharePresenter: NoteSharePresenter
     /// Maximum accepted attachment size, shared with the Settings screen.
     @AppStorage(AttachmentSettingKey.maximumSizeMB) private var maximumAttachmentSizeMB =
         AttachmentSettings.defaultMaximumSizeMB
@@ -197,32 +199,62 @@ struct NoteEditorPane: View {
         .disabled(!store.hasSelection)
     }
 
-    @ViewBuilder
     private var shareToolbarButton: some View {
+        Button(shareButtonTitle, systemImage: shareButtonSymbol) {
+            guard case .generating = shareState else {
+                requestShare()
+                return
+            }
+        }
+        .labelStyle(.iconOnly)
+        .help(shareButtonHelp)
+        .accessibilityLabel(shareButtonHelp)
+        .disabled(isPreparingShare || !canShare)
+        #if os(macOS)
+        .background {
+            NoteShareAnchorView(presenter: sharePresenter)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
+        #endif
+    }
+
+    private var shareButtonTitle: LocalizedStringKey {
         switch shareState {
         case .idle:
-            Button("share", systemImage: "square.and.arrow.up") {
-                requestShare()
-            }
-            .labelStyle(.iconOnly)
-            .help("Share")
-            .accessibilityLabel("Share")
-            .disabled(!canShare)
+            "share"
         case .failed:
-            Button("Retry Share", systemImage: "arrow.clockwise") {
-                requestShare()
-            }
-            .labelStyle(.iconOnly)
-            .help("Retry Share")
-            .accessibilityLabel("Retry Share")
-            .disabled(!canShare)
+            "Retry Share"
         case .generating:
-            Button("Preparing Share", systemImage: "square.and.arrow.up") {}
-                .labelStyle(.iconOnly)
-                .help("Preparing PDF to share")
-                .accessibilityLabel("Preparing PDF to share")
-                .disabled(true)
+            "Preparing Share"
         }
+    }
+
+    private var shareButtonSymbol: String {
+        switch shareState {
+        case .idle, .generating:
+            "square.and.arrow.up"
+        case .failed:
+            "arrow.clockwise"
+        }
+    }
+
+    private var shareButtonHelp: LocalizedStringKey {
+        switch shareState {
+        case .idle:
+            "Share"
+        case .failed:
+            "Retry Share"
+        case .generating:
+            "Preparing PDF to share"
+        }
+    }
+
+    private var isPreparingShare: Bool {
+        if case .generating = shareState {
+            return true
+        }
+        return false
     }
 
     private var inspectorToolbarButton: some View {
