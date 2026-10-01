@@ -22,8 +22,9 @@ struct MarkdownCodeHighlightSpan: Equatable {
 
 /// The supported fence languages and the comment/token rules they imply.
 enum MarkdownCodeLanguage: Equatable {
-    case swift
+    case mermaid
     case python
+    case swift
     case javascript
     case typescript
     case json
@@ -74,6 +75,7 @@ enum MarkdownCodeLanguage: Equatable {
     }
 
     private static let languages: [String: MarkdownCodeLanguage] = [
+        "mermaid": .mermaid,
         "swift": .swift,
         "python": .python, "py": .python,
         "javascript": .javascript, "js": .javascript, "jsx": .javascript,
@@ -174,10 +176,12 @@ private extension MarkdownCodeSyntaxHighlighter {
         let next = code.index(after: index)
         let lineEnd = code[index...].firstIndex(of: "\n") ?? code.endIndex
 
+        if language == .mermaid, code[index] == "%", next < code.endIndex, code[next] == "%" {
+            return lineEnd
+        }
         if language.usesHashComments, code[index] == "#" {
             return lineEnd
         }
-
         if language.usesSQLComments, code[index] == "-", next < code.endIndex, code[next] == "-" {
             return lineEnd
         }
@@ -255,6 +259,9 @@ private extension MarkdownCodeSyntaxHighlighter {
         after index: String.Index,
         language: MarkdownCodeLanguage
     ) -> MarkdownCodeHighlightRole? {
+        if language == .mermaid {
+            return Self.mermaidKeywords.contains(word) ? .keyword : nil
+        }
         if isAttribute(word, in: code, after: index, language: language) {
             return .attribute
         }
@@ -315,6 +322,16 @@ private extension MarkdownCodeSyntaxHighlighter {
         "=+-*/%!<>|&?:".contains(character)
     }
 
+    static let mermaidKeywords: Set<String> = [
+        "graph", "flowchart", "sequenceDiagram", "classDiagram", "stateDiagram", "erDiagram",
+        "gantt", "pie", "journey", "gitGraph", "mindmap", "timeline", "quadrantChart",
+        "requirementDiagram", "xychart", "block", "packet", "architecture", "C4Context",
+        "C4Container", "C4Component", "C4Dynamic", "participant", "actor", "subgraph", "direction",
+        "end", "loop", "alt", "else", "opt", "par", "and", "rect", "critical", "option", "break",
+        "note", "Note", "over", "activate", "deactivate", "autonumber", "classDef", "class", "style",
+        "linkStyle", "click", "title", "accTitle", "accDescr", "section", "dateFormat", "axisFormat",
+        "state", "commit", "branch", "checkout", "merge", "LR", "RL", "TB", "TD", "BT"
+    ]
     static let keywords: Set<String> = [
         "as", "async", "await", "break", "case", "catch", "class", "const", "continue", "def", "defer",
         "do", "else", "enum", "export", "extends", "final", "for", "foreach", "func", "function", "guard",

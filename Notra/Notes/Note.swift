@@ -135,6 +135,7 @@ enum NoteFormattingCommand: CaseIterable, Hashable {
     case code
     case link
     case table
+    case mermaid
     case image
 }
 

@@ -16,17 +16,15 @@ struct MarkdownEditor: View {
     let italicFormattingRequest: Int
     let strikethroughFormattingRequest: Int
     let codeFormattingRequest: Int
+    let mermaidFormattingRequest: Int
     let linkFormattingRequest: Int
     let tableFormattingRequest: Int
     let imageFormattingRequest: MarkdownImageFormattingRequest
     let attachmentFormattingRequest: MarkdownAttachmentFormattingRequest
     let linePrefixFormattingRequest: MarkdownLinePrefixFormattingRequest
-    let undoRequest: Int
-    let redoRequest: Int
     let focusFirstLineRequest: Int
     /// Focuses the native editor without changing its current selection.
     let focusEditorRequest: Int
-    let onUndoRedoAvailabilityChanged: (EditorUndoRedoAvailability) -> Void
     /// Marks a new-note first-line focus request as consumed after the native editor receives it.
     let onFocusFirstLineHandled: () -> Void
 
@@ -62,6 +60,9 @@ struct MarkdownEditor: View {
         .onChange(of: codeFormattingRequest) {
             applyCodeFormatting()
         }
+        .onChange(of: mermaidFormattingRequest) {
+            applyMermaidFormatting()
+        }
         .onChange(of: linkFormattingRequest) {
             applyLinkFormatting()
         }
@@ -77,19 +78,10 @@ struct MarkdownEditor: View {
         .onChange(of: linePrefixFormattingRequest) {
             applyLinePrefixFormatting()
         }
-        .onChange(of: undoRequest) {
-            bridge.performUndo?()
-        }
-        .onChange(of: redoRequest) {
-            bridge.performRedo?()
-        }
         .onChange(of: focusFirstLineRequest) {
             focusFirstLineIfRequested()
         }
         .onAppear(perform: configureBridge)
-        .onDisappear {
-            onUndoRedoAvailabilityChanged(.disabled)
-        }
     }
 }
 
@@ -98,9 +90,6 @@ private extension MarkdownEditor {
         bridge.applyFormattingCommand = applyFormattingCommand
         bridge.applyHeading = applyHeading
         bridge.requestAttachmentSelection = requestAttachmentSelection
-        bridge.reportUndoRedoAvailability = onUndoRedoAvailabilityChanged
-        bridge.refreshUndoRedoAvailability?()
-
         if focusFirstLineRequest > 0 {
             focusFirstLineIfRequested()
         }
@@ -151,6 +140,13 @@ private extension MarkdownEditor {
         let selectedRange = formattingSelection(in: currentText)
         let result = MarkdownFormatting.applyTableResult(to: currentText, selection: selectedRange)
         applyFormattingResult(result, command: .table, oldTextLength: currentText.count)
+    }
+
+    private func applyMermaidFormatting() {
+        let currentText = text
+        let selectedRange = currentSelection(in: currentText)
+        let result = MarkdownFormatting.applyMermaidResult(to: currentText, selection: selectedRange)
+        applyFormattingResult(result, command: .mermaid, oldTextLength: currentText.count)
     }
 
     private func applyImageFormatting() {
@@ -217,7 +213,7 @@ private extension MarkdownEditor {
             result = MarkdownFormatting.applyQuoteResult(to: currentText, selection: selectedRange)
         case .todo:
             result = MarkdownFormatting.applyTodoResult(to: currentText, selection: selectedRange)
-        case .bold, .italic, .strikethrough, .heading, .code, .link, .table, .image:
+        case .bold, .italic, .strikethrough, .heading, .code, .mermaid, .link, .table, .image:
             return
         }
 
@@ -244,7 +240,7 @@ private extension MarkdownEditor {
             result = MarkdownFormatting.applyCodeResult(to: currentText, selection: selectedRange)
         case .link:
             result = MarkdownFormatting.applyLinkResult(to: currentText, selection: selectedRange)
-        case .heading, .unorderedList, .orderedList, .quote, .todo, .table, .image:
+        case .heading, .unorderedList, .orderedList, .quote, .todo, .table, .image, .mermaid:
             return
         }
 
@@ -429,6 +425,8 @@ private extension NoteFormattingCommand {
             "Todo"
         case .code:
             "Code"
+        case .mermaid:
+            "Insert Mermaid Diagram"
         case .link:
             "Link"
         case .table:

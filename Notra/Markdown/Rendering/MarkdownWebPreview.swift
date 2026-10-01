@@ -37,7 +37,6 @@ struct MarkdownWebPreview: View {
                 }
             }
         }
-        .ignoresSafeArea(.container, edges: .top)
         .task(id: PreviewRequestID(markdown: markdown, context: context, style: style)) {
             model.update(markdown: markdown, context: context, style: style)
         }
@@ -69,7 +68,8 @@ private struct MarkdownWebView: UIViewRepresentable {
         context.coordinator.update(document: document, in: webView)
     }
 
-    static func dismantleUIView(_ webView: WKWebView, coordinator _: Coordinator) {
+    static func dismantleUIView(_ webView: WKWebView, coordinator: Coordinator) {
+        coordinator.cancelPendingReadiness()
         webView.configuration.userContentController.removeScriptMessageHandler(
             forName: Coordinator.taskToggleMessageName
         )
@@ -93,7 +93,8 @@ private struct MarkdownWebView: NSViewRepresentable {
         context.coordinator.update(document: document, in: webView)
     }
 
-    static func dismantleNSView(_ webView: WKWebView, coordinator _: Coordinator) {
+    static func dismantleNSView(_ webView: WKWebView, coordinator: Coordinator) {
+        coordinator.cancelPendingReadiness()
         webView.configuration.userContentController.removeScriptMessageHandler(
             forName: Coordinator.taskToggleMessageName
         )
@@ -123,7 +124,7 @@ private final class MarkdownPreviewWebView: WKWebView {
 #endif
 
 /// Owns WebKit delegates and local-resource policy for both SwiftUI platform wrappers.
-private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
+final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
     private let assetHandler = MarkdownWebAssetHandler()
     private let openURL: (URL) -> Void
     private let toggleTask: (MarkdownTaskMarker, MarkdownTaskState) -> Void
@@ -143,20 +144,13 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
 
     func makeWebView() -> WKWebView {
         let configuration = WKWebViewConfiguration()
+        MarkdownMermaidRuntime.configure(configuration)
         configuration.setURLSchemeHandler(assetHandler, forURLScheme: MarkdownWebAssetHandler.scheme)
         configuration.userContentController.addUserScript(
-            WKUserScript(
-                source: Self.anchorNavigationScript,
-                injectionTime: .atDocumentEnd,
-                forMainFrameOnly: true
-            )
+            WKUserScript(source: Self.anchorNavigationScript, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
         )
         configuration.userContentController.addUserScript(
-            WKUserScript(
-                source: Self.taskCheckboxScript,
-                injectionTime: .atDocumentEnd,
-                forMainFrameOnly: true
-            )
+            WKUserScript(source: Self.taskCheckboxScript, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
         )
         configuration.userContentController.add(self, name: Self.taskToggleMessageName)
         #if os(macOS)
@@ -170,7 +164,6 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
         webView.isOpaque = false
         webView.backgroundColor = .clear
         webView.scrollView.backgroundColor = .clear
-        // The document owns any local horizontal overflow, so the outer preview should remain vertically anchored.
         webView.scrollView.alwaysBounceHorizontal = false
         webView.scrollView.showsHorizontalScrollIndicator = false
         webView.scrollView.isDirectionalLockEnabled = true
@@ -216,12 +209,18 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
 
     func update(document: MarkdownHTMLDocument, in webView: WKWebView) {
         assetHandler.update(document.assets)
-        guard renderedHTML != document.html else {
+        let previousHTML = renderedHTML
+        guard previousHTML != document.html else {
             return
         }
         renderedHTML = document.html
         documentGeneration += 1
         let generation = documentGeneration
+        pendingScrollOffset = nil
+        guard previousHTML != nil else {
+            webView.loadHTMLString(document.html, baseURL: nil)
+            return
+        }
         webView.evaluateJavaScript("window.scrollY") { [weak self, weak webView] value, _ in
             guard let self, let webView, generation == documentGeneration else {
                 return
@@ -231,14 +230,27 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
         }
     }
 
+    func cancelPendingReadiness() {
+        documentGeneration += 1
+        pendingScrollOffset = nil
+    }
+
     func webView(_ webView: WKWebView, didFinish _: WKNavigation?) {
-        guard let pendingScrollOffset else {
-            return
+        let generation = documentGeneration
+        Task { [weak self, weak webView] in
+            guard let self, let webView else { return }
+            _ = try? await webView.callAsyncJavaScript(
+                "await window.notraMermaidReady; return true;",
+                arguments: [:],
+                in: nil,
+                contentWorld: .page
+            )
+            guard generation == documentGeneration, let pendingScrollOffset else {
+                return
+            }
+            self.pendingScrollOffset = nil
+            _ = try? await webView.evaluateJavaScript("window.scrollTo(0, \(pendingScrollOffset));")
         }
-        self.pendingScrollOffset = nil
-        // The restored offset keeps a checkbox interaction in the same reading position after re-rendering.
-        // WebKit ignores out-of-range values when content becomes shorter.
-        webView.evaluateJavaScript("window.scrollTo(0, \(pendingScrollOffset));", completionHandler: nil)
     }
 
     func userContentController(_: WKUserContentController, didReceive message: WKScriptMessage) {

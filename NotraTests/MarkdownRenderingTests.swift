@@ -899,6 +899,32 @@ struct MarkdownRenderingTests {
         }
     }
 
+    @Test func mermaidFenceUsesLocalRuntimeAndEscapedSourceOnlyForRecognisedTags() {
+        let document = SwiftMarkdownParser().parse("""
+        ```mErMaId
+        flowchart TD
+        A["<script>alert(1)</script>"] --> B
+        ```
+
+        ```unknown
+        <script>ordinary</script>
+        ```
+        """)
+        var renderer = MarkdownHTMLRenderer(
+            style: .notra(previewFontName: AppearanceFont.defaultName),
+            mode: .preview,
+            context: .empty
+        )
+
+        let html = renderer.render(document).html
+
+        #expect(html.contains("notra-mermaid://bundle/mermaid.min.js"))
+        #expect(html.contains("class=\"notra-mermaid\""))
+        #expect(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"))
+        #expect(!html.contains("<script>alert(1)</script>"))
+        #expect(html.contains("<pre><code>&lt;script&gt;ordinary&lt;/script&gt;"))
+        #expect(html.contains("data-notra-render-mode=\"preview\""))
+    }
     private func plainText(in inlines: [MarkdownInline]) -> String {
         inlines.map { inline in
             switch inline {

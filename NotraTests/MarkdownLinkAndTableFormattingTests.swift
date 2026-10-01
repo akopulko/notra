@@ -153,6 +153,42 @@ struct MarkdownLinkAndTableFormattingTests {
         #expect(cursorOffset(in: result) == result.text.count)
     }
 
+    @Test func appendingImageReferenceToEmptyDocumentUsesBlockFormatting() {
+        let result = MarkdownFormatting.appendAttachmentReferenceResult(
+            to: "",
+            kind: .image,
+            source: "assets/image.jpg",
+            label: "image.jpg"
+        )
+
+        #expect(result.text == "![](assets/image.jpg)\n")
+        #expect(cursorOffset(in: result) == result.text.count)
+    }
+
+    @Test func appendingAttachmentReferenceToTextWithoutTrailingNewlineUsesBlockSeparator() {
+        let result = MarkdownFormatting.appendAttachmentReferenceResult(
+            to: "Body",
+            kind: .attachment,
+            source: "assets/report.pdf",
+            label: "report.pdf"
+        )
+
+        #expect(result.text == "Body\n[report.pdf](assets/report.pdf)\n")
+        #expect(cursorOffset(in: result) == result.text.count)
+    }
+
+    @Test func appendingImageReferenceToTextWithTrailingNewlineAppendsDirectly() {
+        let result = MarkdownFormatting.appendAttachmentReferenceResult(
+            to: "Body\n",
+            kind: .image,
+            source: "assets/photo.jpg",
+            label: "photo.jpg"
+        )
+
+        #expect(result.text == "Body\n![](assets/photo.jpg)\n")
+        #expect(cursorOffset(in: result) == result.text.count)
+    }
+
     @Test func tableAtBeginningOfDocumentPlacesCursorAfterTemplate() {
         let text = ""
         let result = MarkdownFormatting.applyTableResult(

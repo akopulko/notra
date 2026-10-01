@@ -240,6 +240,61 @@ struct NotePDFExporterTests {
         #expect(secondHTML.contains("notra-asset://asset/resource-"))
     }
 
+    @Test
+    func `renders Mermaid diagrams and prints invalid source fallback`() async throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        let wideDiagram = (0..<16).map { index in
+            let endLabel = index == 15 ? "PDFWideEnd" : "WideStep\(index + 1)"
+            return "Node\(index)[WideStep\(index)] --> Node\(index + 1)[\(endLabel)]"
+        }.joined(separator: "\n")
+        let tallDiagram = (0..<18).map { "Ada->>Grace: PDFTallStep\($0)" }
+            .joined(separator: "\n") + "\nGrace-->>Ada: PDFTallEnd"
+        let markdown = """
+        Before diagram.
+
+        ```mermaid
+        flowchart TD
+        A[PDFDiagramStart] --> B[PDFDiagramEnd]
+        ```
+
+        Between diagrams.
+
+        ```mermaid
+        flowchart TD
+        A[unterminated
+        ```
+
+        ```mermaid
+        flowchart LR
+        \(wideDiagram)
+        ```
+
+        ```mermaid
+        sequenceDiagram
+        \(tallDiagram)
+        ```
+
+        After diagram.
+        """
+
+        let item = try await fixture.export(markdown: markdown)
+        defer { removeExport(item) }
+        let document = try #require(PDFDocument(url: item.fileURL))
+        let text = try #require(document.string)
+
+        let extractedText = text.replacingOccurrences(of: "\n", with: "")
+        #expect(extractedText.contains("PDFDiagramStart"))
+        #expect(extractedText.contains("PDFDiagramEnd"))
+        #expect(extractedText.contains("PDFWideEnd"))
+        #expect(extractedText.contains("PDFTallEnd"))
+        #expect(text.contains("Unable to render this Mermaid diagram."))
+        #expect(text.contains("A[unterminated"))
+        #expect(!text.contains("```"))
+        #expect(text.range(of: "Before diagram")!.lowerBound < text.range(of: "Between diagrams")!.lowerBound)
+        #expect(text.range(of: "Between diagrams")!.lowerBound < text.range(of: "After diagram")!.lowerBound)
+    }
+
     private func removeExport(_ item: NotePDFShareItem) {
         try? FileManager.default.removeItem(at: item.fileURL.deletingLastPathComponent())
     }

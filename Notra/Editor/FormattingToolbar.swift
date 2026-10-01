@@ -44,59 +44,66 @@ struct FormatToolbarButton: View {
     }
 }
 
-/// Groups Markdown formatting controls in the order shared by the editor and app menus.
+/// Keeps macOS heading, formatting, and attachment controls in one contiguous toolbar row.
 struct MarkdownFormattingToolbar: ToolbarContent {
     let applyHeading: (MarkdownHeadingLevel) -> Void
     let applyFormatting: (NoteFormattingCommand) -> Void
     let isEnabled: Bool
 
-    @ToolbarContentBuilder
-    var body: some ToolbarContent {
-        ToolbarItemGroup(placement: .primaryAction) {
-            HeadingToolbarMenu(action: applyHeading, isEnabled: isEnabled)
-            ForEach(NoteFormattingCommand.toolbarCommandGroups[0], id: \.self) { command in
-                FormatToolbarButton(command: command, isEnabled: isEnabled) {
-                    applyFormatting(command)
-                }
-            }
-        }
-        ToolbarSpacer(.fixed)
-        ToolbarItemGroup(placement: .primaryAction) {
-            ForEach(NoteFormattingCommand.toolbarCommandGroups[1], id: \.self) { command in
-                FormatToolbarButton(command: command, isEnabled: isEnabled) {
-                    applyFormatting(command)
-                }
-            }
-        }
-        ToolbarSpacer(.fixed)
-        ToolbarItemGroup(placement: .primaryAction) {
-            ForEach(NoteFormattingCommand.toolbarCommandGroups[2], id: \.self) { command in
-                FormatToolbarButton(command: command, isEnabled: isEnabled) {
-                    applyFormatting(command)
-                }
-            }
-        }
-    }
-}
-
-/// Exposes native undo and redo actions while reflecting bridge availability.
-struct EditorUndoRedoToolbar: ToolbarContent {
-    let availability: EditorUndoRedoAvailability
-    let undo: () -> Void
-    let redo: () -> Void
+    let attachFile: () -> Void
 
     var body: some ToolbarContent {
-        ToolbarItemGroup(placement: .primaryAction) {
-            Button("Undo", systemImage: "arrow.uturn.backward", action: undo)
-                .labelStyle(.iconOnly)
-                .help("Undo")
-                .accessibilityLabel("Undo")
-                .disabled(!availability.canUndo)
-            Button("Redo", systemImage: "arrow.uturn.forward", action: redo)
-                .labelStyle(.iconOnly)
-                .help("Redo")
-                .accessibilityLabel("Redo")
-                .disabled(!availability.canRedo)
+        ToolbarItem(placement: .primaryAction) {
+            HStack(spacing: 0) {
+                HeadingToolbarMenu(action: applyHeading, isEnabled: isEnabled)
+                Divider()
+                    .frame(height: 16)
+                    .padding(.horizontal, 4)
+                FormatToolbarButton(command: .bold, isEnabled: isEnabled) {
+                    applyFormatting(.bold)
+                }
+                FormatToolbarButton(command: .italic, isEnabled: isEnabled) {
+                    applyFormatting(.italic)
+                }
+                FormatToolbarButton(command: .strikethrough, isEnabled: isEnabled) {
+                    applyFormatting(.strikethrough)
+                }
+                FormatToolbarButton(command: .quote, isEnabled: isEnabled) {
+                    applyFormatting(.quote)
+                }
+                Divider()
+                    .frame(height: 16)
+                    .padding(.horizontal, 4)
+                FormatToolbarButton(command: .unorderedList, isEnabled: isEnabled) {
+                    applyFormatting(.unorderedList)
+                }
+                FormatToolbarButton(command: .orderedList, isEnabled: isEnabled) {
+                    applyFormatting(.orderedList)
+                }
+                FormatToolbarButton(command: .todo, isEnabled: isEnabled) {
+                    applyFormatting(.todo)
+                }
+                Divider()
+                    .frame(height: 16)
+                    .padding(.horizontal, 4)
+                FormatToolbarButton(command: .link, isEnabled: isEnabled) {
+                    applyFormatting(.link)
+                }
+                FormatToolbarButton(command: .table, isEnabled: isEnabled) {
+                    applyFormatting(.table)
+                }
+                FormatToolbarButton(command: .code, isEnabled: isEnabled) {
+                    applyFormatting(.code)
+                }
+                FormatToolbarButton(command: .mermaid, isEnabled: isEnabled) {
+                    applyFormatting(.mermaid)
+                }
+                Button("Attach File", systemImage: "paperclip", action: attachFile)
+                    .labelStyle(.iconOnly)
+                    .help("Attach File")
+                    .accessibilityLabel("Attach File")
+                    .disabled(!isEnabled)
+            }
         }
     }
 }
@@ -124,7 +131,7 @@ extension NoteFormattingCommand {
     static let toolbarCommandGroups: [[NoteFormattingCommand]] = [
         [.bold, .italic, .strikethrough],
         [.unorderedList, .orderedList, .todo, .quote],
-        [.link, .table, .code]
+        [.link, .table, .code, .mermaid]
     ]
 
     static var editorMenuCommands: [NoteFormattingCommand] {
@@ -159,6 +166,8 @@ extension NoteFormattingCommand {
             "Checklist"
         case .code:
             "Code"
+        case .mermaid:
+            LocalizedStringResource("insertMermaidDiagram")
         case .link:
             "Link"
         case .table:
@@ -188,6 +197,8 @@ extension NoteFormattingCommand {
             "checklist"
         case .code:
             "chevron.left.forwardslash.chevron.right"
+        case .mermaid:
+            "point.3.connected.trianglepath.dotted"
         case .link:
             "link"
         case .table:

@@ -39,6 +39,7 @@ struct NoteEditorPane: View {
     @State private var italicFormattingRequest = 0
     @State private var strikethroughFormattingRequest = 0
     @State private var codeFormattingRequest = 0
+    @State private var mermaidFormattingRequest = 0
     @State private var linkFormattingRequest = 0
     @State private var tableFormattingRequest = 0
     @State private var imageFormattingRequest = MarkdownImageFormattingRequest(id: 0, source: "")
@@ -47,9 +48,6 @@ struct NoteEditorPane: View {
         source: "",
         label: ""
     )
-    @State private var undoRequest = 0
-    @State private var redoRequest = 0
-    @State private var undoRedoAvailability = EditorUndoRedoAvailability.disabled
     @State private var linePrefixFormattingRequest = MarkdownLinePrefixFormattingRequest(
         id: 0,
         command: .unorderedList
@@ -74,9 +72,6 @@ struct NoteEditorPane: View {
             }
         }
         #if os(iOS)
-        .scrollEdgeEffectStyle(.soft, for: .top)
-        #endif
-        #if os(iOS)
         .modifier(imagePickerPresentationModifier)
         #endif
         .onChange(of: attachmentSelectionRequest) {
@@ -94,7 +89,6 @@ struct NoteEditorPane: View {
         }
         .onChange(of: store.selectedNoteID) {
             isEditing = false
-            undoRedoAvailability = .disabled
             pendingFocusFirstLineRequest = 0
         }
         .onChange(of: editorFocusRequest) {
@@ -123,16 +117,14 @@ struct NoteEditorPane: View {
             italicFormattingRequest: italicFormattingRequest,
             strikethroughFormattingRequest: strikethroughFormattingRequest,
             codeFormattingRequest: codeFormattingRequest,
+            mermaidFormattingRequest: mermaidFormattingRequest,
             linkFormattingRequest: linkFormattingRequest,
             tableFormattingRequest: tableFormattingRequest,
             imageFormattingRequest: imageFormattingRequest,
             attachmentFormattingRequest: attachmentFormattingRequest,
             linePrefixFormattingRequest: linePrefixFormattingRequest,
-            undoRequest: undoRequest,
-            redoRequest: redoRequest,
             focusFirstLineRequest: pendingFocusFirstLineRequest,
             focusEditorRequest: commandEditorFocusRequest,
-            onUndoRedoAvailabilityChanged: updateUndoRedoAvailability,
             onFocusFirstLineHandled: consumeFocusFirstLineRequest
         )
     }
@@ -165,82 +157,85 @@ struct NoteEditorPane: View {
 
     @ToolbarContentBuilder
     private var editorToolbar: some ToolbarContent {
-        #if os(macOS) || os(iOS)
-        ToolbarItem(placement: .primaryAction) {
-            Button {
-                isEditing.toggle()
-            } label: {
-                Image(systemName: isEditing ? "checkmark" : "pencil")
-            }
-            .help(isEditing ? "Done" : "Edit")
-            .accessibilityLabel(isEditing ? "Done" : "Edit")
-            .disabled(!store.hasSelection)
-        }
-        #endif
-        #if os(iOS)
-        if isEditing {
-            EditorUndoRedoToolbar(
-                availability: undoRedoAvailability,
-                undo: undo,
-                redo: redo
-            )
-        }
-        #endif
         #if os(macOS)
+        ToolbarItem(placement: .primaryAction) {
+            editToolbarButton
+        }
         MarkdownFormattingToolbar(
             applyHeading: handleHeading,
             applyFormatting: handleFormattingCommand,
-            isEnabled: store.hasSelection && isEditing
+            isEnabled: store.hasSelection && isEditing,
+            attachFile: presentAttachmentPicker
         )
-        #endif
-        ToolbarSpacer(.flexible)
-        #if os(macOS)
+        ToolbarItemGroup(placement: .primaryAction) {
+            shareToolbarButton
+            inspectorToolbarButton
+        }
+        #else
         ToolbarItem(placement: .primaryAction) {
-            Button("Attach File", systemImage: "paperclip") {
-                presentAttachmentPicker()
+            editToolbarButton
+        }
+        ToolbarItem(placement: .primaryAction) {
+            shareToolbarButton
+        }
+        ToolbarItem(placement: .primaryAction) {
+            inspectorToolbarButton
+        }
+        #endif
+    }
+
+    private var editToolbarButton: some View {
+        Button {
+            isEditing.toggle()
+        } label: {
+            Image(systemName: isEditing ? "pencil.tip.crop.circle.fill" : "pencil.tip.crop.circle")
+                .symbolRenderingMode(.monochrome)
+                .foregroundStyle(isEditing ? Color.accentColor : Color.primary)
+        }
+        .help(isEditing ? "Done" : "Edit")
+        .accessibilityLabel(isEditing ? "Done" : "Edit")
+        .disabled(!store.hasSelection)
+    }
+
+    @ViewBuilder
+    private var shareToolbarButton: some View {
+        switch shareState {
+        case .idle:
+            Button("share", systemImage: "square.and.arrow.up") {
+                requestShare()
             }
             .labelStyle(.iconOnly)
-            .help("Attach File")
-            .accessibilityLabel("Attach File")
-            .disabled(!store.hasSelection || !isEditing)
-        }
-        #endif
-        ToolbarItem(placement: .primaryAction) {
-            switch shareState {
-            case .idle:
-                Button("share", systemImage: "square.and.arrow.up") {
-                    requestShare()
-                }
-                .labelStyle(.iconOnly)
-                .help("Share")
-                .accessibilityLabel("Share")
-                .disabled(!canShare)
-            case .failed:
-                Button("Retry Share", systemImage: "arrow.clockwise") {
-                    requestShare()
-                }
-                .labelStyle(.iconOnly)
-                .help("Retry Share")
-                .accessibilityLabel("Retry Share")
-                .disabled(!canShare)
-            case .generating:
-                Button("Preparing Share", systemImage: "square.and.arrow.up") {}
-                    .labelStyle(.iconOnly)
-                    .help("Preparing PDF to share")
-                    .accessibilityLabel("Preparing PDF to share")
-                    .disabled(true)
+            .help("Share")
+            .accessibilityLabel("Share")
+            .disabled(!canShare)
+        case .failed:
+            Button("Retry Share", systemImage: "arrow.clockwise") {
+                requestShare()
             }
+            .labelStyle(.iconOnly)
+            .help("Retry Share")
+            .accessibilityLabel("Retry Share")
+            .disabled(!canShare)
+        case .generating:
+            Button("Preparing Share", systemImage: "square.and.arrow.up") {}
+                .labelStyle(.iconOnly)
+                .help("Preparing PDF to share")
+                .accessibilityLabel("Preparing PDF to share")
+                .disabled(true)
         }
-        ToolbarItem(placement: .primaryAction) {
-            Button {
-                isAttachmentInspectorPresented.toggle()
-            } label: {
-                Image(systemName: "info.circle")
-            }
-            .accessibilityLabel("Attachments")
-            .help("Attachments")
-            .disabled(!store.hasSelection)
+    }
+
+    private var inspectorToolbarButton: some View {
+        Button {
+            isAttachmentInspectorPresented.toggle()
+        } label: {
+            Image(systemName: isAttachmentInspectorPresented ? "info.circle.fill" : "info")
+                .symbolRenderingMode(.monochrome)
+                .foregroundStyle(isAttachmentInspectorPresented ? Color.accentColor : Color.primary)
         }
+        .accessibilityLabel("Attachments")
+        .help("Attachments")
+        .disabled(!store.hasSelection)
     }
 
     #if os(iOS)
@@ -260,18 +255,6 @@ struct NoteEditorPane: View {
 private extension NoteEditorPane {
     private var canShare: Bool {
         !isEditing && store.hasSelection
-    }
-
-    private func undo() {
-        undoRequest += 1
-    }
-
-    private func redo() {
-        redoRequest += 1
-    }
-
-    private func updateUndoRedoAvailability(_ availability: EditorUndoRedoAvailability) {
-        undoRedoAvailability = availability
     }
 
     private func insertAttachment(_ attachment: TextBundleAsset) {
@@ -306,6 +289,8 @@ private extension NoteEditorPane {
             strikethroughFormattingRequest += 1
         case .code:
             codeFormattingRequest += 1
+        case .mermaid:
+            mermaidFormattingRequest += 1
         case .link:
             linkFormattingRequest += 1
         case .table:

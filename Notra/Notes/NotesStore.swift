@@ -428,6 +428,80 @@ final class NotesStore {
 }
 
 extension NotesStore {
+    /// Links an attachment from preview mode by appending a reference to the note.
+    func linkAttachment(_ attachment: TextBundleAsset) {
+        guard canMutateNotes,
+              let selectedNote,
+              attachments.contains(where: {
+                  $0.url.notraCanonicalFileURL == attachment.url.notraCanonicalFileURL
+              })
+        else {
+            return
+        }
+
+        let assetBaseURL = selectedNote.url.appendingPathComponent(
+            TextBundleNoteRepository.assetsFolder,
+            isDirectory: true
+        )
+        let linkedURLs = MarkdownAttachmentReferences.linkedURLs(
+            in: editorText,
+            assetBaseURL: assetBaseURL
+        )
+        let canonicalURL = attachment.url.notraCanonicalFileURL
+        guard !linkedURLs.contains(canonicalURL) else {
+            applyAttachmentLinkStates(linkedURLs: linkedURLs)
+            return
+        }
+
+        let updatedMarkdown = MarkdownFormatting.appendAttachmentReferenceResult(
+            to: editorText,
+            kind: attachment.kind,
+            source: attachment.markdownSource,
+            label: attachment.filename
+        ).text
+        updateEditorText(updatedMarkdown)
+        applyAttachmentLinkStates(for: updatedMarkdown)
+    }
+
+    /// Unlinks an attachment without removing its file from the note bundle.
+    func unlinkAttachment(_ attachment: TextBundleAsset) {
+        guard canMutateNotes,
+              let selectedNote,
+              attachments.contains(where: {
+                  $0.url.notraCanonicalFileURL == attachment.url.notraCanonicalFileURL
+              })
+        else {
+            return
+        }
+
+        let assetBaseURL = selectedNote.url.appendingPathComponent(
+            TextBundleNoteRepository.assetsFolder,
+            isDirectory: true
+        )
+        let linkedURLs = MarkdownAttachmentReferences.linkedURLs(
+            in: editorText,
+            assetBaseURL: assetBaseURL
+        )
+        let canonicalURL = attachment.url.notraCanonicalFileURL
+        guard linkedURLs.contains(canonicalURL) else {
+            applyAttachmentLinkStates(linkedURLs: linkedURLs)
+            return
+        }
+
+        let updatedMarkdown = MarkdownAttachmentReferences.removingReferences(
+            to: attachment.url,
+            from: editorText,
+            assetBaseURL: assetBaseURL
+        )
+        guard updatedMarkdown != editorText else {
+            applyAttachmentLinkStates(for: editorText)
+            return
+        }
+
+        updateEditorText(updatedMarkdown)
+        applyAttachmentLinkStates(for: updatedMarkdown)
+    }
+
     var libraryURL: URL {
         repository.rootURL
     }
@@ -925,6 +999,22 @@ private extension NotesStore {
             )
         }
         selectedNoteBundleSize = repository.totalBundleSize(at: selectedNote.url)
+    }
+
+    /// Recomputes attachment badges against the supplied Markdown.
+    private func applyAttachmentLinkStates(for markdown: String) {
+        guard let selectedNote else {
+            return
+        }
+        let assetBaseURL = selectedNote.url.appendingPathComponent(
+            TextBundleNoteRepository.assetsFolder,
+            isDirectory: true
+        )
+        let linkedURLs = MarkdownAttachmentReferences.linkedURLs(
+            in: markdown,
+            assetBaseURL: assetBaseURL
+        )
+        applyAttachmentLinkStates(linkedURLs: linkedURLs)
     }
 
     /// Publishes attachment link badges after the deferred save has parsed the final idle text.

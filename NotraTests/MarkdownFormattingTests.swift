@@ -664,6 +664,43 @@ struct MarkdownFormattingTests {
         |  |  |
         """)
     }
+    @Test func mermaidInsertionSelectsDefaultFlowchartBody() {
+        let result = MarkdownFormatting.applyMermaidResult(
+            to: "",
+            selection: "".endIndex ..< "".endIndex
+        )
+
+        #expect(result.text == "```mermaid\nflowchart TD\n    A --> B\n```\n")
+        #expect(String(result.text[result.selection]) == "flowchart TD\n    A --> B")
+    }
+
+    @Test func mermaidInsertionWrapsUnicodeSelectionAndPreservesSurroundingText() {
+        let text = "préfixe café suffixe"
+        let lower = text.range(of: "café")!.lowerBound
+        let upper = text.range(of: "café")!.upperBound
+        let result = MarkdownFormatting.applyMermaidResult(to: text, selection: lower..<upper)
+
+        #expect(result.text == "préfixe \n```mermaid\ncafé\n```\n suffixe")
+        #expect(String(result.text[result.selection]) == "café")
+    }
+
+    @Test func mermaidFenceExceedsEmbeddedBacktickRun() {
+        let text = "```` label"
+        let result = MarkdownFormatting.applyMermaidResult(to: text, selection: text.startIndex..<text.endIndex)
+
+        #expect(result.text.hasPrefix("`````mermaid\n"))
+        #expect(String(result.text[result.selection]) == text)
+    }
+    @Test func mermaidInsertionAddsNewlinesAroundMiddleOfLineSelection() {
+        let text = "left chosen right"
+        let lower = text.range(of: "chosen")!.lowerBound
+        let upper = text.range(of: "chosen")!.upperBound
+        let result = MarkdownFormatting.applyMermaidResult(to: text, selection: lower..<upper)
+
+        #expect(result.text == "left \n```mermaid\nchosen\n```\n right")
+        #expect(String(result.text[result.selection]) == "chosen")
+    }
+
 
     private func cursorOffset(in result: MarkdownFormattingResult) -> Int {
         result.text.distance(from: result.text.startIndex, to: result.selection.lowerBound)

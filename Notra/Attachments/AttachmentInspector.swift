@@ -8,7 +8,8 @@ import AppKit
 struct AttachmentInspectorView: View {
     let store: NotesStore
     let isEditing: Bool
-    let insertAttachment: (TextBundleAsset) -> Void
+    let linkAttachment: (TextBundleAsset) -> Void
+    let unlinkAttachment: (TextBundleAsset) -> Void
     let removeTag: (NoteTag) -> Void
     @State private var selectedAttachmentURL: URL?
     @State private var pendingDeletion: TextBundleAsset?
@@ -229,40 +230,97 @@ struct AttachmentInspectorView: View {
         }
         .buttonStyle(.plain)
         .tag(attachment.url)
-        #else
-        let row = AttachmentRow(attachment: attachment)
-            .tag(attachment.url)
-            .onTapGesture(count: 2) {
-                openAttachment(attachment)
+        .swipeActions(edge: .leading, allowsFullSwipe: false) {
+            if attachment.isLinked {
+                Button {
+                    unlinkAttachment(attachment)
+                } label: {
+                    Label("Unlink", systemImage: "bolt.slash")
+                }
+            } else {
+                Button {
+                    linkAttachment(attachment)
+                } label: {
+                    Label("Link", systemImage: "bolt")
+                }
             }
+        }
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            Button {
+                pendingDeletion = attachment
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+            .tint(.red)
+        }
+        #else
+        let row = HStack(spacing: 12) {
+            AttachmentRow(attachment: attachment)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+                .onTapGesture(count: 2) {
+                    openAttachment(attachment)
+                }
+
+            VStack(spacing: 8) {
+                if attachment.isLinked {
+                    Button("Unlink", systemImage: "bolt.slash") {
+                        unlinkAttachment(attachment)
+                    }
+                    .labelStyle(.iconOnly)
+                    .help("Unlink")
+                } else {
+                    Button("Link", systemImage: "bolt") {
+                        linkAttachment(attachment)
+                    }
+                    .labelStyle(.iconOnly)
+                    .help("Link")
+                }
+
+                Button("Delete", systemImage: "trash") {
+                    pendingDeletion = attachment
+                }
+                .labelStyle(.iconOnly)
+                .help("Delete")
+            }
+        }
+        .tag(attachment.url)
         #endif
 
         attachmentRowWithActions(row, attachment: attachment)
     }
 
-    @ViewBuilder
     private func attachmentRowWithActions(
         _ row: some View,
         attachment: TextBundleAsset
     ) -> some View {
-        if isEditing {
-            row.contextMenu {
+        row
+            .contextMenu {
                 attachmentActions(for: attachment)
+                    .labelStyle(.titleAndIcon)
             }
-        } else {
-            row
-        }
     }
 
     @ViewBuilder
     private func attachmentActions(for attachment: TextBundleAsset) -> some View {
-        Button("Insert", systemImage: "plus") {
-            insertAttachment(attachment)
+        if attachment.isLinked {
+            Button {
+                unlinkAttachment(attachment)
+            } label: {
+                Label("Unlink", systemImage: "bolt.slash")
+            }
+        } else {
+            Button {
+                linkAttachment(attachment)
+            } label: {
+                Label("Link", systemImage: "bolt")
+            }
         }
-        .disabled(attachment.isLinked)
 
-        Button("Delete", systemImage: "trash", role: .destructive) {
+        Button(role: .destructive) {
             pendingDeletion = attachment
+        } label: {
+            Label("Delete", systemImage: "trash")
         }
     }
 
