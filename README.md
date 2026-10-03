@@ -2,6 +2,12 @@
 
 Notra is a SwiftUI notes app for iOS, iPadOS, and macOS. Notes are stored as TextBundle documents with Markdown content and local assets.
 
+## Sidebar organisation
+
+On iOS, iPadOS, and macOS, unpinned notes are grouped by month in the current year and by year otherwise. Headings use the system calendar, time zone, and locale. **Date Edited** or **Date Created** selects the grouping date; **Latest First** or **Oldest First** controls section and row order. Pinned notes stay first, ordered by their pin timestamps.
+
+Filter-only browsing keeps date sections. Typing a search query uses the **Pinned** and **Notes** sections instead, preserving search relevance within unpinned results.
+
 ## Markdown import on macOS
 
 Use **File → Import…** to select one or more Markdown files. Each file becomes a separate note; importing the same file again creates another note.

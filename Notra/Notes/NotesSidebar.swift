@@ -1,8 +1,12 @@
+import Combine
 import SwiftUI
 
 /// Owns the searchable, sortable note list, its New Note toolbar action, and context-menu exports.
 struct NotesSidebar: View {
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.calendar) private var calendar
+    @Environment(\.timeZone) private var timeZone
+    @Environment(\.scenePhase) private var scenePhase
     @Bindable var store: NotesStore
     let isEditing: Bool
     @Binding var searchText: String
@@ -15,6 +19,7 @@ struct NotesSidebar: View {
     @Namespace private var settingsZoom
     #endif
     @State private var isSearchPresented = false
+    @State private var groupingReferenceDate = Date.now
     @State private var searchFilters: [NoteSearchFilter] = []
     #if os(macOS)
     /// Supplies the macOS search field with selectable prefilter tokens.
@@ -90,6 +95,14 @@ struct NotesSidebar: View {
                 suggestedSearchFilters = NoteSearchFilter.allCases.filter { $0 != filters.last }
                 #endif
             }
+            .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in
+                groupingReferenceDate = .now
+            }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active {
+                    groupingReferenceDate = .now
+                }
+            }
             .task(id: "\(trimmedSearchText)|\(selectedSearchFilter?.rawValue ?? "none")|\(String(describing: store.searchStatus))") {
                 await refreshSearchResults()
             }
@@ -115,24 +128,40 @@ struct NotesSidebar: View {
 
     private var notesList: some View {
         let groups = visibleNoteGroups
+        let effectiveCalendar = groupingCalendar
+        let dateSections = trimmedSearchText.isEmpty
+            ? NoteDateGrouping.sections(
+                in: groups.notes,
+                field: store.sortPreference.field,
+                now: groupingReferenceDate,
+                calendar: effectiveCalendar
+            )
+            : []
 
         return List(selection: $store.selectedNoteID) {
             if !groups.pinned.isEmpty {
                 noteSection(
-                    title: LocalizedStringResource(
+                    title: Text(LocalizedStringResource(
                         "Pinned",
                         comment: "Sidebar section containing pinned notes."
-                    ),
+                    )),
                     notes: groups.pinned
                 )
             }
 
-            if !groups.notes.isEmpty {
+            if trimmedSearchText.isEmpty {
+                ForEach(dateSections) { section in
+                    noteSection(
+                        title: dateSectionTitle(section, calendar: effectiveCalendar),
+                        notes: section.notes
+                    )
+                }
+            } else if !groups.notes.isEmpty {
                 noteSection(
-                    title: LocalizedStringResource(
+                    title: Text(LocalizedStringResource(
                         "Notes",
                         comment: "Sidebar section containing unpinned notes."
-                    ),
+                    )),
                     notes: groups.notes
                 )
             }
@@ -434,7 +463,20 @@ private extension NotesSidebar {
         .listRowSeparator(.hidden)
     }
 
-    func noteSection(title: LocalizedStringResource, notes: [NoteSummary]) -> some View {
+    var groupingCalendar: Calendar {
+        var calendar = calendar
+        calendar.timeZone = timeZone
+        return calendar
+    }
+
+    func dateSectionTitle(_ section: NoteDateSection, calendar: Calendar) -> Text {
+        var style: Date.FormatStyle = section.id.month != nil ? .dateTime.month(.wide) : .dateTime.year()
+        style.calendar = calendar
+        style.timeZone = calendar.timeZone
+        return Text(section.date, format: style)
+    }
+
+    func noteSection(title: Text, notes: [NoteSummary]) -> some View {
         Section {
             ForEach(notes) { note in
                 noteRow(note, showsBottomSeparator: note.id != notes.last?.id)
@@ -445,7 +487,7 @@ private extension NotesSidebar {
             }
             #endif
         } header: {
-            Text(title)
+            title
                 .font(.subheadline.weight(.semibold))
         }
     }
