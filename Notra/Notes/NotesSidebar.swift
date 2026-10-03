@@ -144,7 +144,8 @@ struct NotesSidebar: View {
                     title: Text(LocalizedStringResource(
                         "Pinned",
                         comment: "Sidebar section containing pinned notes."
-                    )),
+                    ))
+                    .foregroundStyle(MarkdownTheme.preferred(for: colorScheme).preview.italic.color),
                     notes: groups.pinned
                 )
             }
@@ -474,6 +475,7 @@ private extension NotesSidebar {
         style.calendar = calendar
         style.timeZone = calendar.timeZone
         return Text(section.date, format: style)
+            .foregroundStyle(MarkdownTheme.preferred(for: colorScheme).preview.headingSecondary.color)
     }
 
     func noteSection(title: Text, notes: [NoteSummary]) -> some View {
@@ -488,7 +490,7 @@ private extension NotesSidebar {
             #endif
         } header: {
             title
-                .font(.subheadline.weight(.semibold))
+                .font(.headline.weight(.semibold))
         }
     }
 
