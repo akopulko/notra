@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Owns the searchable, sortable note list and its context-menu export actions.
+/// Owns the searchable, sortable note list, its New Note toolbar action, and context-menu exports.
 struct NotesSidebar: View {
     @Environment(\.colorScheme) private var colorScheme
     @Bindable var store: NotesStore
@@ -32,19 +32,19 @@ struct NotesSidebar: View {
 
     var body: some View {
         notesList
-            #if os(iOS)
             .toolbar {
                 ToolbarItemGroup(placement: .primaryAction) {
                     NewNoteButton(action: createNote)
+                    #if os(iOS)
                     SortNotesMenu(
                         preference: store.sortPreference,
                         setField: store.setSortField,
                         setDirection: store.setSortDirection
                     )
                     settingsButton
+                    #endif
                 }
             }
-            #endif
             .toolbar {
                 DefaultToolbarItem(kind: .search, placement: .automatic)
             }
