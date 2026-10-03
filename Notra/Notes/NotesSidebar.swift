@@ -489,8 +489,16 @@ private extension NotesSidebar {
             }
             #endif
         } header: {
-            title
-                .font(.headline.weight(.semibold))
+            HStack(spacing: 12) {
+                title
+                    .font(.headline.weight(.semibold))
+
+                VStack {
+                    Divider()
+                }
+                .frame(maxWidth: .infinity)
+                .accessibilityHidden(true)
+            }
         }
     }
 
