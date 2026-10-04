@@ -1364,6 +1364,7 @@ private extension NotesStore {
         guard isCurrentRepository(generation) else {
             return
         }
+        try applySavedSummary(repository.summary(for: selectedNote.url))
         selectedNoteBundleSize = repository.totalBundleSize(at: selectedNote.url)
         AppLog.info("Saved current note before state transition: \(logName(for: selectedNote.url))")
     }

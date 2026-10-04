@@ -8,6 +8,11 @@ private struct SearchRequest: Hashable {
     let matchingBundleNames: Set<String>?
 }
 
+struct NoteRevealRequest: Equatable {
+    let id: UUID
+    let noteID: URL
+}
+
 /// Owns the searchable, sortable note list, its New Note toolbar action, and context-menu exports.
 struct NotesList: View {
     @Environment(\.colorScheme) private var colorScheme
@@ -22,7 +27,9 @@ struct NotesList: View {
     let exportNote: (NoteSummary, NoteExportAction) -> Void
     /// Monotonic scene command event requesting deletion of the current selection.
     let deleteSelectedNoteRequestID: Int
-    let selectedTagIDs: Set<String>
+    @Binding var selectedTagIDs: Set<String>
+    @Binding var noteRevealRequest: NoteRevealRequest?
+    let noteRevealCompleted: () -> Void
     #if os(iOS)
     @Namespace private var settingsZoom
     #endif
@@ -39,6 +46,7 @@ struct NotesList: View {
     @State private var hasMoreSearchResults = false
     @State private var isLoadingMoreSearchResults = false
     @State private var isRefreshingSearchResults = false
+    @State private var pendingNoteReveal: NoteRevealRequest?
     /// Holds one user-initiated deletion until its native confirmation is resolved.
     @State private var pendingDeletion: NoteDeletionRequest?
     @AppStorage(AppearanceSettingKey.showsNotePreview) private var showsNotePreview = true
@@ -106,6 +114,23 @@ struct NotesList: View {
                 suggestedSearchFilters = NoteSearchFilter.allCases.filter { $0 != filters.last }
                 #endif
             }
+            .onChange(of: noteRevealRequest, initial: true) { _, request in
+                prepareNoteReveal(request)
+            }
+            .onChange(of: store.isChangingStorage) { _, isChanging in
+                guard isChanging else { return }
+                pendingNoteReveal = nil
+                noteRevealRequest = nil
+            }
+            .onChange(of: store.notes) { _, notes in
+                guard let request = pendingNoteReveal ?? noteRevealRequest,
+                      !notes.contains(where: { $0.id == request.noteID })
+                else {
+                    return
+                }
+                pendingNoteReveal = nil
+                noteRevealRequest = nil
+            }
             .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in
                 groupingReferenceDate = .now
             }
@@ -117,6 +142,29 @@ struct NotesList: View {
             .task(id: searchRequest) {
                 await refreshSearchResults(for: searchRequest)
             }
+    }
+
+    private func prepareNoteReveal(_ request: NoteRevealRequest?) {
+        guard let request else {
+            pendingNoteReveal = nil
+            return
+        }
+        guard !store.isChangingStorage, store.notes.contains(where: { $0.id == request.noteID }) else {
+            pendingNoteReveal = nil
+            noteRevealRequest = nil
+            return
+        }
+
+        let groups = visibleNoteGroups
+        let isVisible = groups.pinned.contains { $0.id == request.noteID }
+            || groups.notes.contains { $0.id == request.noteID }
+        if !isVisible {
+            searchText = ""
+            searchFilters = []
+            selectedTagIDs = []
+        }
+        isSearchPresented = false
+        pendingNoteReveal = request
     }
 
     #if os(iOS)
@@ -148,85 +196,110 @@ struct NotesList: View {
                 calendar: effectiveCalendar
             )
             : []
+        let scrollRequest = pendingNoteReveal.flatMap { request in
+            groups.pinned.contains { $0.id == request.noteID }
+                || groups.notes.contains { $0.id == request.noteID }
+                ? request
+                : nil
+        }
 
-        return List(selection: $store.selectedNoteID) {
-            if !groups.pinned.isEmpty {
-                noteSection(
-                    title: Text(LocalizedStringResource(
-                        "Pinned",
-                        comment: "Sidebar section containing pinned notes."
-                    ))
-                    .foregroundStyle(MarkdownTheme.preferred(for: colorScheme).preview.italic.color),
-                    notes: groups.pinned
-                )
-            }
-
-            if trimmedSearchText.isEmpty {
-                ForEach(dateSections) { section in
+        return ScrollViewReader { proxy in
+            List(selection: $store.selectedNoteID) {
+                if !groups.pinned.isEmpty {
                     noteSection(
-                        title: dateSectionTitle(section, calendar: effectiveCalendar),
-                        notes: section.notes
+                        title: Text(LocalizedStringResource(
+                            "Pinned",
+                            comment: "Sidebar section containing pinned notes."
+                        ))
+                        .foregroundStyle(MarkdownTheme.preferred(for: colorScheme).preview.italic.color),
+                        notes: groups.pinned
                     )
                 }
-            } else if !groups.notes.isEmpty {
-                noteSection(
-                    title: Text(LocalizedStringResource(
-                        "Notes",
-                        comment: "Sidebar section containing unpinned notes."
-                    )),
-                    notes: groups.notes
-                )
-            }
 
-            if isSearching, hasMoreSearchResults {
-                loadMoreRow
+                if trimmedSearchText.isEmpty {
+                    ForEach(dateSections) { section in
+                        noteSection(
+                            title: dateSectionTitle(section, calendar: effectiveCalendar),
+                            notes: section.notes
+                        )
+                    }
+                } else if !groups.notes.isEmpty {
+                    noteSection(
+                        title: Text(LocalizedStringResource(
+                            "Notes",
+                            comment: "Sidebar section containing unpinned notes."
+                        )),
+                        notes: groups.notes
+                    )
+                }
+
+                if isSearching, hasMoreSearchResults {
+                    loadMoreRow
+                }
             }
-        }
-        .accessibilityIdentifier("notes.content")
-        .listStyle(.sidebar)
-        .disabled(store.isChangingStorage)
-        #if os(iOS)
-        .toolbarTitleDisplayMode(.inline)
-        #endif
-        .overlay {
-            ZStack(alignment: .top) {
-                if store.notes.isEmpty, !store.isLoading {
-                    ContentUnavailableView {
-                        Label("No Notes", systemImage: "note.text")
-                    } description: {
-                        Text("Create a note to start writing.")
-                    } actions: {
-                        Button("New Note", systemImage: "plus") {
-                            createNote()
+            .accessibilityIdentifier("notes.content")
+            .listStyle(.sidebar)
+            .disabled(store.isChangingStorage)
+            #if os(iOS)
+            .toolbarTitleDisplayMode(.inline)
+            #endif
+            .overlay {
+                ZStack(alignment: .top) {
+                    if store.notes.isEmpty, !store.isLoading {
+                        ContentUnavailableView {
+                            Label("No Notes", systemImage: "note.text")
+                        } description: {
+                            Text("Create a note to start writing.")
+                        } actions: {
+                            Button("New Note", systemImage: "plus") {
+                                createNote()
+                            }
+                        }
+                    } else if groups.pinned.isEmpty, groups.notes.isEmpty {
+                        if isSearching || !selectedTagIDs.isEmpty {
+                            searchEmptyState
                         }
                     }
-                } else if groups.pinned.isEmpty, groups.notes.isEmpty {
-                    if isSearching || !selectedTagIDs.isEmpty {
-                        searchEmptyState
+
+                    #if os(iOS)
+                    if showsSearchFilterSuggestions {
+                        Color(uiColor: .systemBackground)
+                            .ignoresSafeArea()
+
+                        searchFilterSuggestions
                     }
+                    #endif
+                }
+            }
+            .onChange(of: deleteSelectedNoteRequestID) {
+                guard let summary = store.selectedNoteSummary else {
+                    return
+                }
+                requestNoteDeletion([summary])
+            }
+            .modifier(NoteDeletionConfirmationModifier(request: $pendingDeletion) { summaries in
+                Task {
+                    await store.deleteNotes(summaries)
+                }
+            })
+            .task(id: scrollRequest) {
+                guard let request = scrollRequest,
+                      !Task.isCancelled,
+                      pendingNoteReveal?.id == request.id,
+                      noteRevealRequest?.id == request.id,
+                      store.notes.contains(where: { $0.id == request.noteID }),
+                      !store.isChangingStorage
+                else {
+                    return
                 }
 
-                #if os(iOS)
-                if showsSearchFilterSuggestions {
-                    Color(uiColor: .systemBackground)
-                        .ignoresSafeArea()
-
-                    searchFilterSuggestions
-                }
-                #endif
+                proxy.scrollTo(request.noteID, anchor: .center)
+                store.selectedNoteID = request.noteID
+                pendingNoteReveal = nil
+                noteRevealRequest = nil
+                noteRevealCompleted()
             }
         }
-        .onChange(of: deleteSelectedNoteRequestID) {
-            guard let summary = store.selectedNoteSummary else {
-                return
-            }
-            requestNoteDeletion([summary])
-        }
-        .modifier(NoteDeletionConfirmationModifier(request: $pendingDeletion) { summaries in
-            Task {
-                await store.deleteNotes(summaries)
-            }
-        })
     }
 
     @MainActor
@@ -281,7 +354,9 @@ struct NotesList: View {
         searchResultOffset = batch.nextOffset
         hasMoreSearchResults = batch.hasMore
     }
+}
 
+private extension NotesList {
     private func loadMoreSearchResults() {
         guard isSearching, !trimmedSearchText.isEmpty, hasMoreSearchResults, !isLoadingMoreSearchResults else {
             return
@@ -340,9 +415,7 @@ struct NotesList: View {
                     .map { $0.url.lastPathComponent })
         )
     }
-}
 
-private extension NotesList {
     var searchFilterSuggestions: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Suggested")
@@ -551,6 +624,7 @@ private extension NotesList {
                 showsNotePreview: showsNotePreview
             )
         }
+        .id(note.id)
         .contextMenu {
             NotePinContextMenuButton(note: note, isEditing: isEditing) {
                 Task {

@@ -239,6 +239,48 @@ struct NotraStorageTests {
         #expect(summary.attachmentSummary.showsPaperclip)
     }
 
+    @Test func noteSummaryCollectsEveryLinkedImageOnce() throws {
+        let repository = try makeRepository()
+        var note = try repository.createNote()
+        let firstImage = try repository.importImage(
+            data: onePixelPNGData,
+            originalFilename: "a.png",
+            into: note.url
+        )
+        let secondImage = try repository.importImage(
+            data: onePixelPNGData,
+            originalFilename: "z.png",
+            into: note.url
+        )
+        _ = try repository.importImage(
+            data: onePixelPNGData,
+            originalFilename: "unused.png",
+            into: note.url
+        )
+        let sourceURL = try makeSourceFile(named: "report.pdf", data: Data("report".utf8))
+        let attachment = try repository.importAttachment(
+            from: sourceURL,
+            into: note.url,
+            maximumByteCount: 100
+        )
+        note.markdown = """
+        ![A](\(firstImage.source))
+        [Report](\(attachment.source))
+        ![Z](\(secondImage.source))
+        ![Repeated A](\(firstImage.source))
+        ![Remote](https://example.com/remote.png)
+        """
+        try repository.save(note)
+
+        let summary = try #require(try repository.listNotes().first { $0.url == note.url })
+        let linkedImageURLs = [firstImage.url, secondImage.url].map(\.notraCanonicalFileURL)
+
+        #expect(summary.attachmentSummary.linkedImageURLs == linkedImageURLs)
+        #expect(summary.attachmentSummary.firstLinkedImageURL == linkedImageURLs.first)
+        #expect(summary.attachmentSummary.hasLinkedNonImageAttachment)
+        #expect(summary.attachmentSummary.showsPaperclip)
+    }
+
     @Test func noteSummaryIgnoresMissingLinkedAssets() throws {
         let repository = try makeRepository()
         var note = try repository.createNote()

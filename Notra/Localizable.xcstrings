@@ -54,6 +54,27 @@
         "ru" : { "stringUnit" : { "state" : "translated", "value" : "Не удалось импортировать %1$@: %2$@" } }
       }
     },
+    "noImages" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Keine Bilder" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No Images" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "No hay imágenes" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Aucune image" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Нет изображений" } }
+      }
+    },
+    "sidebarImageOpenNote" : {
+      "comment" : "Sidebar image shortcut: open the note containing this image.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Notiz %@ öffnen" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Open note %@" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Abrir nota %@" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Ouvrir la note %@" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Открыть заметку %@" } }
+      }
+    },
     "" : {
 
     },
@@ -2810,6 +2831,16 @@
             "value" : "Изображения"
           }
         }
+      }
+    },
+    "Images (%lld/%lld)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Bilder (%lld/%lld)" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Images (%lld/%lld)" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Imágenes (%lld/%lld)" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Images (%lld/%lld)" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Изображения (%lld/%lld)" } }
       }
     },
     "Indexing Notes..." : {
@@ -6038,6 +6069,16 @@
             "value" : "Теги"
           }
         }
+      }
+    },
+    "Tags (%lld/%lld)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Tags (%lld/%lld)" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Tags (%lld/%lld)" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Etiquetas (%lld/%lld)" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Étiquettes (%lld/%lld)" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Теги (%lld/%lld)" } }
       }
     },
     "The attachment could not be opened." : {

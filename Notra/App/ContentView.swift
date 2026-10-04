@@ -15,6 +15,7 @@ struct ContentView: View {
     @State private var columnVisibility: NavigationSplitViewVisibility = .doubleColumn
     /// Keeps notes content on top when the split view collapses in narrow widths.
     @State private var preferredCompactColumn: NavigationSplitViewColumn = .content
+    @State private var noteRevealRequest: NoteRevealRequest?
     /// Search query owned by the sidebar, cleared after a new note is created.
     @State private var selectedTagIDs: Set<String> = []
     @State private var searchText = ""
@@ -65,10 +66,13 @@ struct ContentView: View {
         ) {
             NotesSidebar(
                 tags: NoteTagFilter.availableTags(in: store.notes),
+                images: NoteSidebarImage.images(in: store.notes),
+                totalImageCount: store.notes.reduce(0) { $0 + $1.attachmentSummary.linkedImageURLs.count },
                 selectedTagIDs: selectedTagIDs,
                 isDisabled: store.isChangingStorage,
                 showAllNotes: showAllNotes,
-                toggleTag: toggleTag
+                toggleTag: toggleTag,
+                revealNote: revealNote
             )
             .navigationSplitViewColumnWidth(min: 200, ideal: 240)
         } content: {
@@ -79,8 +83,11 @@ struct ContentView: View {
                 createNote: createNote,
                 exportNote: requestExport,
                 deleteSelectedNoteRequestID: commands.deleteSelectedNoteRequestID,
-                selectedTagIDs: selectedTagIDs
-            )
+                selectedTagIDs: $selectedTagIDs,
+                noteRevealRequest: $noteRevealRequest
+            ) {
+                preferredCompactColumn = .detail
+            }
             .navigationSplitViewColumnWidth(min: 220, ideal: 260, max: 360)
         } detail: {
             NoteEditorPane(
@@ -127,6 +134,7 @@ struct ContentView: View {
         }
         .onChange(of: store.storageLocation) {
             selectedTagIDs = []
+            noteRevealRequest = nil
         }
         .onChange(of: availableTagIDs) { _, tagIDs in
             guard !store.isLoading else { return }
@@ -267,23 +275,6 @@ struct ContentView: View {
         )
     }
 
-    private func removeTag(_ tag: NoteTag) {
-        Task {
-            await store.removeTag(tag)
-        }
-    }
-
-    /// Adapts the store's optional error into the Boolean binding expected by `alert`.
-    private var errorBinding: Binding<Bool> {
-        Binding {
-            store.errorMessage != nil
-        } set: { isPresented in
-            if !isPresented {
-                store.errorMessage = nil
-            }
-        }
-    }
-
     /// Creates a note and moves compact layouts into focused editing when selection changes.
     private func createNote() {
         Task {
@@ -397,12 +388,37 @@ struct ContentView: View {
 }
 
 private extension ContentView {
+    private func removeTag(_ tag: NoteTag) {
+        Task {
+            await store.removeTag(tag)
+        }
+    }
+
+    /// Adapts the store's optional error into the Boolean binding expected by `alert`.
+    private var errorBinding: Binding<Bool> {
+        Binding {
+            store.errorMessage != nil
+        } set: { isPresented in
+            if !isPresented {
+                store.errorMessage = nil
+            }
+        }
+    }
+
     var availableTagIDs: Set<String> {
         Set(NoteTagFilter.availableTags(in: store.notes).map(\.id))
     }
 
     func showAllNotes() {
         selectedTagIDs = []
+        preferredCompactColumn = .content
+    }
+
+    func revealNote(_ noteID: URL) {
+        guard !store.isChangingStorage, store.notes.contains(where: { $0.id == noteID }) else {
+            return
+        }
+        noteRevealRequest = NoteRevealRequest(id: UUID(), noteID: noteID)
         preferredCompactColumn = .content
     }
 

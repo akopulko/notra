@@ -10,10 +10,13 @@ struct NotesSidebar: View {
     private let expandedTagLimit = 100
 
     let tags: [NoteTag]
+    let images: [NoteSidebarImage]
+    let totalImageCount: Int
     let selectedTagIDs: Set<String>
     let isDisabled: Bool
     let showAllNotes: () -> Void
     let toggleTag: (NoteTag) -> Void
+    let revealNote: (URL) -> Void
 
     private var visibleTags: ArraySlice<NoteTag> {
         tags.prefix(showsAllTags ? expandedTagLimit : collapsedTagLimit)
@@ -42,7 +45,7 @@ struct NotesSidebar: View {
                 }
             } header: {
                 HStack {
-                    Text("Tags")
+                    Text("Tags (\(visibleTags.count)/\(tags.count))")
                         .foregroundStyle(MarkdownTheme.preferred(for: colorScheme).previewHashtagColors.backgroundColor)
                     Spacer()
                     if tags.count > collapsedTagLimit {
@@ -60,6 +63,11 @@ struct NotesSidebar: View {
                     }
                 }
             }
+            NotesSidebarImagesSection(
+                images: images,
+                totalImageCount: totalImageCount,
+                revealNote: revealNote
+            )
         }
         .listStyle(.sidebar)
         .disabled(isDisabled)
