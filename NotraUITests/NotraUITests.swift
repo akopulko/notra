@@ -71,25 +71,110 @@ final class NotraUITests: XCTestCase {
         app.launchArguments += ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launch()
 
-        if UIDevice.current.userInterfaceIdiom == .pad {
-            let sidebarButton = sidebarVisibilityButton(in: app)
-            XCTAssertTrue(sidebarButton.waitForExistence(timeout: 10), app.debugDescription)
-            XCTAssertTrue(sidebarButton.isHittable)
-            if sidebarButton.label == "Hide Sidebar" {
-                sidebarButton.tap()
-            }
+        let newNoteButton = app.buttons["New Note"].firstMatch
+        XCTAssertTrue(newNoteButton.waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertTrue(newNoteButton.isHittable, app.debugDescription)
+        XCTAssertTrue(contentList(in: app).exists, app.debugDescription)
 
-            let showSidebarButton = app.buttons["Show Sidebar"].firstMatch
-            XCTAssertTrue(showSidebarButton.waitForExistence(timeout: 10), app.debugDescription)
-            showSidebarButton.tap()
-            XCTAssertTrue(app.buttons["Hide Sidebar"].waitForExistence(timeout: 10))
+        revealFilterSidebar(in: app)
+        let allNotesButton = app.buttons["notes.sidebar.allNotes"]
+        XCTAssertTrue(allNotesButton.waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertTrue(allNotesButton.isSelected, app.debugDescription)
+        allNotesButton.tap()
+        XCTAssertTrue(newNoteButton.waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertTrue(newNoteButton.isHittable, app.debugDescription)
+    }
+
+    @MainActor
+    func testTagSidebarFiltersNotes() throws {
+        guard UIDevice.current.userInterfaceIdiom != .pad else {
+            throw XCTSkip("Compact tag browsing is exercised on iPhone.")
+        }
+        XCUIDevice.shared.orientation = .portrait
+        defer { XCUIDevice.shared.orientation = .portrait }
+        let app = XCUIApplication()
+        app.launchArguments += ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+
+        let alphaName = "nav-alpha-\(UUID().uuidString.lowercased())"
+        let betaName = "nav-beta-\(UUID().uuidString.lowercased())"
+        let titles = [
+            "Tag Filter A \(UUID().uuidString)",
+            "Tag Filter B \(UUID().uuidString)",
+            "Tag Filter C \(UUID().uuidString)",
+            "Tag Filter D \(UUID().uuidString)"
+        ]
+        defer {
+            revealFilterSidebar(in: app)
+            let allNotesButton = app.buttons["notes.sidebar.allNotes"]
+            if allNotesButton.isHittable {
+                allNotesButton.tap()
+            }
+            for title in titles {
+                deleteFixtureNote(title, in: app)
+            }
         }
 
-        // A visible create action proves the notes sidebar can be used, including with an empty library.
-        let newNoteButton = app.buttons["New Note"].firstMatch
-        let isHittable = NSPredicate(format: "exists == true AND hittable == true")
-        expectation(for: isHittable, evaluatedWith: newNoteButton)
-        waitForExpectations(timeout: 10)
+        createTaggedNote(titles[0], tags: [alphaName], in: app)
+        createTaggedNote(titles[1], tags: [betaName], in: app)
+        createTaggedNote(titles[2], tags: [alphaName, betaName], in: app)
+        createTaggedNote(titles[3], tags: [], in: app)
+        revealFilterSidebar(in: app)
+
+        let alphaButton = app.buttons["notes.sidebar.tag.\(alphaName)"]
+        let betaButton = app.buttons["notes.sidebar.tag.\(betaName)"]
+        let allNotesButton = app.buttons["notes.sidebar.allNotes"]
+        XCTAssertTrue(alphaButton.waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertTrue(betaButton.waitForExistence(timeout: 10), app.debugDescription)
+
+        alphaButton.tap()
+        assertFixtureRows(titles, visible: [titles[0], titles[2]], in: app)
+
+        revealFilterSidebar(in: app)
+        alphaButton.tap()
+        assertFixtureRows(titles, visible: titles, in: app)
+
+        revealFilterSidebar(in: app)
+        alphaButton.tap()
+        revealFilterSidebar(in: app)
+        betaButton.tap()
+        assertFixtureRows(titles, visible: [titles[0], titles[1], titles[2]], in: app)
+
+        revealFilterSidebar(in: app)
+        alphaButton.tap()
+        assertFixtureRows(titles, visible: [titles[1], titles[2]], in: app)
+
+        revealFilterSidebar(in: app)
+        allNotesButton.tap()
+        assertFixtureRows(titles, visible: titles, in: app)
+    }
+
+    @MainActor
+    func testTagSidebarSelectionTraitOnIPad() throws {
+        guard UIDevice.current.userInterfaceIdiom == .pad else {
+            throw XCTSkip("Regular-width tag sidebar selection requires iPad.")
+        }
+
+        XCUIDevice.shared.orientation = .landscapeLeft
+        defer { XCUIDevice.shared.orientation = .portrait }
+
+        let app = XCUIApplication()
+        app.launchArguments += ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        revealFilterSidebar(in: app)
+
+        let tagButtons = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "notes.sidebar.tag.")
+        )
+        XCTAssertGreaterThan(tagButtons.count, 0, app.debugDescription)
+        let tagButton = tagButtons.firstMatch
+        XCTAssertTrue(tagButton.isHittable, app.debugDescription)
+        tagButton.tap()
+        XCTAssertTrue(tagButton.isSelected, app.debugDescription)
+
+        let content = contentList(in: app)
+        XCTAssertTrue(content.waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertGreaterThan(content.cells.count, 0, app.debugDescription)
     }
 
     /// Ensures the regular-width iPad layout gives the editor space beside the sidebar.
@@ -105,7 +190,7 @@ final class NotraUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments += ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launch()
-        revealSidebar(in: app)
+        revealNotesContent(in: app)
 
         app.buttons["New Note"].firstMatch.tap()
         let editor = app.textViews.firstMatch
@@ -120,9 +205,12 @@ final class NotraUITests: XCTestCase {
             sidebarButton.tap()
         }
 
-        let sidebar = sidebarCollectionView(in: app)
+        let sidebar = filterSidebar(in: app)
+        let content = contentList(in: app)
         XCTAssertTrue(sidebar.waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertTrue(content.waitForExistence(timeout: 10), app.debugDescription)
         XCTAssertFalse(sidebar.frame.intersects(editor.frame), app.debugDescription)
+        XCTAssertFalse(content.frame.intersects(editor.frame), app.debugDescription)
 
         app.buttons["Hide Sidebar"].firstMatch.tap()
         XCTAssertTrue(editor.waitForExistence(timeout: 10))
@@ -152,13 +240,13 @@ final class NotraUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments += ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launch()
-        revealSidebar(in: app)
+        revealNotesContent(in: app)
 
         app.buttons["New Note"].firstMatch.tap()
         let doneButton = app.buttons["Done"].firstMatch
         XCTAssertTrue(doneButton.waitForExistence(timeout: 10))
         if !doneButton.isHittable {
-            sidebarButton(in: app).tap()
+            contentBackButton(in: app).tap()
         }
         let editor = app.textViews.firstMatch
         XCTAssertTrue(editor.waitForExistence(timeout: 10))
@@ -204,21 +292,21 @@ final class NotraUITests: XCTestCase {
             XCTAssertTrue(tagField.waitForNonExistence(timeout: 10))
         }
 
-        revealSidebar(in: app)
+        revealNotesContent(in: app)
         let note = app.cells.containing(.staticText, identifier: title).firstMatch
         XCTAssertTrue(note.waitForExistence(timeout: 10), app.debugDescription)
         note.tap()
         // The selected note must expose editing after returning from the inspector.
         XCTAssertTrue(app.buttons["Edit"].firstMatch.waitForExistence(timeout: 10))
         XCUIDevice.shared.orientation = .portrait
-        revealSidebar(in: app)
+        revealNotesContent(in: app)
         note.press(forDuration: 1)
         app.buttons["Delete"].firstMatch.tap()
         let confirmation = app.alerts["Delete Note?"]
         XCTAssertTrue(confirmation.waitForExistence(timeout: 5))
         confirmation.buttons["Delete"].tap()
         XCTAssertTrue(note.waitForNonExistence(timeout: 10))
-        revealSidebar(in: app)
+        revealNotesContent(in: app)
     }
 
     /// Inserts a Mermaid fence through the iOS keyboard accessory and verifies its rendered preview.
@@ -230,7 +318,7 @@ final class NotraUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments += ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launch()
-        revealSidebar(in: app)
+        revealNotesContent(in: app)
 
         app.buttons["New Note"].firstMatch.tap()
         let editor = app.textViews.firstMatch
@@ -239,7 +327,7 @@ final class NotraUITests: XCTestCase {
         editor.tap()
         editor.typeText("\(title)\n")
         defer {
-            revealSidebar(in: app)
+            revealNotesContent(in: app)
             let note = app.cells.containing(.staticText, identifier: title).firstMatch
             if note.waitForExistence(timeout: 3) {
                 note.press(forDuration: 1)
@@ -281,7 +369,7 @@ final class NotraUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments += ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launch()
-        revealSidebar(in: app)
+        revealNotesContent(in: app)
         app.buttons["New Note"].firstMatch.tap()
 
         let editor = app.textViews.firstMatch
@@ -290,7 +378,7 @@ final class NotraUITests: XCTestCase {
         editor.tap()
         editor.typeText("\(title)\n")
         defer {
-            revealSidebar(in: app)
+            revealNotesContent(in: app)
             let note = app.cells.containing(.staticText, identifier: title).firstMatch
             if note.waitForExistence(timeout: 3) {
                 note.press(forDuration: 1)
@@ -451,7 +539,7 @@ final class NotraUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments += ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launch()
-        revealSidebar(in: app)
+        revealNotesContent(in: app)
 
         app.buttons["New Note"].firstMatch.tap()
         let editor = app.textViews.firstMatch
@@ -461,7 +549,7 @@ final class NotraUITests: XCTestCase {
         editor.typeText("\(title)\nSecond line\nThird line")
         app.buttons["Done"].firstMatch.tap()
 
-        revealSidebar(in: app)
+        revealNotesContent(in: app)
         let note = app.cells.containing(.staticText, identifier: title).firstMatch
         XCTAssertTrue(note.waitForExistence(timeout: 10), app.debugDescription)
         note.tap()
@@ -481,7 +569,7 @@ final class NotraUITests: XCTestCase {
         )
 
         doneButton.tap()
-        revealSidebar(in: app)
+        revealNotesContent(in: app)
         note.press(forDuration: 1)
         app.buttons["Delete"].firstMatch.tap()
         let confirmation = app.alerts["Delete Note?"]
@@ -490,14 +578,20 @@ final class NotraUITests: XCTestCase {
         XCTAssertTrue(note.waitForNonExistence(timeout: 10), app.debugDescription)
     }
 
-    /// Uses the system sidebar control or compact back button without relying on screen coordinates.
+    /// Returns to notes content through native split-view navigation when it is not already usable.
     @MainActor
-    private func revealSidebar(in app: XCUIApplication) {
+    private func revealNotesContent(in app: XCUIApplication) {
         let newNoteButton = app.buttons["New Note"].firstMatch
         if !newNoteButton.isHittable {
-            let button = sidebarButton(in: app)
-            XCTAssertTrue(button.waitForExistence(timeout: 10), app.debugDescription)
-            button.tap()
+            let backButton = contentBackButton(in: app)
+            if backButton.isHittable {
+                backButton.tap()
+            } else if UIDevice.current.userInterfaceIdiom == .pad {
+                let hideSidebarButton = app.buttons["Hide Sidebar"].firstMatch
+                if hideSidebarButton.isHittable {
+                    hideSidebarButton.tap()
+                }
+            }
         }
         expectation(
             for: NSPredicate(format: "exists == true AND hittable == true"),
@@ -507,13 +601,29 @@ final class NotraUITests: XCTestCase {
     }
 
     @MainActor
-    private func sidebarButton(in app: XCUIApplication) -> XCUIElement {
-        let sidebarButton = sidebarVisibilityButton(in: app)
-        if sidebarButton.exists {
-            return sidebarButton
-        }
+    private func contentBackButton(in app: XCUIApplication) -> XCUIElement {
+        app.buttons["Back"].firstMatch
+    }
 
-        return app.buttons["Back"].firstMatch
+    @MainActor
+    private func contentList(in app: XCUIApplication) -> XCUIElement {
+        app.descendants(matching: .any).matching(identifier: "notes.content").firstMatch
+    }
+
+    @MainActor
+    private func revealFilterSidebar(in app: XCUIApplication) {
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            let showSidebarButton = app.buttons["Show Sidebar"].firstMatch
+            if showSidebarButton.isHittable {
+                showSidebarButton.tap()
+            }
+        } else {
+            revealNotesContent(in: app)
+            let sidebarButton = app.navigationBars.buttons.firstMatch
+            if sidebarButton.isHittable {
+                sidebarButton.tap()
+            }
+        }
     }
 
     @MainActor
@@ -524,12 +634,105 @@ final class NotraUITests: XCTestCase {
     }
 
     @MainActor
-    private func sidebarCollectionView(in app: XCUIApplication) -> XCUIElement {
-        app.collectionViews.matching(NSPredicate(format: "label == 'Sidebar'")).firstMatch
+    private func filterSidebar(in app: XCUIApplication) -> XCUIElement {
+        app.descendants(matching: .any).matching(identifier: "notes.sidebar").firstMatch
+    }
+
+    @MainActor
+    private func createTaggedNote(_ title: String, tags: [String], in app: XCUIApplication) {
+        revealNotesContent(in: app)
+        app.buttons["New Note"].firstMatch.tap()
+        let editor = app.textViews.firstMatch
+        XCTAssertTrue(editor.waitForExistence(timeout: 10), app.debugDescription)
+        editor.tap()
+        editor.typeText(title)
+        app.buttons["Done"].firstMatch.tap()
+
+        guard !tags.isEmpty else { return }
+        let attachmentsButton = app.buttons["info"].firstMatch
+        XCTAssertTrue(attachmentsButton.waitForExistence(timeout: 10), app.debugDescription)
+        attachmentsButton.tap()
+        let tagField = app.textFields["Add Tag"]
+        XCTAssertTrue(tagField.waitForExistence(timeout: 10), app.debugDescription)
+        for tag in tags {
+            tagField.tap()
+            tagField.typeText(tag)
+            app.buttons["Add Tag"].tap()
+        }
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            attachmentsButton.tap()
+        } else {
+            let inspector = app.collectionViews.containing(.textField, identifier: "Add Tag").firstMatch
+            XCTAssertTrue(inspector.waitForExistence(timeout: 5), app.debugDescription)
+            let grabber = inspector.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0))
+                .withOffset(CGVector(dx: 0, dy: 2))
+            let bottom = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.95))
+            grabber.press(forDuration: 0.1, thenDragTo: bottom)
+            XCTAssertTrue(tagField.waitForNonExistence(timeout: 10), app.debugDescription)
+        }
+        revealNotesContent(in: app)
+    }
+
+    @MainActor
+    private func assertFixtureRows(_ titles: [String], visible: [String], in app: XCUIApplication) {
+        let content = contentList(in: app)
+        XCTAssertTrue(content.waitForExistence(timeout: 10), app.debugDescription)
+        for title in titles {
+            let row = content.cells.containing(.staticText, identifier: title).firstMatch
+            XCTAssertEqual(row.exists, visible.contains(title), "Unexpected visibility for \(title)")
+        }
+    }
+
+    @MainActor
+    private func deleteFixtureNote(_ title: String, in app: XCUIApplication) {
+        revealNotesContent(in: app)
+        let row = app.cells.containing(.staticText, identifier: title).firstMatch
+        guard row.waitForExistence(timeout: 2) else { return }
+        row.press(forDuration: 1)
+        let deleteButton = app.buttons["Delete"].firstMatch
+        guard deleteButton.waitForExistence(timeout: 5) else { return }
+        deleteButton.tap()
+        let confirmation = app.alerts["Delete Note?"]
+        guard confirmation.waitForExistence(timeout: 5) else { return }
+        confirmation.buttons["Delete"].tap()
+        XCTAssertTrue(row.waitForNonExistence(timeout: 10), app.debugDescription)
     }
     #endif
 
-    #if os(macOS)
+#if os(macOS)
+    @MainActor
+    func testSidebarVisibilitySurvivesRelaunch() {
+        let app = XCUIApplication()
+        app.launchArguments += ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+
+        let sidebar = app.descendants(matching: .any).matching(identifier: "notes.sidebar").firstMatch
+        let initialVisibility = sidebar.exists
+        if !initialVisibility {
+            app.buttons["Show Sidebar"].firstMatch.tap()
+            XCTAssertTrue(sidebar.waitForExistence(timeout: 10), app.debugDescription)
+        }
+        XCTAssertTrue(app.buttons["New Note"].firstMatch.isHittable, app.debugDescription)
+
+        app.buttons["Hide Sidebar"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["Show Sidebar"].firstMatch.waitForExistence(timeout: 10), app.debugDescription)
+        app.terminate()
+        app.launch()
+        XCTAssertFalse(sidebar.exists, app.debugDescription)
+        XCTAssertTrue(app.buttons["New Note"].firstMatch.isHittable, app.debugDescription)
+
+        app.buttons["Show Sidebar"].firstMatch.tap()
+        XCTAssertTrue(sidebar.waitForExistence(timeout: 10), app.debugDescription)
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(sidebar.waitForExistence(timeout: 10), app.debugDescription)
+
+        if !initialVisibility {
+            app.buttons["Hide Sidebar"].firstMatch.tap()
+            XCTAssertTrue(app.buttons["Show Sidebar"].firstMatch.waitForExistence(timeout: 10), app.debugDescription)
+        }
+    }
+
     /// Closing the primary window must leave the app running and allow it to reopen with Command-0.
     @MainActor
     func testPrimaryWindowCanBeReopenedFromWindowMenu() {

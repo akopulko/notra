@@ -1,6 +1,17 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "allNotes" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Alle Notizen" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "All Notes" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Todas las notas" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Toutes les notes" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Все заметки" } }
+      }
+    },
+
     "importNotesWithEllipsis" : {
       "extractionState" : "manual",
       "localizations" : {
