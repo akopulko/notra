@@ -119,7 +119,9 @@ final class NotraUITests: XCTestCase {
         createTaggedNote(titles[1], tags: [betaName], in: app)
         createTaggedNote(titles[2], tags: [alphaName, betaName], in: app)
         createTaggedNote(titles[3], tags: [], in: app)
+
         revealFilterSidebar(in: app)
+        expandSidebarTagsIfNeeded(in: app)
 
         let alphaButton = app.buttons["notes.sidebar.tag.\(alphaName)"]
         let betaButton = app.buttons["notes.sidebar.tag.\(betaName)"]
@@ -147,6 +149,174 @@ final class NotraUITests: XCTestCase {
         revealFilterSidebar(in: app)
         allNotesButton.tap()
         assertFixtureRows(titles, visible: titles, in: app)
+    }
+
+    @MainActor
+    func testTagSidebarShowsTenTagsUntilExpanded() throws {
+        guard UIDevice.current.userInterfaceIdiom != .pad else {
+            throw XCTSkip("The inspector fixture path for sidebar expansion is exercised on iPhone.")
+        }
+        XCUIDevice.shared.orientation = .portrait
+        defer { XCUIDevice.shared.orientation = .portrait }
+        let app = XCUIApplication()
+        app.launchArguments += ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+
+        let suffix = UUID().uuidString.lowercased()
+        let titles = ["Tag Limit A \(suffix)", "Tag Limit B \(suffix)"]
+        let fixtureTags = (1...12).map { String(format: "limit-%@-%02d", suffix, $0) }
+        defer {
+            revealFilterSidebar(in: app)
+            let allNotesButton = app.buttons["notes.sidebar.allNotes"]
+            if allNotesButton.isHittable {
+                allNotesButton.tap()
+            }
+            for title in titles {
+                deleteFixtureNote(title, in: app)
+            }
+        }
+        createTaggedNote(titles[0], tags: Array(fixtureTags.prefix(10)), in: app)
+        createTaggedNote(titles[1], tags: Array(fixtureTags.suffix(2)), in: app)
+        revealFilterSidebar(in: app)
+        let allNotesButton = app.buttons["notes.sidebar.allNotes"]
+        XCTAssertTrue(allNotesButton.waitForExistence(timeout: 10), app.debugDescription)
+
+        let tagButtons = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "notes.sidebar.tag.")
+        )
+        XCTAssertEqual(tagButtons.count, 10, app.debugDescription)
+        let collapsedIDs = Set(tagButtons.allElementsBoundByIndex.map(\.identifier))
+        let expansionButton = app.buttons["notes.sidebar.showAllTags"]
+        XCTAssertTrue(expansionButton.exists, app.debugDescription)
+        attachScreenshot("Sidebar tags collapsed", in: app)
+
+        let hiddenFixtureTag = try XCTUnwrap(
+            fixtureTags.first { !collapsedIDs.contains("notes.sidebar.tag.\($0)") }
+        )
+        let firstFixtureTag = try XCTUnwrap(
+            fixtureTags.first { collapsedIDs.contains("notes.sidebar.tag.\($0)") }
+        )
+        app.buttons["notes.sidebar.tag.\(firstFixtureTag)"].tap()
+        revealFilterSidebar(in: app)
+        let selectedFixtureButton = app.buttons["notes.sidebar.tag.\(firstFixtureTag)"]
+        XCTAssertTrue(selectedFixtureButton.isSelected, app.debugDescription)
+        app.buttons["notes.sidebar.showAllTags"].tap()
+
+        XCTAssertTrue(filterSidebar(in: app).exists, app.debugDescription)
+        XCTAssertTrue(selectedFixtureButton.isSelected, app.debugDescription)
+        XCTAssertFalse(expansionButton.exists, app.debugDescription)
+        for tag in fixtureTags {
+            XCTAssertTrue(app.buttons["notes.sidebar.tag.\(tag)"].exists, app.debugDescription)
+        }
+        attachScreenshot("Sidebar tags expanded", in: app)
+
+        allNotesButton.tap()
+        revealFilterSidebar(in: app)
+        XCTAssertFalse(expansionButton.exists, app.debugDescription)
+        let hiddenButton = app.buttons["notes.sidebar.tag.\(hiddenFixtureTag)"]
+        for _ in 0..<10 where !hiddenButton.isHittable {
+            filterSidebar(in: app).swipeUp()
+        }
+        XCTAssertTrue(hiddenButton.isHittable, app.debugDescription)
+        hiddenButton.tap()
+        assertFixtureRows(titles, visible: [titles[1]], in: app)
+        revealFilterSidebar(in: app)
+        XCTAssertTrue(app.buttons["notes.sidebar.tag.\(hiddenFixtureTag)"].isSelected, app.debugDescription)
+        allNotesButton.tap()
+    }
+
+    @MainActor
+    func testExpandedTagSidebarStopsAt100() throws {
+        guard UIDevice.current.userInterfaceIdiom != .pad else {
+            throw XCTSkip("The inspector fixture path for sidebar expansion is exercised on iPhone.")
+        }
+        XCUIDevice.shared.orientation = .portrait
+        defer { XCUIDevice.shared.orientation = .portrait }
+        let app = XCUIApplication()
+        app.launchArguments += ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+
+        let suffix = UUID().uuidString.lowercased()
+        let titles = (1...11).map { String(format: "Tag Cap %@-%02d", suffix, $0) }
+        let fixtureTags = (1...101).map { String(format: "cap-%@-%03d", suffix, $0) }
+        let lastTag = fixtureTags[100]
+        defer {
+            revealFilterSidebar(in: app)
+            let allNotesButton = app.buttons["notes.sidebar.allNotes"]
+            if allNotesButton.isHittable {
+                allNotesButton.tap()
+            }
+            for title in titles {
+                deleteFixtureNote(title, in: app)
+            }
+        }
+        for (index, title) in titles.enumerated() {
+            let start = index * 10
+            let end = min(start + 10, fixtureTags.count)
+            createTaggedNote(title, tags: Array(fixtureTags[start..<end]), in: app)
+        }
+        revealFilterSidebar(in: app)
+
+        let tagButtons = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "notes.sidebar.tag.")
+        )
+        XCTAssertEqual(
+            tagButtons.allElementsBoundByIndex.map(\.identifier),
+            fixtureTags.prefix(10).map { "notes.sidebar.tag.\($0)" },
+            app.debugDescription
+        )
+        app.buttons["notes.sidebar.showAllTags"].tap()
+        XCTAssertEqual(
+            tagButtons.allElementsBoundByIndex.map(\.identifier),
+            fixtureTags.prefix(100).map { "notes.sidebar.tag.\($0)" },
+            app.debugDescription
+        )
+        XCTAssertFalse(app.buttons["notes.sidebar.tag.\(lastTag)"].exists, app.debugDescription)
+        XCTAssertFalse(app.buttons["notes.sidebar.showAllTags"].exists, app.debugDescription)
+        attachScreenshot("Sidebar tags capped at one hundred", in: app)
+
+        let expansionTag = fixtureTags[10]
+        app.buttons["notes.sidebar.tag.\(expansionTag)"].tap()
+        assertFixtureRows(titles, visible: [titles[1]], in: app)
+        revealFilterSidebar(in: app)
+        app.buttons["notes.sidebar.allNotes"].tap()
+        revealNotesContent(in: app)
+        let fixtureRow = app.cells.containing(.staticText, identifier: titles[10]).firstMatch
+        XCTAssertTrue(fixtureRow.waitForExistence(timeout: 10), app.debugDescription)
+        fixtureRow.tap()
+        let inspectorButton = app.buttons.matching(
+            NSPredicate(format: "identifier == 'info' OR label == 'Attachments'")
+        ).firstMatch
+        XCTAssertTrue(inspectorButton.waitForExistence(timeout: 10), app.debugDescription)
+        inspectorButton.tap()
+        let metadataTag = app.descendants(matching: .any).matching(
+            NSPredicate(format: "label == %@", "Tag \(lastTag)")
+        ).firstMatch
+        XCTAssertTrue(metadataTag.waitForExistence(timeout: 10), app.debugDescription)
+        let inspector = app.collectionViews.containing(.textField, identifier: "Add Tag").firstMatch
+        XCTAssertTrue(inspector.waitForExistence(timeout: 5), app.debugDescription)
+        let grabber = inspector.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0))
+            .withOffset(CGVector(dx: 0, dy: 2))
+        let bottom = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.95))
+        grabber.press(forDuration: 0.1, thenDragTo: bottom)
+        XCTAssertTrue(app.textFields["Add Tag"].waitForNonExistence(timeout: 10), app.debugDescription)
+        revealNotesContent(in: app)
+        revealFilterSidebar(in: app)
+        XCTAssertTrue(app.buttons["notes.sidebar.tag.\(expansionTag)"].exists, app.debugDescription)
+        XCTAssertFalse(app.buttons["notes.sidebar.showAllTags"].exists, app.debugDescription)
+
+        app.terminate()
+        app.launch()
+        revealFilterSidebar(in: app)
+        let relaunchedTagButtons = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "notes.sidebar.tag.")
+        )
+        XCTAssertEqual(
+            relaunchedTagButtons.allElementsBoundByIndex.map(\.identifier),
+            fixtureTags.prefix(10).map { "notes.sidebar.tag.\($0)" },
+            app.debugDescription
+        )
+        XCTAssertTrue(app.buttons["notes.sidebar.showAllTags"].exists, app.debugDescription)
     }
 
     @MainActor
@@ -576,6 +746,28 @@ final class NotraUITests: XCTestCase {
         XCTAssertTrue(confirmation.waitForExistence(timeout: 5), app.debugDescription)
         confirmation.buttons["Delete"].tap()
         XCTAssertTrue(note.waitForNonExistence(timeout: 10), app.debugDescription)
+    }
+
+    @MainActor
+    private func attachScreenshot(_ name: String, in app: XCUIApplication) {
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    @MainActor
+    private func expandSidebarTagsIfNeeded(in app: XCUIApplication) {
+        let allNotesButton = app.buttons["notes.sidebar.allNotes"]
+        expectation(
+            for: NSPredicate(format: "exists == true AND hittable == true"),
+            evaluatedWith: allNotesButton
+        )
+        waitForExpectations(timeout: 10)
+        let showAllTagsButton = app.buttons["notes.sidebar.showAllTags"]
+        if showAllTagsButton.exists {
+            showAllTagsButton.tap()
+        }
     }
 
     /// Returns to notes content through native split-view navigation when it is not already usable.

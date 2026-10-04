@@ -181,6 +181,8 @@ struct AttachmentInspectorView: View {
             tagInput = ""
         case .duplicate:
             tagEntryFeedback = .duplicate
+        case .limitReached:
+            tagEntryFeedback = .limitReached
         }
     }
 
@@ -360,6 +362,7 @@ struct AttachmentInspectorView: View {
 private enum TagEntryFeedback {
     case invalid
     case duplicate
+    case limitReached
 
     var message: LocalizedStringResource {
         switch self {
@@ -367,12 +370,14 @@ private enum TagEntryFeedback {
             "Use letters, numbers, hyphens, or underscores."
         case .duplicate:
             "Tag already added."
+        case .limitReached:
+            "A note can have at most \(NoteMetadata.maximumTagsPerNote) tags."
         }
     }
 
     var foregroundStyle: Color {
         switch self {
-        case .invalid:
+        case .invalid, .limitReached:
             .red
         case .duplicate:
             .secondary

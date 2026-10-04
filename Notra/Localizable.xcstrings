@@ -12,6 +12,17 @@
       }
     },
 
+    "showAllTags" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Alle Tags anzeigen" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Show All Tags" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Mostrar todas las etiquetas" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Afficher toutes les étiquettes" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Показать все теги" } }
+      }
+    },
+
     "importNotesWithEllipsis" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -364,6 +375,18 @@
         }
       }
     },
+    "A note can have at most %lld tags." : {
+      "comment" : "Tag limit feedback shown when a note already has the maximum number of tags.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Eine Notiz kann höchstens %lld Tags haben." } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "A note can have at most %lld tags." } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Una nota puede tener como máximo %lld etiquetas." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Une note peut contenir au maximum %lld étiquettes." } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "В заметке может быть не более %lld тегов." } }
+      }
+    },
+
     "About" : {
       "extractionState" : "manual",
       "localizations" : {

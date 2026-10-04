@@ -71,6 +71,86 @@ struct NoteTagFilterTests {
         #expect(regularSections.map { $0.notes.map(\.id) } == expectedSections)
     }
 
+    @Test
+    func `available tags rank by note membership independent of input order`() throws {
+        let zeta = try #require(NoteTag("zeta"))
+        let beta = try #require(NoteTag("beta"))
+        let alpha = try #require(NoteTag("alpha"))
+        let gamma = try #require(NoteTag("gamma"))
+        let notes = [
+            try note("zeta-one", tags: [zeta]),
+            try note("zeta-two", tags: [beta, zeta]),
+            try note("zeta-three", tags: [gamma, alpha, zeta]),
+            try note("beta-two", tags: [beta])
+        ]
+
+        let reversedNotes = [
+            try note("beta-two", tags: [beta]),
+            try note("zeta-three", tags: [zeta, alpha, gamma]),
+            try note("zeta-two", tags: [zeta, beta]),
+            try note("zeta-one", tags: [zeta])
+        ]
+        let forward = NoteTagFilter.availableTags(in: notes)
+        let reversed = NoteTagFilter.availableTags(in: reversedNotes)
+        #expect(forward.map(\.id) == [zeta.id, beta.id, alpha.id, gamma.id])
+        #expect(reversed.map(\.id) == forward.map(\.id))
+        #expect(reversed.map(\.name) == forward.map(\.name))
+    }
+
+    @Test
+    func `available tags count normalized membership once per note`() throws {
+        let swift = try #require(NoteTag("Swift"))
+        let lowercaseSwift = try #require(NoteTag("swift"))
+        let zeta = try #require(NoteTag("zeta"))
+        let notes = [
+            try note("duplicates", tags: [swift, lowercaseSwift, lowercaseSwift]),
+            try note("swift-two", tags: [lowercaseSwift]),
+            try note("zeta-one", tags: [zeta]),
+            try note("zeta-two", tags: [zeta]),
+            try note("zeta-three", tags: [zeta])
+        ]
+        let ranked = NoteTagFilter.availableTags(in: notes)
+        #expect(ranked.map(\.id) == [zeta.id, swift.id])
+        #expect(ranked.last?.name == "Swift")
+    }
+
+    @Test
+    func `available tags retains all ranks beyond collapsed display boundary`() throws {
+        let tags = try (1...12).map { try #require(NoteTag(String(format: "tag-%02d", $0))) }
+        let notes = try (0..<12).map { noteIndex in
+            try note(
+                "rank-\(noteIndex)",
+                tags: Array(tags.prefix(12 - noteIndex).reversed())
+            )
+        }
+        let ranked = NoteTagFilter.availableTags(in: notes.reversed().map { $0 })
+        let expectedIDs = tags.map(\.id)
+        #expect(ranked.map(\.id) == expectedIDs)
+        #expect(Array(ranked.prefix(10)).map(\.id) == Array(expectedIDs.prefix(10)))
+    }
+
+    @Test
+    func `available tags preserves filtering beyond expanded display boundary`() throws {
+        let tags = try (1...101).map { try #require(NoteTag(String(format: "tag-%03d", $0))) }
+        let note = try self.note("all-tags", tags: tags.reversed())
+        let ranked = NoteTagFilter.availableTags(in: [note])
+        #expect(ranked.map(\.id) == tags.map(\.id))
+        #expect(NoteTagFilter.matches(note, selectedIDs: [tags[100].id]))
+    }
+
+    @Test
+    func `note metadata enforces the per-note tag limit`() throws {
+        let tags = try (1...NoteMetadata.maximumTagsPerNote + 1).map {
+            try #require(NoteTag("tag-\($0)"))
+        }
+        var metadata = NoteMetadata(tags: tags)
+
+        #expect(metadata.tags == Array(tags.prefix(NoteMetadata.maximumTagsPerNote)))
+        #expect(metadata.add(tags[0]) == .duplicate(tags[0]))
+        #expect(metadata.add(tags[NoteMetadata.maximumTagsPerNote]) == .limitReached)
+        #expect(metadata.tags.count == NoteMetadata.maximumTagsPerNote)
+    }
+
     private func note(
         _ name: String,
         tags: [NoteTag],

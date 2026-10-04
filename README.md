@@ -10,7 +10,7 @@ Section headings use semibold headline text with a native horizontal divider ext
 
 Filter-only browsing keeps date sections. Typing a search query uses the **Pinned** and **Notes** sections instead, preserving search relevance within unpinned results.
 
-The leading sidebar lists tags shared by notes. Select one or more tags to show notes matching **any** selection; the list intersects that filter with text search. On compact iPhone layouts, use the sidebar navigation button to switch between tag filters and notes.
+The leading sidebar lists tags shared by notes, ordered by how many notes use each tag. It shows the ten most-used tags and offers `...` to expand the list to at most 100; each note can have up to ten tags. Select one or more tags to show notes matching **any** selection; the list intersects that filter with text search. On compact iPhone layouts, use the sidebar navigation button to switch between tag filters and notes.
 
 ## Markdown import on macOS
 

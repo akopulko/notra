@@ -13,7 +13,6 @@ struct TagCapsule: View {
         case sidebar
     }
 
-    @Environment(\.colorScheme) private var colorScheme
     let tag: NoteTag
     var size: Size = .regular
     var style: Style = .standard
@@ -46,26 +45,37 @@ struct TagCapsule: View {
                         .symbolRenderingMode(.hierarchical)
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(tagColors.foregroundColor)
                 .accessibilityLabel("Remove tag \(tag.displayName)")
             }
 
             Text(displayText ?? tag.prefixedDisplayName)
-                .font(font)
-                .foregroundStyle(tagColors.foregroundColor)
                 .lineLimit(1)
                 .truncationMode(.middle)
         }
-        .padding(.horizontal, horizontalPadding)
-        .padding(.vertical, verticalPadding)
-        .background(backgroundStyle, in: roundedRectangle)
-        .overlay {
-            roundedRectangle
-                .stroke(strokeStyle, lineWidth: 0.5)
-        }
-        .shadow(color: shadowColor, radius: shadowRadius, y: shadowY)
+        .modifier(TagCapsuleAppearance(size: size, style: style))
         .accessibilityElement(children: removeAction == nil ? .combine : .contain)
         .accessibilityLabel("Tag \(tag.displayName)")
+    }
+}
+
+struct TagCapsuleAppearance: ViewModifier {
+    @Environment(\.colorScheme) private var colorScheme
+
+    let size: TagCapsule.Size
+    let style: TagCapsule.Style
+
+    func body(content: Content) -> some View {
+        content
+            .font(font)
+            .foregroundStyle(tagColors.foregroundColor)
+            .padding(.horizontal, horizontalPadding)
+            .padding(.vertical, verticalPadding)
+            .background(backgroundStyle, in: roundedRectangle)
+            .overlay {
+                roundedRectangle
+                    .stroke(strokeStyle, lineWidth: 0.5)
+            }
+            .shadow(color: shadowColor, radius: shadowRadius, y: shadowY)
     }
 
     private var font: Font {

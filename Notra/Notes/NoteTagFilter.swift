@@ -2,25 +2,39 @@ import Foundation
 
 /// Derives stable tag choices and applies library-level tag membership.
 enum NoteTagFilter {
+    private struct TagUsage {
+        var tag: NoteTag
+        var count: Int
+    }
+
     nonisolated static func availableTags(in notes: [NoteSummary]) -> [NoteTag] {
-        var tagsByID: [String: NoteTag] = [:]
+        var tagsByID: [String: TagUsage] = [:]
+        var seenIDsInNote: Set<String> = []
         for note in notes {
+            seenIDsInNote.removeAll(keepingCapacity: true)
             for tag in note.tags {
-                if let existing = tagsByID[tag.id] {
-                    if tag.name.lexicographicallyPrecedes(existing.name) {
-                        tagsByID[tag.id] = tag
+                let tagID = tag.id
+                if var usage = tagsByID[tagID] {
+                    if tag.name.lexicographicallyPrecedes(usage.tag.name) {
+                        usage.tag = tag
                     }
+                    if seenIDsInNote.insert(tagID).inserted {
+                        usage.count += 1
+                    }
+                    tagsByID[tagID] = usage
                 } else {
-                    tagsByID[tag.id] = tag
+                    tagsByID[tagID] = TagUsage(tag: tag, count: 1)
+                    seenIDsInNote.insert(tagID)
                 }
             }
         }
         return tagsByID.values.sorted {
-            let comparison = $0.normalizedKey.localizedStandardCompare($1.normalizedKey)
+            guard $0.count == $1.count else { return $0.count > $1.count }
+            let comparison = $0.tag.normalizedKey.localizedStandardCompare($1.tag.normalizedKey)
             return comparison == .orderedSame
-                ? $0.normalizedKey.lexicographicallyPrecedes($1.normalizedKey)
+                ? $0.tag.normalizedKey.lexicographicallyPrecedes($1.tag.normalizedKey)
                 : comparison == .orderedAscending
-        }
+        }.map(\.tag)
     }
 
     nonisolated static func matches(_ note: NoteSummary, selectedIDs: Set<String>) -> Bool {

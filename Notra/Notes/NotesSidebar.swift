@@ -4,11 +4,20 @@ import SwiftUI
 struct NotesSidebar: View {
     @Environment(\.colorScheme) private var colorScheme
 
+    @State private var showsAllTags = false
+
+    private let collapsedTagLimit = 10
+    private let expandedTagLimit = 100
+
     let tags: [NoteTag]
     let selectedTagIDs: Set<String>
     let isDisabled: Bool
     let showAllNotes: () -> Void
     let toggleTag: (NoteTag) -> Void
+
+    private var visibleTags: ArraySlice<NoteTag> {
+        tags.prefix(showsAllTags ? expandedTagLimit : collapsedTagLimit)
+    }
 
     var body: some View {
         List {
@@ -26,8 +35,11 @@ struct NotesSidebar: View {
                         .foregroundStyle(.secondary)
                 } else {
                     TagFlowLayout(horizontalSpacing: 8, verticalSpacing: 8) {
-                        ForEach(tags) { tag in
+                        ForEach(visibleTags) { tag in
                             tagButton(tag)
+                        }
+                        if !showsAllTags, tags.count > collapsedTagLimit {
+                            showAllTagsButton
                         }
                     }
                 }
@@ -52,5 +64,17 @@ struct NotesSidebar: View {
         .buttonStyle(.plain)
         .accessibilityIdentifier("notes.sidebar.tag.\(tag.id)")
         .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    private var showAllTagsButton: some View {
+        Button {
+            showsAllTags = true
+        } label: {
+            Text(verbatim: "...")
+                .modifier(TagCapsuleAppearance(size: .regular, style: .sidebar))
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("notes.sidebar.showAllTags")
+        .accessibilityLabel(Text(.showAllTags))
     }
 }

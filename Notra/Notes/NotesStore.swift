@@ -664,7 +664,10 @@ extension NotesStore {
         do {
             let generation = repositoryGeneration
             var metadata = selectedNote.metadata
-            let inserted = metadata.add(tag)
+            let mutation = metadata.add(tag)
+            guard case .added = mutation else {
+                return mutation
+            }
             try saveSelectedNoteMetadata(metadata, in: &selectedNote)
             Task { [weak self, selectedNote, generation] in
                 guard let self, isCurrentRepository(generation) else {
@@ -672,8 +675,8 @@ extension NotesStore {
                 }
                 _ = await indexNote(selectedNote, generation: generation)
             }
-            AppLog.info("Tag \(inserted ? "added" : "already exists"); tag=\(tag.name)")
-            return inserted ? .added(tag) : .duplicate(tag)
+            AppLog.info("Tag added; tag=\(tag.name)")
+            return mutation
         } catch {
             AppLog.error("Failed to add tag: \(error.localizedDescription)")
             errorMessage = error.localizedDescription
