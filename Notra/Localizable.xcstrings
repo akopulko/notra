@@ -12,14 +12,24 @@
       }
     },
 
-    "showAllTags" : {
+    "showAll" : {
       "extractionState" : "manual",
       "localizations" : {
-        "de" : { "stringUnit" : { "state" : "translated", "value" : "Alle Tags anzeigen" } },
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Show All Tags" } },
-        "es" : { "stringUnit" : { "state" : "translated", "value" : "Mostrar todas las etiquetas" } },
-        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Afficher toutes les étiquettes" } },
-        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Показать все теги" } }
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Alle anzeigen" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Show All" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Mostrar todo" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Tout afficher" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Показать все" } }
+      }
+    },
+    "showLess" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Weniger anzeigen" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Show Less" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Mostrar menos" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Afficher moins" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Показать меньше" } }
       }
     },
 

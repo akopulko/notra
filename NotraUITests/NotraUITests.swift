@@ -186,8 +186,9 @@ final class NotraUITests: XCTestCase {
         )
         XCTAssertEqual(tagButtons.count, 10, app.debugDescription)
         let collapsedIDs = Set(tagButtons.allElementsBoundByIndex.map(\.identifier))
-        let expansionButton = app.buttons["notes.sidebar.showAllTags"]
-        XCTAssertTrue(expansionButton.exists, app.debugDescription)
+        let visibilityToggle = app.buttons["notes.sidebar.tagVisibilityToggle"]
+        XCTAssertTrue(visibilityToggle.exists, app.debugDescription)
+        XCTAssertEqual(visibilityToggle.label, "Show All", app.debugDescription)
         attachScreenshot("Sidebar tags collapsed", in: app)
 
         let hiddenFixtureTag = try XCTUnwrap(
@@ -200,19 +201,27 @@ final class NotraUITests: XCTestCase {
         revealFilterSidebar(in: app)
         let selectedFixtureButton = app.buttons["notes.sidebar.tag.\(firstFixtureTag)"]
         XCTAssertTrue(selectedFixtureButton.isSelected, app.debugDescription)
-        app.buttons["notes.sidebar.showAllTags"].tap()
+        visibilityToggle.tap()
 
         XCTAssertTrue(filterSidebar(in: app).exists, app.debugDescription)
         XCTAssertTrue(selectedFixtureButton.isSelected, app.debugDescription)
-        XCTAssertFalse(expansionButton.exists, app.debugDescription)
+        XCTAssertTrue(visibilityToggle.exists, app.debugDescription)
+        XCTAssertEqual(visibilityToggle.label, "Show Less", app.debugDescription)
         for tag in fixtureTags {
             XCTAssertTrue(app.buttons["notes.sidebar.tag.\(tag)"].exists, app.debugDescription)
         }
         attachScreenshot("Sidebar tags expanded", in: app)
+        visibilityToggle.tap()
+        XCTAssertEqual(tagButtons.count, 10, app.debugDescription)
+        XCTAssertEqual(visibilityToggle.label, "Show All", app.debugDescription)
+        visibilityToggle.tap()
+        XCTAssertEqual(tagButtons.count, fixtureTags.count, app.debugDescription)
+        XCTAssertEqual(visibilityToggle.label, "Show Less", app.debugDescription)
 
         allNotesButton.tap()
         revealFilterSidebar(in: app)
-        XCTAssertFalse(expansionButton.exists, app.debugDescription)
+        XCTAssertTrue(visibilityToggle.exists, app.debugDescription)
+        XCTAssertEqual(visibilityToggle.label, "Show Less", app.debugDescription)
         let hiddenButton = app.buttons["notes.sidebar.tag.\(hiddenFixtureTag)"]
         for _ in 0..<10 where !hiddenButton.isHittable {
             filterSidebar(in: app).swipeUp()
@@ -265,14 +274,15 @@ final class NotraUITests: XCTestCase {
             fixtureTags.prefix(10).map { "notes.sidebar.tag.\($0)" },
             app.debugDescription
         )
-        app.buttons["notes.sidebar.showAllTags"].tap()
+        app.buttons["notes.sidebar.tagVisibilityToggle"].tap()
         XCTAssertEqual(
             tagButtons.allElementsBoundByIndex.map(\.identifier),
             fixtureTags.prefix(100).map { "notes.sidebar.tag.\($0)" },
             app.debugDescription
         )
         XCTAssertFalse(app.buttons["notes.sidebar.tag.\(lastTag)"].exists, app.debugDescription)
-        XCTAssertFalse(app.buttons["notes.sidebar.showAllTags"].exists, app.debugDescription)
+        XCTAssertTrue(app.buttons["notes.sidebar.tagVisibilityToggle"].exists, app.debugDescription)
+        XCTAssertEqual(app.buttons["notes.sidebar.tagVisibilityToggle"].label, "Show Less", app.debugDescription)
         attachScreenshot("Sidebar tags capped at one hundred", in: app)
 
         let expansionTag = fixtureTags[10]
@@ -303,7 +313,8 @@ final class NotraUITests: XCTestCase {
         revealNotesContent(in: app)
         revealFilterSidebar(in: app)
         XCTAssertTrue(app.buttons["notes.sidebar.tag.\(expansionTag)"].exists, app.debugDescription)
-        XCTAssertFalse(app.buttons["notes.sidebar.showAllTags"].exists, app.debugDescription)
+        XCTAssertTrue(app.buttons["notes.sidebar.tagVisibilityToggle"].exists, app.debugDescription)
+        XCTAssertEqual(app.buttons["notes.sidebar.tagVisibilityToggle"].label, "Show Less", app.debugDescription)
 
         app.terminate()
         app.launch()
@@ -316,7 +327,8 @@ final class NotraUITests: XCTestCase {
             fixtureTags.prefix(10).map { "notes.sidebar.tag.\($0)" },
             app.debugDescription
         )
-        XCTAssertTrue(app.buttons["notes.sidebar.showAllTags"].exists, app.debugDescription)
+        XCTAssertTrue(app.buttons["notes.sidebar.tagVisibilityToggle"].exists, app.debugDescription)
+        XCTAssertEqual(app.buttons["notes.sidebar.tagVisibilityToggle"].label, "Show All", app.debugDescription)
     }
 
     @MainActor
@@ -764,9 +776,9 @@ final class NotraUITests: XCTestCase {
             evaluatedWith: allNotesButton
         )
         waitForExpectations(timeout: 10)
-        let showAllTagsButton = app.buttons["notes.sidebar.showAllTags"]
-        if showAllTagsButton.exists {
-            showAllTagsButton.tap()
+        let visibilityToggle = app.buttons["notes.sidebar.tagVisibilityToggle"]
+        if visibilityToggle.label == "Show All" {
+            visibilityToggle.tap()
         }
     }
 

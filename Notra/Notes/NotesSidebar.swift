@@ -38,14 +38,27 @@ struct NotesSidebar: View {
                         ForEach(visibleTags) { tag in
                             tagButton(tag)
                         }
-                        if !showsAllTags, tags.count > collapsedTagLimit {
-                            showAllTagsButton
-                        }
                     }
                 }
             } header: {
-                Text("Tags")
-                    .foregroundStyle(MarkdownTheme.preferred(for: colorScheme).previewHashtagColors.backgroundColor)
+                HStack {
+                    Text("Tags")
+                        .foregroundStyle(MarkdownTheme.preferred(for: colorScheme).previewHashtagColors.backgroundColor)
+                    Spacer()
+                    if tags.count > collapsedTagLimit {
+                        Button {
+                            showsAllTags.toggle()
+                        } label: {
+                            if showsAllTags {
+                                Text(.showLess)
+                            } else {
+                                Text(.showAll)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("notes.sidebar.tagVisibilityToggle")
+                    }
+                }
             }
         }
         .listStyle(.sidebar)
@@ -64,17 +77,5 @@ struct NotesSidebar: View {
         .buttonStyle(.plain)
         .accessibilityIdentifier("notes.sidebar.tag.\(tag.id)")
         .accessibilityAddTraits(isSelected ? .isSelected : [])
-    }
-
-    private var showAllTagsButton: some View {
-        Button {
-            showsAllTags = true
-        } label: {
-            Text(verbatim: "...")
-                .modifier(TagCapsuleAppearance(size: .regular, style: .sidebar))
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("notes.sidebar.showAllTags")
-        .accessibilityLabel(Text(.showAllTags))
     }
 }
