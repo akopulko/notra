@@ -272,6 +272,176 @@ final class NotraUITests: XCTestCase {
         XCTAssertTrue(renderedDiagram.waitForExistence(timeout: 15), app.debugDescription)
     }
 
+    /// Verifies fixed keyboard history controls and native text-view undo/redo.
+    @MainActor
+    func testKeyboardAccessoryUndoRedo() {
+        XCUIDevice.shared.orientation = .portrait
+        defer { XCUIDevice.shared.orientation = .portrait }
+
+        let app = XCUIApplication()
+        app.launchArguments += ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        revealSidebar(in: app)
+        app.buttons["New Note"].firstMatch.tap()
+
+        let editor = app.textViews.firstMatch
+        XCTAssertTrue(editor.waitForExistence(timeout: 10), app.debugDescription)
+        let title = "Keyboard History \(UUID().uuidString)"
+        editor.tap()
+        editor.typeText("\(title)\n")
+        defer {
+            revealSidebar(in: app)
+            let note = app.cells.containing(.staticText, identifier: title).firstMatch
+            if note.waitForExistence(timeout: 3) {
+                note.press(forDuration: 1)
+                let deleteButton = app.buttons["Delete"].firstMatch
+                if deleteButton.waitForExistence(timeout: 3) {
+                    deleteButton.tap()
+                    let confirmation = app.alerts["Delete Note?"]
+                    if confirmation.waitForExistence(timeout: 3) {
+                        confirmation.buttons["Delete"].tap()
+                    }
+                }
+            }
+        }
+
+        let undoButton = app.buttons["Undo"]
+        let redoButton = app.buttons["Redo"]
+        let formattingScrollView = app.scrollViews["editorFormattingScrollView"]
+        XCTAssertTrue(undoButton.waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertTrue(redoButton.waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertTrue(formattingScrollView.waitForExistence(timeout: 10), app.debugDescription)
+        let initiallyEnabled = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "isEnabled == true"),
+            object: undoButton
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [initiallyEnabled], timeout: 10), .completed)
+
+        let initialUndoFrame = undoButton.frame
+        let initialRedoFrame = redoButton.frame
+
+        func assertHistoryFrames(_ undoFrame: CGRect, _ redoFrame: CGRect, file: StaticString = #filePath, line: UInt = #line) {
+            XCTAssertEqual(abs(undoButton.frame.minX - undoFrame.minX), 0, accuracy: 1, file: file, line: line)
+            XCTAssertEqual(abs(undoButton.frame.minY - undoFrame.minY), 0, accuracy: 1, file: file, line: line)
+            XCTAssertEqual(abs(redoButton.frame.minX - redoFrame.minX), 0, accuracy: 1, file: file, line: line)
+            XCTAssertEqual(abs(redoButton.frame.minY - redoFrame.minY), 0, accuracy: 1, file: file, line: line)
+            XCTAssertGreaterThanOrEqual(undoButton.frame.minY, formattingScrollView.frame.minY - 1, file: file, line: line)
+            XCTAssertLessThanOrEqual(redoButton.frame.maxY, formattingScrollView.frame.maxY + 1, file: file, line: line)
+        }
+
+        func attachScreenshot(_ name: String) {
+            let attachment = XCTAttachment(screenshot: app.screenshot())
+            attachment.name = name
+            attachment.lifetime = .keepAlways
+            add(attachment)
+        }
+
+        func waitForValue(_ value: String, timeout: TimeInterval = 10) -> Bool {
+            let expectation = XCTNSPredicateExpectation(
+                predicate: NSPredicate(format: "value == %@", value),
+                object: editor
+            )
+            return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
+        }
+
+        attachScreenshot("Portrait toolbar initial")
+        let mermaidButton = app.buttons["Insert Mermaid Diagram"].firstMatch
+        for _ in 0..<6 where !mermaidButton.isHittable {
+            formattingScrollView.swipeLeft()
+            assertHistoryFrames(initialUndoFrame, initialRedoFrame)
+        }
+        XCTAssertTrue(mermaidButton.isHittable, app.debugDescription)
+        attachScreenshot("Portrait toolbar scrolled")
+
+        formattingScrollView.swipeRight()
+        assertHistoryFrames(initialUndoFrame, initialRedoFrame)
+        let headingButton = app.buttons["Headers"].firstMatch
+        for _ in 0..<6 where !headingButton.isHittable {
+            formattingScrollView.swipeRight()
+            assertHistoryFrames(initialUndoFrame, initialRedoFrame)
+        }
+        XCTAssertTrue(headingButton.isHittable, app.debugDescription)
+        formattingScrollView.swipeLeft()
+        assertHistoryFrames(initialUndoFrame, initialRedoFrame)
+        for _ in 0..<6 where !mermaidButton.isHittable {
+            formattingScrollView.swipeLeft()
+            assertHistoryFrames(initialUndoFrame, initialRedoFrame)
+        }
+        XCTAssertTrue(mermaidButton.isHittable, app.debugDescription)
+
+        let baseline = editor.value as? String ?? ""
+        mermaidButton.tap()
+        let insertedBlock = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value CONTAINS %@", "```mermaid\nflowchart TD\n    A --> B\n```"),
+            object: editor
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [insertedBlock], timeout: 10), .completed)
+        let formatted = editor.value as? String ?? ""
+        XCTAssertTrue(formatted.contains("```mermaid\nflowchart TD\n    A --> B\n```"), formatted)
+        XCTAssertTrue(undoButton.isEnabled, app.debugDescription)
+        attachScreenshot("Formatting applied")
+
+        undoButton.tap()
+        XCTAssertTrue(waitForValue(baseline), app.debugDescription)
+        XCTAssertTrue(redoButton.isEnabled, app.debugDescription)
+        attachScreenshot("Formatting undone")
+        redoButton.tap()
+        XCTAssertTrue(waitForValue(formatted), app.debugDescription)
+        XCTAssertTrue(undoButton.isEnabled, app.debugDescription)
+        attachScreenshot("Formatting redone")
+        undoButton.tap()
+        XCTAssertTrue(waitForValue(baseline), app.debugDescription)
+        editor.typeText("replacement")
+        let appended = baseline + "replacement"
+        XCTAssertTrue(waitForValue(appended), app.debugDescription)
+        let redoDisabled = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "isEnabled == false"),
+            object: redoButton
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [redoDisabled], timeout: 10), .completed)
+
+        var undoCount = 0
+        while (editor.value as? String) != baseline, undoCount < "replacement".count + 1 {
+            XCTAssertTrue(undoButton.isEnabled, app.debugDescription)
+            let previousValue = editor.value as? String ?? ""
+            undoButton.tap()
+            let changed = XCTNSPredicateExpectation(
+                predicate: NSPredicate(format: "value != %@", previousValue),
+                object: editor
+            )
+            XCTAssertEqual(XCTWaiter.wait(for: [changed], timeout: 10), .completed)
+            undoCount += 1
+        }
+        XCTAssertEqual(editor.value as? String, baseline, app.debugDescription)
+        XCTAssertGreaterThan(undoCount, 0)
+
+        for _ in 0..<undoCount {
+            XCTAssertTrue(redoButton.isEnabled, app.debugDescription)
+            let previousValue = editor.value as? String ?? ""
+            redoButton.tap()
+            let changed = XCTNSPredicateExpectation(
+                predicate: NSPredicate(format: "value != %@", previousValue),
+                object: editor
+            )
+            XCTAssertEqual(XCTWaiter.wait(for: [changed], timeout: 10), .completed)
+        }
+        XCTAssertTrue(waitForValue(appended), app.debugDescription)
+
+        XCUIDevice.shared.orientation = .landscapeLeft
+        let landscapeReady = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "exists == true AND hittable == true"),
+            object: undoButton
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [landscapeReady], timeout: 10), .completed)
+        let landscapeUndoFrame = undoButton.frame
+        let landscapeRedoFrame = redoButton.frame
+        formattingScrollView.swipeLeft()
+        assertHistoryFrames(landscapeUndoFrame, landscapeRedoFrame)
+        formattingScrollView.swipeRight()
+        assertHistoryFrames(landscapeUndoFrame, landscapeRedoFrame)
+        attachScreenshot("Landscape toolbar")
+    }
+
     /// Verifies edit-mode content starts below the visible top toolbar.
     @MainActor
     func testEditorStartsBelowTopChromeWhenEnteringEditMode() {
