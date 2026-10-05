@@ -46,6 +46,7 @@ struct NotesList: View {
     @State private var isLoadingMoreSearchResults = false
     @State private var isRefreshingSearchResults = false
     @State private var pendingNoteReveal: NoteRevealRequest?
+    @State private var attentionNoteReveal: NoteRevealRequest?
     /// Holds one user-initiated deletion until its native confirmation is resolved.
     @State private var pendingDeletion: NoteDeletionRequest?
     @AppStorage(AppearanceSettingKey.showsNotePreview) private var showsNotePreview = true
@@ -120,8 +121,12 @@ struct NotesList: View {
                 guard isChanging else { return }
                 pendingNoteReveal = nil
                 noteRevealRequest = nil
+                attentionNoteReveal = nil
             }
             .onChange(of: store.notes) { _, notes in
+                if let attentionNoteReveal, !notes.contains(where: { $0.id == attentionNoteReveal.noteID }) {
+                    self.attentionNoteReveal = nil
+                }
                 guard let request = pendingNoteReveal ?? noteRevealRequest,
                       !notes.contains(where: { $0.id == request.noteID })
                 else {
@@ -140,6 +145,13 @@ struct NotesList: View {
             }
             .task(id: searchRequest) {
                 await refreshSearchResults(for: searchRequest)
+            }
+            .task(id: attentionNoteReveal) {
+                guard let request = attentionNoteReveal else { return }
+                await expireNoteAttention(request)
+            }
+            .onDisappear {
+                attentionNoteReveal = nil
             }
     }
 
@@ -293,6 +305,7 @@ struct NotesList: View {
                 }
 
                 proxy.scrollTo(request.noteID, anchor: .center)
+                attentionNoteReveal = request
                 #if os(macOS)
                 store.selectedNoteID = request.noteID
                 #endif
@@ -357,6 +370,16 @@ struct NotesList: View {
 }
 
 private extension NotesList {
+    func expireNoteAttention(_ request: NoteRevealRequest) async {
+        do {
+            try await Task.sleep(for: .seconds(2))
+        } catch {
+            return
+        }
+        guard !Task.isCancelled, attentionNoteReveal?.id == request.id else { return }
+        attentionNoteReveal = nil
+    }
+
     private func loadMoreSearchResults() {
         guard isSearching, !trimmedSearchText.isEmpty, hasMoreSearchResults, !isLoadingMoreSearchResults else {
             return
@@ -623,6 +646,9 @@ private extension NotesList {
                 sortField: store.sortPreference.field,
                 showsNotePreview: showsNotePreview
             )
+            .modifier(NoteRowAttentionModifier(
+                requestID: attentionNoteReveal?.noteID == note.id ? attentionNoteReveal?.id : nil
+            ))
         }
         .id(note.id)
         .contextMenu {

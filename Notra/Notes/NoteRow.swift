@@ -107,6 +107,29 @@ struct NoteRow: View {
     }
 }
 
+/// Replays a spring pulse for each image shortcut, including a row created after scrolling.
+struct NoteRowAttentionModifier: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var animationTrigger: UUID?
+
+    let requestID: UUID?
+
+    func body(content: Content) -> some View {
+        content
+            .phaseAnimator([false, true, false], trigger: animationTrigger) { content, phase in
+                let isEmphasized = requestID != nil && phase && !reduceMotion
+                content
+                    .scaleEffect(isEmphasized ? 1.08 : 1)
+            } animation: { _ in
+                reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.5)
+            }
+            .task(id: requestID) {
+                guard let requestID else { return }
+                animationTrigger = requestID
+            }
+    }
+}
+
 /// Keeps sidebar tags visually separate while fitting them into a single row.
 private struct NoteRowTagsLine: View {
     let tags: [NoteTag]

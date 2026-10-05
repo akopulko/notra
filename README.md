@@ -14,6 +14,8 @@ The leading sidebar lists tags shared by notes, ordered by how many notes use ea
 
 The **Images** section contains linked local images from the whole library. Tapping a thumbnail reveals its owning row and clears filters only if they hide that note. On iOS and iPadOS, this only scrolls the notes list; tap the row to select and open the note. On macOS, the thumbnail also selects and opens its owning note.
 
+The revealed row briefly zooms to 108% scale and back with a spring animation, without a background fill or outline. Each thumbnail tap replays the effect, including another image from the same note. **Reduce Motion** disables the zoom.
+
 ## Markdown import on macOS
 
 Use **File → Import…** to select one or more Markdown files. Each file becomes a separate note; importing the same file again creates another note.
