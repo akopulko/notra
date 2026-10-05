@@ -61,6 +61,16 @@ make build-macos
 
 The build targets run SwiftFormat and SwiftLint in lint mode before compiling.
 
+## Continuous integration and unit tests
+
+`.github/workflows/ci.yml` runs for pull requests targeting `master` and pushes to `master`. It uses `dorny/paths-filter` v4 in Git mode with inline filters, requiring no separate filter file or PR API permission. Changes confined to `docs/` skip app validation; the lightweight **CI result** check still completes so required checks do not block website-only pull requests. Changes outside `docs/`, including mixed app/website changes, run the full validation.
+
+CI uses GitHub's [`xcode-27` preview runner](https://github.com/actions/runner-images/issues/14404), currently running macOS 27, and explicitly selects Xcode 27.0. It checks SwiftFormat and SwiftLint, builds iOS simulator/device targets, runs unit tests on iPhone 17 with iOS 27.0, then builds and tests macOS natively. Platform builds and test runs are sequential. Compiler and linker warnings are treated as errors.
+
+The workflow has read-only repository access, pins actions to full commit SHAs, does not persist checkout credentials, and requires no Apple signing secrets. Version comments identify each pinned release; unlike tags such as `v7`, these references cannot move to different code. CI does not run UI tests or change the separate Pages deployment. Configure branch protection on `master` to require **CI result**, not the conditionally skipped validation job.
+
+Unit-test commands live directly in `ci.yml`, with no extra helper scripts or Python files. They use the shared `Notra` scheme, select only `NotraTests`, and use the public local-only configuration without personal signing credentials. `NotraUITests` remains available in Xcode but is not executed by CI. Run the `NotraTests` target in Xcode for local unit testing.
+
 ## Run
 
 The run targets build the selected Debug app before launching it and stream logs. If the ignored `Config/LocalSigning.xcconfig` exists, they sign the build automatically; otherwise they use an unsigned build:
@@ -104,7 +114,7 @@ CODE_SIGNING_ALLOWED=YES make build-ios
 
 ## Contributing
 
-Use focused branches and keep changes small. Before opening a pull request, run both build scripts and make sure there are no warnings, SwiftFormat issues, or SwiftLint violations.
+Use focused branches and keep changes small. Before opening a pull request, run both build scripts, run `NotraTests` in Xcode, and make sure there are no warnings, SwiftFormat issues, SwiftLint violations, or failing unit tests.
 
 Install the local pre-commit privacy hook before your first commit:
 

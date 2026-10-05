@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-script_dir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+script_dir="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
 cd "$script_dir/.."
 
 configuration="${CONFIGURATION:-Debug}"
@@ -19,7 +19,9 @@ build_target() {
     -configuration "$configuration" \
     -destination "$destination" \
     -derivedDataPath "$derived_data_path" \
-    CODE_SIGNING_ALLOWED="$code_signing_allowed"
+    CODE_SIGNING_ALLOWED="$code_signing_allowed" \
+    GCC_TREAT_WARNINGS_AS_ERRORS=YES \
+    OTHER_LDFLAGS="\$(inherited) -Wl,-fatal_warnings"
 }
 
 "$script_dir/lint.sh"

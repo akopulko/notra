@@ -1,0 +1,139 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+
+# Immutable release commits prevent upstream version tags from changing CI code.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  changes:
+    name: Detect app changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      run_validation: ${{ steps.changes.outputs.app }}
+    steps:
+      - name: Check out source and history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Detect changes outside docs
+        id: changes
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          # Git mode needs no PR API permission and avoids the API file-list limit.
+          token: ''
+          base: ${{ github.event.pull_request.base.sha || github.ref }}
+          filters: |
+            app:
+              # Exclude the docs/ prefix; also match newlines in Git filenames.
+              - '(?!docs/)([\s\S]+)'
+
+  validate:
+    name: Lint, build, and unit tests
+    needs: changes
+    if: needs.changes.outputs.run_validation == 'true'
+    runs-on: xcode-27
+    timeout-minutes: 45
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.0.app/Contents/Developer
+      CODE_SIGNING_ALLOWED: 'NO'
+      HOMEBREW_NO_AUTO_UPDATE: '1'
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Prepare lint tools
+        run: |
+          brew install swiftlint
+          swiftformat --version
+          swiftlint version
+      - name: Report Apple toolchain
+        run: |
+          sw_vers
+          xcodebuild -version
+          xcodebuild -showsdks
+          xcrun simctl list devices available
+      - name: Check SwiftFormat and SwiftLint
+        run: make lint
+      - name: Build iOS simulator and device
+        run: make build-ios
+      - name: Run iOS unit tests
+        run: |
+          xcodebuild test \
+            -project Notra.xcodeproj \
+            -scheme Notra \
+            -configuration Debug \
+            -destination 'platform=iOS Simulator,name=iPhone 17,OS=27.0' \
+            -derivedDataPath "${TMPDIR:-/tmp}/NotraDerivedData" \
+            -parallel-testing-enabled NO \
+            -only-testing:NotraTests \
+            CODE_SIGNING_ALLOWED=NO \
+            DEVELOPMENT_TEAM= \
+            NOTRA_BUNDLE_IDENTIFIER=app.notra.Notra \
+            NOTRA_ICLOUD_CONTAINER_IDENTIFIER= \
+            NOTRA_CODE_SIGN_ENTITLEMENTS=Notra/Notra.entitlements \
+            NOTRA_INFO_PLIST_FILE=NotraInfo.plist \
+            GCC_TREAT_WARNINGS_AS_ERRORS=YES \
+            OTHER_LDFLAGS="\$(inherited) -Wl,-fatal_warnings"
+      - name: Build macOS
+        run: make build-macos
+      - name: Run macOS unit tests
+        run: |
+          xcodebuild test \
+            -project Notra.xcodeproj \
+            -scheme Notra \
+            -configuration Debug \
+            -destination 'platform=macOS,arch=arm64' \
+            -derivedDataPath "${TMPDIR:-/tmp}/NotraDerivedData-macOS" \
+            -parallel-testing-enabled NO \
+            -only-testing:NotraTests \
+            CODE_SIGNING_ALLOWED=NO \
+            DEVELOPMENT_TEAM= \
+            NOTRA_BUNDLE_IDENTIFIER=app.notra.Notra \
+            NOTRA_ICLOUD_CONTAINER_IDENTIFIER= \
+            NOTRA_CODE_SIGN_ENTITLEMENTS=Notra/Notra.entitlements \
+            NOTRA_INFO_PLIST_FILE=NotraInfo.plist \
+            GCC_TREAT_WARNINGS_AS_ERRORS=YES \
+            OTHER_LDFLAGS="\$(inherited) -Wl,-fatal_warnings"
+
+  result:
+    name: CI result
+    needs: [changes, validate]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CHANGES_RESULT: ${{ needs.changes.result }}
+      RUN_VALIDATION: ${{ needs.changes.outputs.run_validation }}
+      VALIDATION_RESULT: ${{ needs.validate.result }}
+    steps:
+      - name: Require successful validation or docs-only changes
+        run: |
+          if [[ "$CHANGES_RESULT" != success ]]; then
+            echo 'Change detection did not succeed.' >&2
+            exit 1
+          fi
+          if [[ "$RUN_VALIDATION" == false && "$VALIDATION_RESULT" == skipped ]]; then
+            echo 'Only docs changed; app validation is not required.'
+          elif [[ "$RUN_VALIDATION" == true && "$VALIDATION_RESULT" == success ]]; then
+            echo 'All app validation passed.'
+          else
+            echo "App validation did not succeed: $VALIDATION_RESULT" >&2
+            exit 1
+          fi
