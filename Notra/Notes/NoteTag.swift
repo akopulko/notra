@@ -75,33 +75,33 @@ nonisolated struct NoteTag: Equatable, Hashable, Identifiable, Sendable, Codable
             character.isLetter || character.isNumber || character == "-" || character == "_"
         }
     }
-
-    /// Appends a tag only when its normalized key is not already present.
-    static func appending(_ tag: NoteTag, to tags: [NoteTag]) -> (tags: [NoteTag], inserted: Bool) {
-        guard !tags.contains(where: { $0.normalizedKey == tag.normalizedKey }) else {
-            return (tags, false)
-        }
-        return (tags + [tag], true)
-    }
 }
 
 /// Note-owned metadata kept separate from the Markdown document body.
 nonisolated struct NoteMetadata: Equatable, Sendable {
-    /// Tags in first-seen order after duplicate normalization.
+    /// Maximum number of distinct tags a note may store.
+    static let maximumTagsPerNote = 10
+
+    /// Tags in first-seen order after duplicate normalization and per-note limiting.
     var tags: [NoteTag]
     /// Timestamp used to persist pin state and ordering with the TextBundle.
     var pinnedAt: Date?
 
     init(tags: [NoteTag] = [], pinnedAt: Date? = nil) {
-        self.tags = Self.unique(tags)
+        self.tags = Array(Self.unique(tags).prefix(Self.maximumTagsPerNote))
         self.pinnedAt = pinnedAt
     }
 
-    /// Adds a tag and reports whether it changed the metadata.
-    mutating func add(_ tag: NoteTag) -> Bool {
-        let result = NoteTag.appending(tag, to: tags)
-        tags = result.tags
-        return result.inserted
+    /// Adds a tag unless it already exists or the per-note limit has been reached.
+    mutating func add(_ tag: NoteTag) -> NoteTagMutationResult {
+        guard !tags.contains(where: { $0.normalizedKey == tag.normalizedKey }) else {
+            return .duplicate(tag)
+        }
+        guard tags.count < Self.maximumTagsPerNote else {
+            return .limitReached
+        }
+        tags.append(tag)
+        return .added(tag)
     }
 
     /// Removes every spelling of a tag with the same normalized key.
@@ -117,8 +117,9 @@ nonisolated struct NoteMetadata: Equatable, Sendable {
     }
 }
 
-/// Result used by the editor to distinguish a new tag from a duplicate.
+/// Result used by the editor to distinguish added, duplicate, and over-limit tags.
 nonisolated enum NoteTagMutationResult: Equatable, Sendable {
     case added(NoteTag)
     case duplicate(NoteTag)
+    case limitReached
 }

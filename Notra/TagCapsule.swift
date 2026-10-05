@@ -10,9 +10,9 @@ struct TagCapsule: View {
     enum Style {
         case standard
         case previewOverlay
+        case sidebar
     }
 
-    @Environment(\.colorScheme) private var colorScheme
     let tag: NoteTag
     var size: Size = .regular
     var style: Style = .standard
@@ -45,35 +45,46 @@ struct TagCapsule: View {
                         .symbolRenderingMode(.hierarchical)
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(tagColors.foregroundColor)
                 .accessibilityLabel("Remove tag \(tag.displayName)")
             }
 
             Text(displayText ?? tag.prefixedDisplayName)
-                .font(font)
-                .foregroundStyle(tagColors.foregroundColor)
                 .lineLimit(1)
                 .truncationMode(.middle)
         }
-        .padding(.horizontal, horizontalPadding)
-        .padding(.vertical, verticalPadding)
-        .background(backgroundStyle, in: roundedRectangle)
-        .overlay {
-            roundedRectangle
-                .stroke(strokeStyle, lineWidth: 0.5)
-        }
-        .shadow(color: shadowColor, radius: shadowRadius, y: shadowY)
+        .modifier(TagCapsuleAppearance(size: size, style: style))
         .accessibilityElement(children: removeAction == nil ? .combine : .contain)
         .accessibilityLabel("Tag \(tag.displayName)")
+    }
+}
+
+struct TagCapsuleAppearance: ViewModifier {
+    @Environment(\.colorScheme) private var colorScheme
+
+    let size: TagCapsule.Size
+    let style: TagCapsule.Style
+
+    func body(content: Content) -> some View {
+        content
+            .font(font)
+            .foregroundStyle(tagColors.foregroundColor)
+            .padding(.horizontal, horizontalPadding)
+            .padding(.vertical, verticalPadding)
+            .background(backgroundStyle, in: roundedRectangle)
+            .overlay {
+                roundedRectangle
+                    .stroke(strokeStyle, lineWidth: 0.5)
+            }
+            .shadow(color: shadowColor, radius: shadowRadius, y: shadowY)
     }
 
     private var font: Font {
         switch (style, size) {
         case (.previewOverlay, _):
             .caption2
-        case (.standard, .compact):
-            .caption2.weight(.medium)
-        case (.standard, .regular):
+        case (.sidebar, _):
+            .body
+        case (.standard, .compact), (.standard, .regular):
             .caption2.weight(.medium)
         }
     }
@@ -83,14 +94,14 @@ struct TagCapsule: View {
     }
 
     private var roundedRectangle: RoundedRectangle {
-        RoundedRectangle(cornerRadius: style == .previewOverlay ? 4 : 3, style: .continuous)
+        RoundedRectangle(cornerRadius: style == .standard ? 3 : 4, style: .continuous)
     }
 
     private var strokeStyle: Color {
         switch style {
         case .standard:
             Color.white.opacity(0.24)
-        case .previewOverlay:
+        case .previewOverlay, .sidebar:
             if colorScheme == .dark {
                 Color.white.opacity(0.24)
             } else {
@@ -103,7 +114,7 @@ struct TagCapsule: View {
         switch style {
         case .standard:
             Color.clear
-        case .previewOverlay:
+        case .previewOverlay, .sidebar:
             if colorScheme == .dark {
                 Color.black.opacity(0.26)
             } else {
@@ -116,7 +127,7 @@ struct TagCapsule: View {
         switch style {
         case .standard:
             0
-        case .previewOverlay:
+        case .previewOverlay, .sidebar:
             5
         }
     }
@@ -125,7 +136,7 @@ struct TagCapsule: View {
         switch style {
         case .standard:
             0
-        case .previewOverlay:
+        case .previewOverlay, .sidebar:
             1
         }
     }
@@ -138,7 +149,7 @@ struct TagCapsule: View {
     /// Keeps overlay hashtags translucent while improving contrast against preview content.
     private var backgroundOpacity: Double {
         switch style {
-        case .standard:
+        case .standard, .sidebar:
             1
         case .previewOverlay:
             colorScheme == .dark ? 0.73 : 0.87
@@ -186,12 +197,10 @@ struct TagFlowLayout: Layout {
         subviews: Subviews,
         cache: inout Cache
     ) -> CGSize {
-        let sizes = cachedIntrinsicSizes(for: subviews, cache: &cache)
-        let rows = rows(for: sizes, maxWidth: proposal.width ?? .infinity)
-        return CGSize(
-            width: rows.width,
-            height: rows.height
-        )
+        let maxWidth = finiteWidth(proposal.width) ?? .infinity
+        let sizes = sizedSubviews(for: subviews, cache: &cache, maxWidth: maxWidth)
+        let rows = rows(for: sizes, maxWidth: maxWidth)
+        return CGSize(width: rows.width, height: rows.height)
     }
 
     func placeSubviews(
@@ -200,11 +209,11 @@ struct TagFlowLayout: Layout {
         subviews: Subviews,
         cache: inout Cache
     ) {
-        let sizes = cachedIntrinsicSizes(for: subviews, cache: &cache)
+        let maxWidth = finiteWidth(proposal.width) ?? bounds.width
+        let sizes = sizedSubviews(for: subviews, cache: &cache, maxWidth: maxWidth)
         var x = bounds.minX
         var y = bounds.minY
         var rowHeight: CGFloat = 0
-        let maxWidth = proposal.width ?? bounds.width
 
         for (index, subview) in subviews.enumerated() {
             let size = sizes[index]
@@ -214,10 +223,7 @@ struct TagFlowLayout: Layout {
                 rowHeight = 0
             }
 
-            subview.place(
-                at: CGPoint(x: x, y: y),
-                proposal: ProposedViewSize(size)
-            )
+            subview.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
             x += size.width + horizontalSpacing
             rowHeight = max(rowHeight, size.height)
         }
@@ -233,6 +239,21 @@ struct TagFlowLayout: Layout {
             return cache.intrinsicSizes
         }
         return cache.intrinsicSizes
+    }
+
+    private func sizedSubviews(for subviews: Subviews, cache: inout Cache, maxWidth: CGFloat) -> [CGSize] {
+        let sizes = cachedIntrinsicSizes(for: subviews, cache: &cache)
+        guard maxWidth.isFinite else { return sizes }
+        return zip(subviews, sizes).map { subview, size in
+            size.width > maxWidth
+                ? subview.sizeThatFits(ProposedViewSize(width: maxWidth, height: nil))
+                : size
+        }
+    }
+
+    private func finiteWidth(_ width: CGFloat?) -> CGFloat? {
+        guard let width, width.isFinite else { return nil }
+        return width
     }
 
     private func rows(for sizes: [CGSize], maxWidth: CGFloat) -> (width: CGFloat, height: CGFloat) {

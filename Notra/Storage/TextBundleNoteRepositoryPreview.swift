@@ -20,9 +20,10 @@ extension TextBundleNoteRepository {
             return .empty
         }
 
-        var firstLinkedImageURL: URL?
+        var linkedImageURLs: [URL] = []
         var hasLinkedNonImageAttachment = false
         for assetURL in try assetURLs(in: noteURL) {
+            try Task.checkCancellation()
             let standardizedURL = assetURL.notraCanonicalFileURL
             guard linkedURLs.contains(standardizedURL) else {
                 continue
@@ -31,21 +32,15 @@ extension TextBundleNoteRepository {
             let contentType = try assetURL.resourceValues(forKeys: [.contentTypeKey]).contentType
                 ?? UTType(filenameExtension: assetURL.pathExtension)
             switch TextBundleAssetKind(contentType: contentType, filename: assetURL.lastPathComponent) {
-            case .image where firstLinkedImageURL == nil:
-                firstLinkedImageURL = standardizedURL
+            case .image:
+                linkedImageURLs.append(standardizedURL)
             case .attachment:
                 hasLinkedNonImageAttachment = true
-            default:
-                break
-            }
-
-            if firstLinkedImageURL != nil, hasLinkedNonImageAttachment {
-                break
             }
         }
 
         return NoteAttachmentSummary(
-            firstLinkedImageURL: firstLinkedImageURL,
+            linkedImageURLs: linkedImageURLs,
             hasLinkedNonImageAttachment: hasLinkedNonImageAttachment
         )
     }

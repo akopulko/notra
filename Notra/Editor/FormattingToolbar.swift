@@ -44,7 +44,7 @@ struct FormatToolbarButton: View {
     }
 }
 
-/// Keeps macOS heading, formatting, and attachment controls in one contiguous toolbar row.
+/// Presents macOS heading, formatting, and attachment controls in a native toolbar group.
 struct MarkdownFormattingToolbar: ToolbarContent {
     let applyHeading: (MarkdownHeadingLevel) -> Void
     let applyFormatting: (NoteFormattingCommand) -> Void
@@ -53,57 +53,46 @@ struct MarkdownFormattingToolbar: ToolbarContent {
     let attachFile: () -> Void
 
     var body: some ToolbarContent {
-        ToolbarItem(placement: .primaryAction) {
-            HStack(spacing: 0) {
-                HeadingToolbarMenu(action: applyHeading, isEnabled: isEnabled)
-                Divider()
-                    .frame(height: 16)
-                    .padding(.horizontal, 4)
-                FormatToolbarButton(command: .bold, isEnabled: isEnabled) {
-                    applyFormatting(.bold)
-                }
-                FormatToolbarButton(command: .italic, isEnabled: isEnabled) {
-                    applyFormatting(.italic)
-                }
-                FormatToolbarButton(command: .strikethrough, isEnabled: isEnabled) {
-                    applyFormatting(.strikethrough)
-                }
-                FormatToolbarButton(command: .quote, isEnabled: isEnabled) {
-                    applyFormatting(.quote)
-                }
-                Divider()
-                    .frame(height: 16)
-                    .padding(.horizontal, 4)
-                FormatToolbarButton(command: .unorderedList, isEnabled: isEnabled) {
-                    applyFormatting(.unorderedList)
-                }
-                FormatToolbarButton(command: .orderedList, isEnabled: isEnabled) {
-                    applyFormatting(.orderedList)
-                }
-                FormatToolbarButton(command: .todo, isEnabled: isEnabled) {
-                    applyFormatting(.todo)
-                }
-                Divider()
-                    .frame(height: 16)
-                    .padding(.horizontal, 4)
-                FormatToolbarButton(command: .link, isEnabled: isEnabled) {
-                    applyFormatting(.link)
-                }
-                FormatToolbarButton(command: .table, isEnabled: isEnabled) {
-                    applyFormatting(.table)
-                }
-                FormatToolbarButton(command: .code, isEnabled: isEnabled) {
-                    applyFormatting(.code)
-                }
-                FormatToolbarButton(command: .mermaid, isEnabled: isEnabled) {
-                    applyFormatting(.mermaid)
-                }
-                Button("Attach File", systemImage: "paperclip", action: attachFile)
-                    .labelStyle(.iconOnly)
-                    .help("Attach File")
-                    .accessibilityLabel("Attach File")
-                    .disabled(!isEnabled)
+        ToolbarItemGroup(placement: .primaryAction) {
+            HeadingToolbarMenu(action: applyHeading, isEnabled: isEnabled)
+            FormatToolbarButton(command: .bold, isEnabled: isEnabled) {
+                applyFormatting(.bold)
             }
+            FormatToolbarButton(command: .italic, isEnabled: isEnabled) {
+                applyFormatting(.italic)
+            }
+            FormatToolbarButton(command: .strikethrough, isEnabled: isEnabled) {
+                applyFormatting(.strikethrough)
+            }
+            FormatToolbarButton(command: .quote, isEnabled: isEnabled) {
+                applyFormatting(.quote)
+            }
+            FormatToolbarButton(command: .unorderedList, isEnabled: isEnabled) {
+                applyFormatting(.unorderedList)
+            }
+            FormatToolbarButton(command: .orderedList, isEnabled: isEnabled) {
+                applyFormatting(.orderedList)
+            }
+            FormatToolbarButton(command: .todo, isEnabled: isEnabled) {
+                applyFormatting(.todo)
+            }
+            FormatToolbarButton(command: .link, isEnabled: isEnabled) {
+                applyFormatting(.link)
+            }
+            FormatToolbarButton(command: .table, isEnabled: isEnabled) {
+                applyFormatting(.table)
+            }
+            FormatToolbarButton(command: .code, isEnabled: isEnabled) {
+                applyFormatting(.code)
+            }
+            FormatToolbarButton(command: .mermaid, isEnabled: isEnabled) {
+                applyFormatting(.mermaid)
+            }
+            Button("Attach File", systemImage: "paperclip", action: attachFile)
+                .labelStyle(.iconOnly)
+                .help("Attach File")
+                .accessibilityLabel("Attach File")
+                .disabled(!isEnabled)
         }
     }
 }

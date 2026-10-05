@@ -6,14 +6,18 @@ import Darwin
 
 /// Summarizes attachment visibility without loading all attachment metadata into a row.
 struct NoteAttachmentSummary: Equatable, Sendable {
-    /// Empty summary used when the note has no links to assets.
     nonisolated static let empty = NoteAttachmentSummary(
-        firstLinkedImageURL: nil,
+        linkedImageURLs: [],
         hasLinkedNonImageAttachment: false
     )
 
+    /// Every linked image in stable asset-filename order.
+    let linkedImageURLs: [URL]
     /// First linked image, if one exists, used for the compact note-row thumbnail.
-    let firstLinkedImageURL: URL?
+    nonisolated var firstLinkedImageURL: URL? {
+        linkedImageURLs.first
+    }
+
     /// True when at least one linked asset is not an image and needs a paperclip indicator.
     let hasLinkedNonImageAttachment: Bool
 

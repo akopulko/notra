@@ -174,9 +174,11 @@ struct NoteEditorPane: View {
             isEnabled: store.hasSelection && isEditing,
             attachFile: presentAttachmentPicker
         )
+        // Keep Info and Share in their own native group, separate from formatting.
+        ToolbarSpacer(.fixed, placement: .primaryAction)
         ToolbarItemGroup(placement: .primaryAction) {
-            shareToolbarButton
             inspectorToolbarButton
+            shareToolbarButton
         }
         #else
         ToolbarItem(placement: .primaryAction) {

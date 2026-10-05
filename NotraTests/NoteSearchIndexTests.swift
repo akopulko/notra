@@ -123,6 +123,67 @@ struct NoteSearchIndexTests {
         #expect(Set(firstPage.results.map(\.noteID)).isDisjoint(with: secondPage.results.map(\.noteID)))
     }
 
+    @Test func scansRawPagesUntilTagMatchesFillEachBatch() async throws {
+        let repository = try makeRepository()
+        defer { try? FileManager.default.removeItem(at: repository.rootURL) }
+
+        let notes = try (0 ..< 8).map { index in
+            try makeNote(markdown: "shared searchable term \(index)", in: repository)
+        }
+        let index = makeIndex(for: repository)
+        try await index.synchronize(noteIDs: notes.map(\.url))
+        let baseline = try await index.search("shared", limit: 50, offset: 0)
+        #expect(baseline.results.count == 8)
+
+        let eligibleNames = Set(baseline.results[2 ... 6].map { $0.noteID.lastPathComponent })
+        var offset = 0
+        var foundIDs: [URL] = []
+        var offsets: [Int] = []
+        var moreValues: [Bool] = []
+        repeat {
+            let batch = try #require(await NoteTagFilter.loadSearchBatch(
+                offset: offset,
+                limit: 2,
+                matchingBundleNames: eligibleNames,
+                fetchPage: { pageOffset, limit in
+                    try? await index.search("shared", limit: limit, offset: pageOffset)
+                }
+            ))
+            foundIDs.append(contentsOf: batch.resultIDs)
+            offsets.append(batch.nextOffset)
+            moreValues.append(batch.hasMore)
+            offset = batch.nextOffset
+            if !batch.hasMore { break }
+        } while true
+
+        #expect(foundIDs == baseline.results[2 ... 6].map(\.noteID))
+        #expect(offsets == [4, 6, 8])
+        #expect(moreValues == [true, true, false])
+
+        let unrestricted = try #require(await NoteTagFilter.loadSearchBatch(
+            offset: 0,
+            limit: 2,
+            matchingBundleNames: nil,
+            fetchPage: { pageOffset, limit in
+                try? await index.search("shared", limit: limit, offset: pageOffset)
+            }
+        ))
+        #expect(unrestricted.resultIDs == Array(baseline.results.prefix(2)).map(\.noteID))
+        #expect(unrestricted.nextOffset == 2)
+
+        let noMatches = try #require(await NoteTagFilter.loadSearchBatch(
+            offset: 0,
+            limit: 2,
+            matchingBundleNames: ["missing.textbundle"],
+            fetchPage: { pageOffset, limit in
+                try? await index.search("shared", limit: limit, offset: pageOffset)
+            }
+        ))
+        #expect(noMatches.resultIDs.isEmpty)
+        #expect(noMatches.nextOffset == 8)
+        #expect(!noMatches.hasMore)
+    }
+
     @Test func rebuildRemovesStaleEntries() async throws {
         let repository = try makeRepository()
         defer { try? FileManager.default.removeItem(at: repository.rootURL) }

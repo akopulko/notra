@@ -45,19 +45,32 @@ extension MarkdownNativeTextEditor {
         private let applyFormatting: (NoteFormattingCommand) -> Void
         private let choosePhoto: () -> Void
         private let attachFile: () -> Void
+        private let undo: () -> Void
+        private let redo: () -> Void
+        private let undoButton = UIButton(type: .system)
+        private let redoButton = UIButton(type: .system)
 
         init(
             applyHeading: @escaping (MarkdownHeadingLevel) -> Void,
             applyFormatting: @escaping (NoteFormattingCommand) -> Void,
             choosePhoto: @escaping () -> Void,
-            attachFile: @escaping () -> Void
+            attachFile: @escaping () -> Void,
+            undo: @escaping () -> Void,
+            redo: @escaping () -> Void
         ) {
             self.applyHeading = applyHeading
             self.applyFormatting = applyFormatting
             self.choosePhoto = choosePhoto
             self.attachFile = attachFile
+            self.undo = undo
+            self.redo = redo
             super.init(frame: CGRect(x: 0, y: 0, width: 320, height: Self.intrinsicHeight))
             setUp()
+        }
+
+        func updateUndoState(canUndo: Bool, canRedo: Bool) {
+            undoButton.isEnabled = canUndo
+            redoButton.isEnabled = canRedo
         }
 
         @available(*, unavailable)
@@ -86,6 +99,7 @@ extension MarkdownNativeTextEditor {
             addSubview(glassView)
 
             let scrollView = UIScrollView()
+            scrollView.accessibilityIdentifier = "editorFormattingScrollView"
             scrollView.showsHorizontalScrollIndicator = false
             scrollView.translatesAutoresizingMaskIntoConstraints = false
             glassView.contentView.addSubview(scrollView)
@@ -103,21 +117,60 @@ extension MarkdownNativeTextEditor {
             }
             stackView.addArrangedSubview(makeAttachmentMenuButton())
 
+            configureHistoryButton(undoButton, symbol: "arrow.uturn.backward", label: "Undo", action: undo)
+            configureHistoryButton(redoButton, symbol: "arrow.uturn.forward", label: "Redo", action: redo)
+            updateUndoState(canUndo: false, canRedo: false)
+
+            let historyStack = UIStackView(arrangedSubviews: [undoButton, redoButton])
+            historyStack.axis = .horizontal
+            historyStack.alignment = .center
+            historyStack.spacing = 0
+            historyStack.translatesAutoresizingMaskIntoConstraints = false
+            glassView.contentView.addSubview(historyStack)
+
+            let divider = UIView()
+            divider.backgroundColor = .separator
+            divider.translatesAutoresizingMaskIntoConstraints = false
+            glassView.contentView.addSubview(divider)
+
             NSLayoutConstraint.activate([
                 glassView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Self.horizontalMargin),
                 glassView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -Self.horizontalMargin),
                 glassView.topAnchor.constraint(equalTo: topAnchor, constant: Self.verticalMargin),
                 glassView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -Self.verticalMargin),
                 scrollView.leadingAnchor.constraint(equalTo: glassView.contentView.leadingAnchor),
-                scrollView.trailingAnchor.constraint(equalTo: glassView.contentView.trailingAnchor),
+                scrollView.trailingAnchor.constraint(equalTo: divider.leadingAnchor),
                 scrollView.topAnchor.constraint(equalTo: glassView.contentView.topAnchor),
                 scrollView.bottomAnchor.constraint(equalTo: glassView.contentView.bottomAnchor),
                 stackView.leadingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.leadingAnchor, constant: 12),
                 stackView.trailingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.trailingAnchor, constant: -12),
                 stackView.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor),
                 stackView.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor),
-                stackView.heightAnchor.constraint(equalTo: scrollView.frameLayoutGuide.heightAnchor)
+                stackView.heightAnchor.constraint(equalTo: scrollView.frameLayoutGuide.heightAnchor),
+                divider.widthAnchor.constraint(equalToConstant: 1),
+                divider.topAnchor.constraint(equalTo: glassView.contentView.topAnchor, constant: 10),
+                divider.bottomAnchor.constraint(equalTo: glassView.contentView.bottomAnchor, constant: -10),
+                historyStack.leadingAnchor.constraint(equalTo: divider.trailingAnchor, constant: 4),
+                historyStack.trailingAnchor.constraint(equalTo: glassView.contentView.trailingAnchor, constant: -8),
+                historyStack.topAnchor.constraint(equalTo: glassView.contentView.topAnchor),
+                historyStack.bottomAnchor.constraint(equalTo: glassView.contentView.bottomAnchor),
+                undoButton.widthAnchor.constraint(equalToConstant: 44),
+                undoButton.heightAnchor.constraint(equalToConstant: 44),
+                redoButton.widthAnchor.constraint(equalToConstant: 44),
+                redoButton.heightAnchor.constraint(equalToConstant: 44)
             ])
+        }
+
+        private func configureHistoryButton(
+            _ button: UIButton,
+            symbol: String,
+            label: LocalizedStringResource,
+            action: @escaping () -> Void
+        ) {
+            button.setImage(UIImage(systemName: symbol), for: .normal)
+            button.accessibilityLabel = String(localized: label)
+            button.tintColor = .label
+            button.addAction(UIAction { _ in action() }, for: .touchUpInside)
         }
 
         /// Uses the same command ordering as the editor menu and SwiftUI toolbar.
@@ -197,20 +250,48 @@ extension MarkdownNativeTextEditor {
         private var highlightGeneration = 0
         private var remainingFocusAttempts = 0
         private var lastFocusEditorRequest = 0
+        private var isRefreshingUndoState = false
+        private var isUndoStateRefreshScheduled = false
 
         init(parent: MarkdownNativeTextEditor) {
             self.parent = parent
             super.init()
             configureTextView()
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(undoManagerDidChange(_:)),
+                name: Notification.Name.NSUndoManagerCheckpoint,
+                object: nil
+            )
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(undoManagerDidChange(_:)),
+                name: Notification.Name.NSUndoManagerDidCloseUndoGroup,
+                object: nil
+            )
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(undoManagerDidChange(_:)),
+                name: Notification.Name.NSUndoManagerDidUndoChange,
+                object: nil
+            )
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(undoManagerDidChange(_:)),
+                name: Notification.Name.NSUndoManagerDidRedoChange,
+                object: nil
+            )
             wireBridge()
             textView.didMoveToWindowHandler = { [weak self] in
                 self?.focusIfPossible()
+                self?.refreshUndoState()
             }
             receiveFocusRequestIfNeeded()
         }
 
         deinit {
             highlightTask?.cancel()
+            NotificationCenter.default.removeObserver(self)
         }
 
         /// Applies pending text, font, theme, and selection changes to UIKit.
@@ -238,11 +319,17 @@ extension MarkdownNativeTextEditor {
 
             receiveFocusRequestIfNeeded()
             focusIfPossible()
+            refreshUndoState()
         }
 
         /// Sends user edits through incremental highlighting before publishing the binding change.
         func textViewDidChange(_: UITextView) {
             handleTextChanged()
+            scheduleUndoStateRefresh()
+        }
+
+        func textViewDidBeginEditing(_: UITextView) {
+            refreshUndoState()
         }
 
         /// Records native selection movement for selection-aware formatting commands.
@@ -298,10 +385,17 @@ extension MarkdownNativeTextEditor {
                 },
                 attachFile: { [weak self] in
                     self?.parent.bridge.requestAttachmentSelection?()
+                },
+                undo: { [weak self] in
+                    self?.performUndo()
+                },
+                redo: { [weak self] in
+                    self?.performRedo()
                 }
             )
             accessoryContainer = container
             textView.inputAccessoryView = container
+            refreshUndoState()
         }
 
         private func wireBridge() {
@@ -455,6 +549,7 @@ extension MarkdownNativeTextEditor {
             textView.undoManager?.registerUndo(withTarget: self) { target in
                 target.applyUndoableTextReplacement(text: oldText, selection: oldSelection)
             }
+            scheduleUndoStateRefresh()
         }
 
         private func refreshHighlight() {
@@ -550,7 +645,96 @@ extension MarkdownNativeTextEditor {
             [.font: currentFont, .foregroundColor: parent.theme.editor.normalText.platformColor]
         }
     }
+}
 
+private extension MarkdownNativeTextEditor.Coordinator {
+    @objc
+    private func undoManagerDidChange(_ notification: Notification) {
+        guard let manager = notification.object as? UndoManager,
+              manager === textView.undoManager,
+              !isRefreshingUndoState
+        else {
+            return
+        }
+
+        let isUndoOrRedoNotification = notification.name == Notification.Name.NSUndoManagerDidUndoChange ||
+            notification.name == Notification.Name.NSUndoManagerDidRedoChange
+        if isUndoOrRedoNotification {
+            pendingTextEdit = nil
+            pendingProgrammaticSelection = nil
+            handleTextChanged()
+            recordSelection(textView.selectedRange)
+        }
+        scheduleUndoStateRefresh()
+    }
+
+    private func refreshUndoState() {
+        guard !isRefreshingUndoState else {
+            return
+        }
+
+        isRefreshingUndoState = true
+        defer { isRefreshingUndoState = false }
+        let manager = textView.undoManager
+        accessoryContainer?.updateUndoState(
+            canUndo: manager?.canUndo ?? false,
+            canRedo: manager?.canRedo ?? false
+        )
+    }
+
+    private func scheduleUndoStateRefresh() {
+        guard !isUndoStateRefreshScheduled else {
+            return
+        }
+
+        isUndoStateRefreshScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else {
+                return
+            }
+            isUndoStateRefreshScheduled = false
+            refreshUndoState()
+        }
+    }
+
+    private func performUndo() {
+        guard let manager = textView.undoManager,
+              !manager.isUndoing,
+              !manager.isRedoing,
+              manager.canUndo
+        else {
+            refreshUndoState()
+            return
+        }
+
+        pendingTextEdit = nil
+        pendingProgrammaticSelection = nil
+        manager.undo()
+        handleTextChanged()
+        recordSelection(textView.selectedRange)
+        refreshUndoState()
+    }
+
+    private func performRedo() {
+        guard let manager = textView.undoManager,
+              !manager.isUndoing,
+              !manager.isRedoing,
+              manager.canRedo
+        else {
+            refreshUndoState()
+            return
+        }
+
+        pendingTextEdit = nil
+        pendingProgrammaticSelection = nil
+        manager.redo()
+        handleTextChanged()
+        recordSelection(textView.selectedRange)
+        refreshUndoState()
+    }
+}
+
+extension MarkdownNativeTextEditor {
     /// Records a focus request until UIKit attaches the editor to a window.
     final class FocusableTextView: UITextView {
         var isFocusRequested = false

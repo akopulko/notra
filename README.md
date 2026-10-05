@@ -2,6 +2,20 @@
 
 Notra is a SwiftUI notes app for iOS, iPadOS, and macOS. Notes are stored as TextBundle documents with Markdown content and local assets.
 
+## Sidebar organisation
+
+On iOS, iPadOS, and macOS, unpinned notes are grouped by month in the current year and by year otherwise. Headings use the system calendar, time zone, and locale. **Date Edited** or **Date Created** selects the grouping date; **Latest First** or **Oldest First** controls section and row order. Pinned notes stay first, ordered by their pin timestamps.
+
+Section headings use semibold headline text with a native horizontal divider extending after the title. **Pinned** uses the Markdown theme's italic colour; month and year headings use its h3 colour. Colours adapt to light and dark appearance.
+
+Filter-only browsing keeps date sections. Typing a search query uses the **Pinned** and **Notes** sections instead, preserving search relevance within unpinned results.
+
+The leading sidebar lists tags shared by notes, ordered by how many notes use each tag. It shows the ten most-used tags with **Show All** to expand the list to at most 100; **Show Less** returns to ten. Each note can have up to ten tags. Select one or more tags to show notes matching **any** selection; the list intersects that filter with text search. On compact iPhone layouts, use the sidebar navigation button to switch between tag filters and notes.
+
+The **Images** section contains linked local images from the whole library. Tapping a thumbnail reveals its owning row and clears filters only if they hide that note. On iOS and iPadOS, this only scrolls the notes list; tap the row to select and open the note. On macOS, the thumbnail also selects and opens its owning note.
+
+The revealed row briefly zooms to 108% scale and back with a spring animation, without a background fill or outline. Each thumbnail tap replays the effect, including another image from the same note. **Reduce Motion** disables the zoom.
+
 ## Markdown import on macOS
 
 Use **File → Import…** to select one or more Markdown files. Each file becomes a separate note; importing the same file again creates another note.
@@ -47,6 +61,16 @@ make build-macos
 
 The build targets run SwiftFormat and SwiftLint in lint mode before compiling.
 
+## Continuous integration and unit tests
+
+`.github/workflows/ci.yml` runs for pull requests targeting `master` and pushes to `master`. It uses `dorny/paths-filter` v4 in Git mode with inline filters, requiring no separate filter file or PR API permission. Changes confined to `docs/` skip app validation; the lightweight **CI result** check still completes so required checks do not block website-only pull requests. Changes outside `docs/`, including mixed app/website changes, run the full validation.
+
+CI uses GitHub's [`xcode-27` preview runner](https://github.com/actions/runner-images/issues/14404), currently running macOS 27, and explicitly selects Xcode 27.0. It checks SwiftFormat and SwiftLint, builds iOS simulator/device targets, runs unit tests on iPhone 17 with iOS 27.0, then builds and tests macOS natively. Platform builds and test runs are sequential. Compiler and linker warnings are treated as errors.
+
+The workflow has read-only repository access, pins actions to full commit SHAs, does not persist checkout credentials, and requires no Apple signing secrets. Version comments identify each pinned release; unlike tags such as `v7`, these references cannot move to different code. CI does not run UI tests or change the separate Pages deployment. Configure branch protection on `master` to require **CI result**, not the conditionally skipped validation job.
+
+Unit-test commands live directly in `ci.yml`, with no extra helper scripts or Python files. They use the shared `Notra` scheme, select only `NotraTests`, and use the public local-only configuration without personal signing credentials. `NotraUITests` remains available in Xcode but is not executed by CI. Run the `NotraTests` target in Xcode for local unit testing.
+
 ## Run
 
 The run targets build the selected Debug app before launching it and stream logs. If the ignored `Config/LocalSigning.xcconfig` exists, they sign the build automatically; otherwise they use an unsigned build:
@@ -90,7 +114,7 @@ CODE_SIGNING_ALLOWED=YES make build-ios
 
 ## Contributing
 
-Use focused branches and keep changes small. Before opening a pull request, run both build scripts and make sure there are no warnings, SwiftFormat issues, or SwiftLint violations.
+Use focused branches and keep changes small. Before opening a pull request, run both build scripts, run `NotraTests` in Xcode, and make sure there are no warnings, SwiftFormat issues, SwiftLint violations, or failing unit tests.
 
 Install the local pre-commit privacy hook before your first commit:
 

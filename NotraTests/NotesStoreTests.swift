@@ -820,6 +820,7 @@ struct NotesStoreTests {
         #expect(loadedNote.markdown == "Body")
         #expect(loadedNote.metadata.tags.map(\.name) == ["Swift"])
         #expect(harness.store.notes.first { $0.id == note.id }?.tags.map(\.name) == ["Swift"])
+        #expect(NoteTagFilter.availableTags(in: harness.store.notes).map(\.name) == ["Swift"])
     }
 
     @Test
@@ -863,7 +864,28 @@ struct NotesStoreTests {
         #expect(harness.store.selectedNoteTags.isEmpty)
         #expect(loadedNote.markdown == "Body")
         #expect(loadedNote.metadata.tags.isEmpty)
+        #expect(NoteTagFilter.availableTags(in: harness.store.notes).isEmpty)
         #expect(harness.store.notes.first { $0.id == note.id }?.tags.isEmpty == true)
+    }
+
+    @Test
+    func `deleting last tagged note removes its derived choice`() async throws {
+        let harness = try makeHarness()
+        defer {
+            harness.cleanup()
+        }
+        let note = try harness.makeNote(markdown: "Body")
+        let tag = try #require(NoteTag("last-tag"))
+
+        await harness.store.loadNotes()
+        harness.store.selectedNoteID = note.id
+        await harness.store.selectionChanged()
+        _ = harness.store.addTag(tag)
+        #expect(NoteTagFilter.availableTags(in: harness.store.notes).map(\.id) == [tag.id])
+
+        let summary = try #require(harness.store.notes.first { $0.id == note.id })
+        await harness.store.deleteNotes([summary])
+        #expect(NoteTagFilter.availableTags(in: harness.store.notes).isEmpty)
     }
 
 #if os(macOS)
