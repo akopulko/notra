@@ -87,13 +87,7 @@ private struct NoteSidebarImageTile: View {
             .aspectRatio(1, contentMode: .fit)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(
-            Text(String(
-                localized: "sidebarImageOpenNote",
-                defaultValue: "Open note \(item.notePreview)",
-                comment: "Sidebar image shortcut: open the note containing this image."
-            ))
-        )
+        .accessibilityLabel(Text(noteActionLabel))
         .accessibilityValue(item.imageURL.lastPathComponent)
         .accessibilityIdentifier("notes.sidebar.image.\(item.imageURL.absoluteString)")
         .task(id: maximumPixelSize) {
@@ -107,5 +101,21 @@ private struct NoteSidebarImageTile: View {
             thumbnail = Image(decorative: cgImage, scale: displayScale, orientation: .up)
         }
         .accessibilityElement(children: .ignore)
+    }
+
+    private var noteActionLabel: String {
+        #if os(iOS)
+        String(
+            localized: "sidebarImageRevealNote",
+            defaultValue: "Show note \(item.notePreview) in list",
+            comment: "Sidebar image shortcut: scroll to the note without opening it."
+        )
+        #else
+        String(
+            localized: "sidebarImageOpenNote",
+            defaultValue: "Open note \(item.notePreview)",
+            comment: "Sidebar image shortcut: open the note containing this image."
+        )
+        #endif
     }
 }

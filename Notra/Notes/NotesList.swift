@@ -29,7 +29,6 @@ struct NotesList: View {
     let deleteSelectedNoteRequestID: Int
     @Binding var selectedTagIDs: Set<String>
     @Binding var noteRevealRequest: NoteRevealRequest?
-    let noteRevealCompleted: () -> Void
     #if os(iOS)
     @Namespace private var settingsZoom
     #endif
@@ -294,10 +293,11 @@ struct NotesList: View {
                 }
 
                 proxy.scrollTo(request.noteID, anchor: .center)
+                #if os(macOS)
                 store.selectedNoteID = request.noteID
+                #endif
                 pendingNoteReveal = nil
                 noteRevealRequest = nil
-                noteRevealCompleted()
             }
         }
     }

@@ -85,9 +85,7 @@ struct ContentView: View {
                 deleteSelectedNoteRequestID: commands.deleteSelectedNoteRequestID,
                 selectedTagIDs: $selectedTagIDs,
                 noteRevealRequest: $noteRevealRequest
-            ) {
-                preferredCompactColumn = .detail
-            }
+            )
             .navigationSplitViewColumnWidth(min: 220, ideal: 260, max: 360)
         } detail: {
             NoteEditorPane(

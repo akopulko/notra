@@ -75,6 +75,17 @@
         "ru" : { "stringUnit" : { "state" : "translated", "value" : "Открыть заметку %@" } }
       }
     },
+    "sidebarImageRevealNote" : {
+      "comment" : "Sidebar image shortcut: scroll to the note without opening it.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Notiz %@ in der Liste anzeigen" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Show note %@ in list" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Mostrar la nota %@ en la lista" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Afficher la note %@ dans la liste" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Показать заметку %@ в списке" } }
+      }
+    },
     "" : {
 
     },

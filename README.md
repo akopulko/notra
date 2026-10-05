@@ -12,6 +12,8 @@ Filter-only browsing keeps date sections. Typing a search query uses the **Pinne
 
 The leading sidebar lists tags shared by notes, ordered by how many notes use each tag. It shows the ten most-used tags with **Show All** to expand the list to at most 100; **Show Less** returns to ten. Each note can have up to ten tags. Select one or more tags to show notes matching **any** selection; the list intersects that filter with text search. On compact iPhone layouts, use the sidebar navigation button to switch between tag filters and notes.
 
+The **Images** section contains linked local images from the whole library. Tapping a thumbnail reveals its owning row and clears filters only if they hide that note. On iOS and iPadOS, this only scrolls the notes list; tap the row to select and open the note. On macOS, the thumbnail also selects and opens its owning note.
+
 ## Markdown import on macOS
 
 Use **File → Import…** to select one or more Markdown files. Each file becomes a separate note; importing the same file again creates another note.
