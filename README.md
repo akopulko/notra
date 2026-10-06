@@ -57,6 +57,8 @@ Preferences and other app-level state are not transferred by copying TextBundles
 
 On iOS, iPadOS, and macOS, unpinned notes are grouped by month in the current year and by year otherwise. Headings use the system calendar, time zone, and locale. **Date Edited** or **Date Created** selects the grouping date; **Latest First** or **Oldest First** controls section and row order. Pinned notes stay first, ordered by their pin timestamps.
 
+Selecting notes or saving an unchanged note does not change **Date Edited** or the TextBundle's modification time. Pending edits are saved before changing selection; already-saved text is not rewritten by navigation.
+
 Section headings use semibold headline text with a native horizontal divider extending after the title. **Pinned** uses the Markdown theme's italic colour; month and year headings use its h3 colour. Colours adapt to light and dark appearance.
 
 Filter-only browsing keeps date sections. Typing a search query uses the **Pinned** and **Notes** sections instead, preserving search relevance within unpinned results.

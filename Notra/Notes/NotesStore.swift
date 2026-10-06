@@ -96,6 +96,9 @@ final class NotesStore {
     /// Monotonic editor identity used to discard save work superseded by newer typing.
     @ObservationIgnored
     private var editorRevision: UInt64 = 0
+    /// Revision of the last persisted Markdown for the currently loaded note.
+    @ObservationIgnored
+    private var persistedEditorRevision: UInt64 = 0
     /// Serialises index operations with generation invalidation so old work cannot run after a switch.
     @ObservationIgnored
     private let searchIndexGate = SearchIndexGenerationGate()
@@ -857,9 +860,16 @@ extension NotesStore {
                     assetBaseURL: assetBaseURL
                 )
                 updatedNote.markdown = updatedMarkdown
+                editorRevision &+= 1
+                let revision = editorRevision
                 try await autosaveWorker.save(markdown: updatedNote.markdown, at: updatedNote.url)
-                self.selectedNote = updatedNote
-                editorText = updatedMarkdown
+                recordPersistedMarkdown(updatedMarkdown, for: updatedNote.id, generation: generation, revision: revision)
+                guard isCurrentRepository(generation), self.selectedNote?.id == updatedNote.id else {
+                    return
+                }
+                if editorRevision == revision {
+                    editorText = updatedMarkdown
+                }
                 guard await indexNote(updatedNote, generation: generation) else {
                     return
                 }
@@ -934,15 +944,19 @@ extension NotesStore {
         }
         AppLog.info("Saving current note immediately")
         saveTask?.cancel()
+        saveTask = nil
         let generation = repositoryGeneration
-        guard var selectedNote else {
-            AppLog.debug("Ignoring save request because no note is selected")
+        let revision = editorRevision
+        guard var selectedNote, selectedNote.markdown != editorText else {
             return
         }
 
         do {
             selectedNote.markdown = editorText
             try await autosaveWorker.save(markdown: selectedNote.markdown, at: selectedNote.url)
+            recordPersistedMarkdown(
+                selectedNote.markdown, for: selectedNote.id, generation: generation, revision: revision
+            )
             guard isCurrentRepository(generation) else {
                 return
             }
@@ -1047,6 +1061,8 @@ private extension NotesStore {
 
     /// Copies note content into the editor-facing state and refreshes its attachment list.
     private func select(_ note: Note) throws {
+        editorRevision &+= 1
+        persistedEditorRevision = editorRevision
         selectedNoteID = note.id
         selectedNote = note
         editorText = note.markdown
@@ -1057,6 +1073,7 @@ private extension NotesStore {
 
     /// Clears every selected-note projection so stale editor or attachment state cannot remain visible.
     private func clearSelection() {
+        editorRevision &+= 1
         selectedNote = nil
         editorText = ""
         attachments = []
@@ -1349,14 +1366,32 @@ private extension NotesStore {
         return nil
     }
 
-    private func saveCurrentNoteIfNeeded(generation: UInt64) async throws {
-        saveTask?.cancel()
-        guard var selectedNote else {
+    /// Records a successful disk write without replacing newer metadata or another note's baseline.
+    private func recordPersistedMarkdown(_ markdown: String, for noteID: URL, generation: UInt64, revision: UInt64) {
+        guard isCurrentRepository(generation),
+              selectedNote?.id == noteID,
+              revision >= persistedEditorRevision
+        else {
             return
         }
+        selectedNote?.markdown = markdown
+        persistedEditorRevision = revision
+    }
+
+    private func saveCurrentNoteIfNeeded(generation: UInt64) async throws {
+        saveTask?.cancel()
+        saveTask = nil
+        guard var selectedNote, selectedNote.markdown != editorText else {
+            return
+        }
+        let writeGeneration = repositoryGeneration
+        let revision = editorRevision
 
         selectedNote.markdown = editorText
         try await autosaveWorker.save(markdown: selectedNote.markdown, at: selectedNote.url)
+        recordPersistedMarkdown(
+            selectedNote.markdown, for: selectedNote.id, generation: writeGeneration, revision: revision
+        )
         guard isCurrentRepository(generation) else {
             return
         }
@@ -1398,6 +1433,9 @@ private extension NotesStore {
             }
             do {
                 try await autosaveWorker.save(markdown: noteToSave.markdown, at: noteToSave.url)
+                recordPersistedMarkdown(
+                    noteToSave.markdown, for: noteID, generation: generation, revision: revision
+                )
                 guard !Task.isCancelled,
                       isCurrentRepository(generation),
                       editorRevision == revision,

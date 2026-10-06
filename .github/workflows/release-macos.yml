@@ -120,21 +120,19 @@ jobs:
             NOTRA_INFO_PLIST_FILE=NotraInfo.plist \
             GCC_TREAT_WARNINGS_AS_ERRORS=YES \
             OTHER_LDFLAGS="\$(inherited) -Wl,-fatal_warnings"
-      - name: Stage distinct preview app and local-only entitlements
+      - name: Stage Notra app and local-only entitlements
         run: |
           set -euo pipefail
-          app="$RUNNER_TEMP/staging/Notra Preview.app"
+          app="$RUNNER_TEMP/staging/Notra.app"
           mkdir -p "$RUNNER_TEMP/staging"
           ditto "$RUNNER_TEMP/NotraRelease/Build/Products/Release/Notra.app" "$app"
-          /usr/libexec/PlistBuddy -c 'Set :CFBundleName Notra Preview' "$app/Contents/Info.plist"
-          /usr/libexec/PlistBuddy -c 'Set :CFBundleDisplayName Notra Preview' "$app/Contents/Info.plist"
           plutil -convert json -o "$RUNNER_TEMP/app-info.json" "$app/Contents/Info.plist"
           jq -e --arg version "$RELEASE_VERSION" '
             .CFBundleIdentifier == "app.notra.Notra" and
             .CFBundleExecutable == "Notra" and
             .CFBundleShortVersionString == $version and
-            .CFBundleName == "Notra Preview" and
-            .CFBundleDisplayName == "Notra Preview" and
+            .CFBundleName == "Notra" and
+            .CFBundleDisplayName == "Notra" and
             .LSMinimumSystemVersion == "26.0" and
             (has("NotraICloudContainerIdentifier") | not) and
             (has("NSUbiquitousContainers") | not)
@@ -193,7 +191,7 @@ jobs:
       - name: Sign executable code and verify local-only app
         run: |
           set -euo pipefail
-          app="$RUNNER_TEMP/staging/Notra Preview.app"
+          app="$RUNNER_TEMP/staging/Notra.app"
           keychain="$RUNNER_TEMP/notra-release.keychain-db"
           while IFS= read -r -d '' executable; do
             description=$(file -b "$executable")
@@ -234,16 +232,16 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/release"
-          asset="Notra-Preview-$RELEASE_TAG-macOS-arm64.zip"
+          asset="Notra-$RELEASE_TAG-macOS-arm64.zip"
           ditto -c -k --sequesterRsrc --keepParent \
-            "$RUNNER_TEMP/staging/Notra Preview.app" "$RUNNER_TEMP/release/$asset"
+            "$RUNNER_TEMP/staging/Notra.app" "$RUNNER_TEMP/release/$asset"
           (cd "$RUNNER_TEMP/release" && shasum -a 256 "$asset" > SHA256SUMS.txt && shasum -a 256 -c SHA256SUMS.txt)
       - name: Upload only distribution assets
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: macos-development-release
           path: |
-            ${{ runner.temp }}/release/Notra-Preview-${{ github.ref_name }}-macOS-arm64.zip
+            ${{ runner.temp }}/release/Notra-${{ github.ref_name }}-macOS-arm64.zip
             ${{ runner.temp }}/release/SHA256SUMS.txt
           if-no-files-found: error
           compression-level: 0
@@ -282,7 +280,7 @@ jobs:
         id: draft
         run: |
           set -euo pipefail
-          asset="Notra-Preview-$RELEASE_TAG-macOS-arm64.zip"
+          asset="Notra-$RELEASE_TAG-macOS-arm64.zip"
           [[ -f "release/$asset" && -f release/SHA256SUMS.txt ]] || {
             echo 'Both distribution assets are required.' >&2
             exit 1
@@ -300,7 +298,7 @@ jobs:
 
           - Notes are stored locally; this build does not include iCloud sync.
           - Signed with an Apple Development certificate; **not notarised**. macOS may block the first launch.
-          - Extract the ZIP and install **Notra Preview.app**, separately from the App Store edition.
+          - Extract the ZIP and install **Notra.app**. This build has the same bundle identifier as the App Store edition; do not keep both installed side by side.
           - For per-app approval, see [Apple's Privacy & Security instructions](https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac). Do not disable Gatekeeper globally.
           - Check the ZIP against `SHA256SUMS.txt` before installing. Notes do not automatically migrate between editions; back up complete TextBundles before transferring them.
 
