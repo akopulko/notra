@@ -1,0 +1,353 @@
+name: Release macOS development build
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+# Finish signing and cleanup before another run for the same tag can start.
+concurrency:
+  group: release-macos-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  guard:
+    name: Check version, master ancestry, and CI
+    runs-on: xcode-27
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+      commit: ${{ steps.check.outputs.commit }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RELEASE_TAG: ${{ github.ref_name }}
+    steps:
+      - name: Check out tagged source and history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require a new matching version on validated master
+        id: check
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+(\.[0-9]+)?$ ]] || {
+            echo 'Use a version tag such as v1.3 or v1.3.1.' >&2
+            exit 1
+          }
+          commit=$(git rev-parse HEAD)
+          git merge-base --is-ancestor "$commit" origin/master || {
+            echo 'The tagged commit must belong to master.' >&2
+            exit 1
+          }
+          plutil -convert json -o "$RUNNER_TEMP/project.json" Notra.xcodeproj/project.pbxproj
+          version=$(jq -er '
+            . as $project | .objects as $objects |
+            $objects[$project.rootObject].targets[] | $objects[.] |
+            select(.name == "Notra") | .buildConfigurationList |
+            $objects[.].buildConfigurations[] | $objects[.] |
+            select(.name == "Release") | .buildSettings.MARKETING_VERSION
+          ' "$RUNNER_TEMP/project.json")
+          [[ "$RELEASE_TAG" == "v$version" ]] || {
+            echo 'The tag must match the Notra Release marketing version.' >&2
+            exit 1
+          }
+          run_id=$(gh api "repos/$GH_REPO/actions/workflows/ci.yml/runs?head_sha=$commit&event=push&branch=master&per_page=100" --jq '
+            .workflow_runs | sort_by(.created_at, .id) | last |
+            select(.status == "completed" and .conclusion == "success") | .id
+          ')
+          [[ "$run_id" =~ ^[0-9]+$ ]] || {
+            echo 'Wait for successful master CI on this exact commit before releasing.' >&2
+            exit 1
+          }
+          gh api "repos/$GH_REPO/actions/runs/$run_id/jobs?filter=latest&per_page=100" |
+            jq -e 'any(.jobs[]; .name == "CI result" and .conclusion == "success")' >/dev/null
+          existing=$(gh api --paginate "repos/$GH_REPO/releases?per_page=100" \
+            --jq ".[] | select(.tag_name == \"$RELEASE_TAG\") | .id")
+          [[ -z "$existing" ]] || {
+            echo 'A release already exists for this tag. Never replace a published release; remove an incomplete draft before rerunning.' >&2
+            exit 1
+          }
+          printf 'version=%s\ncommit=%s\n' "$version" "$commit" >> "$GITHUB_OUTPUT"
+
+  package:
+    name: Build and sign local-only arm64 app
+    needs: guard
+    runs-on: xcode-27
+    timeout-minutes: 45
+    environment: macos-preview
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.0.app/Contents/Developer
+      HOMEBREW_NO_AUTO_UPDATE: '1'
+      RELEASE_TAG: ${{ github.ref_name }}
+      RELEASE_VERSION: ${{ needs.guard.outputs.version }}
+    steps:
+      - name: Check out validated commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.guard.outputs.commit }}
+          persist-credentials: false
+      - name: Prepare lint tools
+        run: brew install swiftlint
+      - name: Check formatting and lint
+        run: make lint
+      - name: Build unsigned Release for Apple silicon
+        run: |
+          set -euo pipefail
+          # Notra enforces Swift warnings as errors in its target settings.
+          # Preserve Swift package settings, matching the repository build scripts.
+          xcodebuild build \
+            -project Notra.xcodeproj \
+            -scheme Notra \
+            -configuration Release \
+            -destination 'generic/platform=macOS' \
+            -derivedDataPath "$RUNNER_TEMP/NotraRelease" \
+            ARCHS=arm64 ONLY_ACTIVE_ARCH=NO \
+            CODE_SIGNING_ALLOWED=NO DEVELOPMENT_TEAM= \
+            NOTRA_BUNDLE_IDENTIFIER=app.notra.Notra \
+            NOTRA_ICLOUD_CONTAINER_IDENTIFIER= \
+            NOTRA_CODE_SIGN_ENTITLEMENTS=Notra/Notra.entitlements \
+            NOTRA_INFO_PLIST_FILE=NotraInfo.plist \
+            GCC_TREAT_WARNINGS_AS_ERRORS=YES \
+            OTHER_LDFLAGS="\$(inherited) -Wl,-fatal_warnings"
+      - name: Stage distinct preview app and local-only entitlements
+        run: |
+          set -euo pipefail
+          app="$RUNNER_TEMP/staging/Notra Preview.app"
+          mkdir -p "$RUNNER_TEMP/staging"
+          ditto "$RUNNER_TEMP/NotraRelease/Build/Products/Release/Notra.app" "$app"
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleName Notra Preview' "$app/Contents/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleDisplayName Notra Preview' "$app/Contents/Info.plist"
+          plutil -convert json -o "$RUNNER_TEMP/app-info.json" "$app/Contents/Info.plist"
+          jq -e --arg version "$RELEASE_VERSION" '
+            .CFBundleIdentifier == "app.notra.Notra" and
+            .CFBundleExecutable == "Notra" and
+            .CFBundleShortVersionString == $version and
+            .CFBundleName == "Notra Preview" and
+            .CFBundleDisplayName == "Notra Preview" and
+            .LSMinimumSystemVersion == "26.0" and
+            (has("NotraICloudContainerIdentifier") | not) and
+            (has("NSUbiquitousContainers") | not)
+          ' "$RUNNER_TEMP/app-info.json" >/dev/null
+          cp Notra/Notra.entitlements "$RUNNER_TEMP/local.entitlements"
+          /usr/libexec/PlistBuddy -c 'Add :com.apple.security.app-sandbox bool true' "$RUNNER_TEMP/local.entitlements"
+          /usr/libexec/PlistBuddy -c 'Add :com.apple.security.network.client bool true' "$RUNNER_TEMP/local.entitlements"
+          # No restricted entitlements: no device-bound provisioning profile is needed.
+          [[ ! -e "$app/Contents/embedded.provisionprofile" ]] || {
+            echo 'The local-only preview must not contain a provisioning profile.' >&2
+            exit 1
+          }
+      - name: Import protected Apple Development identity
+        env:
+          CERTIFICATE_BASE64: ${{ secrets.MACOS_DEVELOPMENT_CERTIFICATE_P12_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.MACOS_DEVELOPMENT_CERTIFICATE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          [[ -n "$CERTIFICATE_BASE64" && -n "$CERTIFICATE_PASSWORD" ]] || {
+            echo 'Configure both Apple Development environment secrets.' >&2
+            exit 1
+          }
+          umask 077
+          printf '%s' "$CERTIFICATE_BASE64" | base64 --decode > "$RUNNER_TEMP/signing.p12"
+          password=$(openssl rand -base64 32)
+          echo "::add-mask::$password"
+          keychain="$RUNNER_TEMP/notra-release.keychain-db"
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          security import "$RUNNER_TEMP/signing.p12" -k "$keychain" -P "$CERTIFICATE_PASSWORD" \
+            -T /usr/bin/codesign >/dev/null
+          # Native import supports Keychain-exported PKCS#12 encryption formats.
+          security find-certificate -c 'Apple Development:' -p "$keychain" > "$RUNNER_TEMP/signing-certificate.pem"
+          subject=$(openssl x509 -in "$RUNNER_TEMP/signing-certificate.pem" -noout -subject -nameopt RFC2253)
+          echo "::add-mask::$subject"
+          [[ "$subject" == *'CN=Apple Development:'* ]] || {
+            echo 'The identity must be an Apple Development certificate.' >&2
+            exit 1
+          }
+          openssl x509 -in "$RUNNER_TEMP/signing-certificate.pem" -checkend 0 -noout >/dev/null
+          fingerprint=$(openssl x509 -in "$RUNNER_TEMP/signing-certificate.pem" -noout -fingerprint -sha1)
+          identity=${fingerprint#*=}
+          identity=${identity//:/}
+          [[ "$identity" =~ ^[A-Fa-f0-9]{40}$ ]] || exit 1
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$password" "$keychain" >/dev/null
+          identities=$(security find-identity -v -p codesigning "$keychain")
+          if [[ "$identities" =~ \"(Apple\ Development:[^\"]+)\" ]]; then
+            echo "::add-mask::${BASH_REMATCH[1]}"
+          fi
+          [[ "$identities" == *"$identity"* ]] || {
+            echo 'The imported identity needs a valid certificate chain and matching private key.' >&2
+            exit 1
+          }
+          printf 'SIGNING_IDENTITY=%s\n' "$identity" >> "$GITHUB_ENV"
+      - name: Sign executable code and verify local-only app
+        run: |
+          set -euo pipefail
+          app="$RUNNER_TEMP/staging/Notra Preview.app"
+          keychain="$RUNNER_TEMP/notra-release.keychain-db"
+          while IFS= read -r -d '' executable; do
+            description=$(file -b "$executable")
+            if [[ "$description" == *Mach-O* ]]; then
+              [[ "$(lipo -archs "$executable")" == arm64 ]] || {
+                echo 'Every bundled executable must contain only arm64.' >&2
+                exit 1
+              }
+              if [[ "$executable" != "$app/Contents/MacOS/Notra" ]]; then
+                codesign --force --sign "$SIGNING_IDENTITY" --keychain "$keychain" \
+                  --options runtime --timestamp "$executable"
+              fi
+            fi
+          done < <(find "$app/Contents" -type f -print0)
+          while IFS= read -r -d '' bundle; do
+            codesign --force --sign "$SIGNING_IDENTITY" --keychain "$keychain" \
+              --options runtime --timestamp "$bundle"
+          done < <(find "$app/Contents" -depth -type d \
+            \( -name '*.framework' -o -name '*.xpc' -o -name '*.appex' -o -name '*.app' \) -print0)
+          codesign --force --sign "$SIGNING_IDENTITY" --keychain "$keychain" \
+            --options runtime --timestamp --entitlements "$RUNNER_TEMP/local.entitlements" "$app"
+          codesign --verify --deep --strict "$app"
+          [[ "$(lipo -archs "$app/Contents/MacOS/Notra")" == arm64 ]] || exit 1
+          codesign --display --entitlements - --xml "$app" > "$RUNNER_TEMP/signed-entitlements.plist" 2>/dev/null
+          plutil -convert json -o "$RUNNER_TEMP/signed-entitlements.json" "$RUNNER_TEMP/signed-entitlements.plist"
+          jq -e '
+            (keys | sort) == [
+              "com.apple.security.app-sandbox",
+              "com.apple.security.files.user-selected.read-write",
+              "com.apple.security.network.client"
+            ] and all(.[]; . == true)
+          ' "$RUNNER_TEMP/signed-entitlements.json" >/dev/null
+          codesign --display --verbose=4 "$app" 2> "$RUNNER_TEMP/signature.txt"
+          grep -Eq 'flags=.*\(runtime\)' "$RUNNER_TEMP/signature.txt"
+          grep -q '^Timestamp=' "$RUNNER_TEMP/signature.txt"
+          # Development signing is intentionally not notarization or Gatekeeper acceptance.
+      - name: Package signed preview and checksum
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/release"
+          asset="Notra-Preview-$RELEASE_TAG-macOS-arm64.zip"
+          ditto -c -k --sequesterRsrc --keepParent \
+            "$RUNNER_TEMP/staging/Notra Preview.app" "$RUNNER_TEMP/release/$asset"
+          (cd "$RUNNER_TEMP/release" && shasum -a 256 "$asset" > SHA256SUMS.txt && shasum -a 256 -c SHA256SUMS.txt)
+      - name: Upload only distribution assets
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: macos-development-release
+          path: |
+            ${{ runner.temp }}/release/Notra-Preview-${{ github.ref_name }}-macOS-arm64.zip
+            ${{ runner.temp }}/release/SHA256SUMS.txt
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+      - name: Remove signing material
+        if: always()
+        run: |
+          set -euo pipefail
+          keychain="$RUNNER_TEMP/notra-release.keychain-db"
+          if [[ -e "$keychain" ]]; then
+            security delete-keychain "$keychain"
+          fi
+          rm -f "$RUNNER_TEMP/signing.p12" "$RUNNER_TEMP/signing-certificate.pem" \
+            "$RUNNER_TEMP/local.entitlements" "$RUNNER_TEMP/signature.txt" \
+            "$RUNNER_TEMP/signed-entitlements.plist" "$RUNNER_TEMP/signed-entitlements.json"
+
+  publish:
+    name: Publish verified development prerelease
+    needs: [guard, package]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RELEASE_TAG: ${{ github.ref_name }}
+      RELEASE_COMMIT: ${{ needs.guard.outputs.commit }}
+    steps:
+      - name: Download distribution assets
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: macos-development-release
+          path: release
+      - name: Verify assets and stage release
+        id: draft
+        run: |
+          set -euo pipefail
+          asset="Notra-Preview-$RELEASE_TAG-macOS-arm64.zip"
+          [[ -f "release/$asset" && -f release/SHA256SUMS.txt ]] || {
+            echo 'Both distribution assets are required.' >&2
+            exit 1
+          }
+          expected=$(sha256sum "release/$asset")
+          [[ "$(cat release/SHA256SUMS.txt)" == "${expected%% *}  $asset" ]] || {
+            echo 'The checksum must match exactly this release archive.' >&2
+            exit 1
+          }
+          (cd release && sha256sum -c SHA256SUMS.txt)
+          cat > "$RUNNER_TEMP/release-notes.md" <<'NOTES'
+          ## Free Mac development build
+
+          Try Notra's editing and organisation features on an Apple silicon Mac (M1 or later) running macOS 26 or later. Intel Macs are not supported by this download.
+
+          - Notes are stored locally; this build does not include iCloud sync.
+          - Signed with an Apple Development certificate; **not notarised**. macOS may block the first launch.
+          - Extract the ZIP and install **Notra Preview.app**, separately from the App Store edition.
+          - For per-app approval, see [Apple's Privacy & Security instructions](https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac). Do not disable Gatekeeper globally.
+          - Check the ZIP against `SHA256SUMS.txt` before installing. Notes do not automatically migrate between editions; back up complete TextBundles before transferring them.
+
+          [Get the full edition on the App Store](https://apps.apple.com/app/notra-markdown-notes/id6809414279) for Mac, iPhone, and iPad, with iCloud sync. One purchase; no subscription.
+          NOTES
+          # Recheck the remote tag after approval; never create or move a tag here.
+          gh api "repos/$GH_REPO/git/ref/tags/$RELEASE_TAG" > "$RUNNER_TEMP/remote-tag.json"
+          while [[ "$(jq -r '.object.type' "$RUNNER_TEMP/remote-tag.json")" == tag ]]; do
+            tag_object=$(jq -r '.object.sha' "$RUNNER_TEMP/remote-tag.json")
+            gh api "repos/$GH_REPO/git/tags/$tag_object" |
+              jq '{object: .object}' > "$RUNNER_TEMP/next-tag.json"
+            mv "$RUNNER_TEMP/next-tag.json" "$RUNNER_TEMP/remote-tag.json"
+          done
+          jq -e --arg commit "$RELEASE_COMMIT" \
+            '.object.type == "commit" and .object.sha == $commit' "$RUNNER_TEMP/remote-tag.json" >/dev/null
+          existing=$(gh api --paginate "repos/$GH_REPO/releases?per_page=100" \
+            --jq ".[] | select(.tag_name == \"$RELEASE_TAG\") | .id")
+          [[ -z "$existing" ]] || {
+            echo 'A release already exists for this tag; do not overwrite it.' >&2
+            exit 1
+          }
+          jq -n --arg tag "$RELEASE_TAG" --arg commit "$RELEASE_COMMIT" \
+            --rawfile body "$RUNNER_TEMP/release-notes.md" \
+            '{tag_name: $tag, target_commitish: $commit, name: ("Notra " + $tag + " — Mac development build"),
+              body: $body, draft: true, prerelease: true}' > "$RUNNER_TEMP/release-request.json"
+          gh api --method POST "repos/$GH_REPO/releases" \
+            --input "$RUNNER_TEMP/release-request.json" > "$RUNNER_TEMP/draft.json"
+          jq -e '.draft == true and (.id | type) == "number"' "$RUNNER_TEMP/draft.json" >/dev/null
+          release_id=$(jq -r '.id' "$RUNNER_TEMP/draft.json")
+          printf 'release_id=%s\n' "$release_id" >> "$GITHUB_OUTPUT"
+          mkdir -p "$RUNNER_TEMP/published-assets"
+          # Address this new draft by ID, never by a possibly published tag.
+          for filename in "$asset" SHA256SUMS.txt; do
+            gh api --method POST -H 'Content-Type: application/octet-stream' \
+              "https://uploads.github.com/repos/$GH_REPO/releases/$release_id/assets?name=$filename" \
+              --input "release/$filename" > "$RUNNER_TEMP/uploaded-asset.json"
+            asset_id=$(jq -er '.id | numbers' "$RUNNER_TEMP/uploaded-asset.json")
+            gh api -H 'Accept: application/octet-stream' \
+              "repos/$GH_REPO/releases/assets/$asset_id" > "$RUNNER_TEMP/published-assets/$filename"
+            cmp "release/$filename" "$RUNNER_TEMP/published-assets/$filename"
+          done
+          (cd "$RUNNER_TEMP/published-assets" && sha256sum -c SHA256SUMS.txt)
+      - name: Publish complete prerelease
+        env:
+          RELEASE_ID: ${{ steps.draft.outputs.release_id }}
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_ID" =~ ^[0-9]+$ ]] || exit 1
+          gh api --method PATCH "repos/$GH_REPO/releases/$RELEASE_ID" \
+            -F draft=false -F prerelease=true >/dev/null
