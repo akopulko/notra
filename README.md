@@ -122,6 +122,8 @@ The workflow has read-only repository access, pins actions to full commit SHAs, 
 
 Unit-test commands live directly in `ci.yml`, with no extra helper scripts or Python files. They use the shared `Notra` scheme, select only `NotraTests`, and use the public local-only configuration without personal signing credentials. `NotraUITests` remains available in Xcode but is not executed by CI. Run the `NotraTests` target in Xcode for local unit testing.
 
+Search-dependent store tests require confirmed index readiness before querying. A monotonic deadline reports stalled or unavailable indexing as a readiness failure instead of a missing search result.
+
 ## Publishing GitHub development releases
 
 `.github/workflows/release-macos.yml` runs only for pushed version tags such as `v1.3` or `v1.3.1`. It requires the tagged commit to belong to `master`, the app's Release marketing version to match the tag, and successful master CI for that exact commit. It produces only arm64 binaries; App Store architecture settings remain unchanged.
