@@ -130,12 +130,7 @@ struct NotesStoreTests {
         let note = try harness.makeNote(markdown: "Visible preview\n\nNeedle in body")
 
         await harness.store.loadNotes()
-        for _ in 0..<50 {
-            if harness.store.searchStatus == .ready {
-                break
-            }
-            try await Task.sleep(for: .milliseconds(10))
-        }
+        try await waitUntilSearchReady(harness.store)
 
         let page = try #require(
             await harness.store.searchNotes(query: "needle body", limit: 50, offset: 0)
@@ -429,12 +424,7 @@ struct NotesStoreTests {
         #expect(store.storageLocation == .iCloud)
         #expect(NoteStoragePreferenceStorage(userDefaults: userDefaults).location == .iCloud)
 
-        for _ in 0..<50 {
-            if store.searchStatus == .ready {
-                break
-            }
-            try await Task.sleep(for: .milliseconds(10))
-        }
+        try await waitUntilSearchReady(store)
         let oldLocationResults = try #require(
             await store.searchNotes(query: "Saved local", limit: 50, offset: 0)
         )
@@ -930,9 +920,7 @@ struct NotesStoreTests {
         #expect(try harness.repository.loadNote(at: alphaSummary.url).markdown == alphaBody)
         #expect(try harness.repository.loadNote(at: try #require(repeatedURL)).markdown == alphaBody)
 
-        for _ in 0..<50 where harness.store.searchStatus != .ready {
-            try await Task.sleep(for: .milliseconds(10))
-        }
+        try await waitUntilSearchReady(harness.store)
         let alphaSearch = await harness.store.searchNotes(query: "uniquealpha", limit: 20, offset: 0)
         let betaSearch = await harness.store.searchNotes(query: "uniquebeta", limit: 20, offset: 0)
         #expect(alphaSearch?.results.contains(where: { $0.noteID == alphaSummary.id }) == true)
@@ -1035,6 +1023,21 @@ struct NotesStoreTests {
         #expect(harness.store.notes.count == 2)
     }
 #endif
+
+    private func waitUntilSearchReady(_ store: NotesStore) async throws {
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: .seconds(10))
+        while store.searchStatus != .ready,
+              store.searchStatus != .unavailable,
+              clock.now < deadline
+        {
+            try await clock.sleep(for: .milliseconds(10))
+        }
+        try #require(
+            store.searchStatus == .ready,
+            "Search index did not become ready before the deadline or became unavailable."
+        )
+    }
 
     private func makeHarness() throws -> NotesStoreHarness {
         let rootURL = FileManager.default.temporaryDirectory

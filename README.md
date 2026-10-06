@@ -2,6 +2,57 @@
 
 Notra is a SwiftUI notes app for iOS, iPadOS, and macOS. Notes are stored as TextBundle documents with Markdown content and local assets.
 
+## Download
+
+### Free Mac development build
+
+[Download a development build from GitHub Releases](https://github.com/akopulko/notra/releases) to try Notra's editing and organisation features.
+
+- Requires an **Apple silicon Mac (M1 or later)** running **macOS 26 or later**. Intel Macs are not supported by GitHub downloads.
+- Notes are stored **locally only**, without iCloud sync.
+- Signed with an **Apple Development certificate**, but **not notarised**. macOS may block the first launch.
+- Install **Notra Preview.app** separately from the full App Store edition. Download updates manually from Releases.
+
+### Full App Store edition
+
+[Get Notra on the App Store](https://apps.apple.com/app/notra-markdown-notes/id6809414279) for **Mac, iPhone, and iPad**, with local storage and iCloud sync using your own iCloud storage. **One purchase. No subscription.**
+
+<p>
+  <a href="https://apps.apple.com/app/notra-markdown-notes/id6809414279">
+    <img src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" alt="Download on the App Store" height="40">
+  </a>
+</p>
+
+| | GitHub development build | App Store edition |
+|---|---|---|
+| Devices | Apple silicon Mac only | Mac, iPhone, iPad |
+| Storage | Local only | Local and iCloud |
+| Installation | ZIP download; security approval may be required | App Store |
+| Updates | Manual download | App Store |
+| Price | Free | One-time purchase |
+
+The source remains open source, including the optional iCloud configuration for developers building with their own signing credentials. GitHub downloads do not impose a time limit or note limit.
+
+### Installing a development build
+
+1. Download the ZIP and `SHA256SUMS.txt` from the same release. In their download folder, run `shasum -a 256 -c SHA256SUMS.txt`.
+2. Extract the ZIP and move **Notra Preview.app** to Applications. Do not replace **Notra.app** from the App Store.
+3. Try opening the preview. If macOS blocks it, review [Apple's instructions for opening an app from an unknown developer](https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac).
+4. If you trust this download, use **System Settings → Privacy & Security → Open Anyway** when offered. Managed Macs may prohibit this exception.
+
+Development signing is not notarization or App Review. Do not disable Gatekeeper globally or remove quarantine attributes to install the preview.
+
+### Moving notes to the App Store edition
+
+The editions use separate sandbox libraries and preferences. **Preview notes do not migrate automatically.**
+
+1. Let your notes finish saving. In each edition, use **Settings → General → Open Library Location** to reveal its active library.
+2. Back up both libraries, then quit both apps.
+3. Copy complete `.textbundle` documents from the preview backup into the Store edition's library. Keep their `assets` folders; copying only Markdown can lose attachments. Do not overwrite existing bundles.
+4. Relaunch the Store edition and verify the notes and attachments before deleting any preview data. If its active library uses iCloud, also verify sync on your other device.
+
+Preferences and other app-level state are not transferred by copying TextBundles.
+
 ## Sidebar organisation
 
 On iOS, iPadOS, and macOS, unpinned notes are grouped by month in the current year and by year otherwise. Headings use the system calendar, time zone, and locale. **Date Edited** or **Date Created** selects the grouping date; **Latest First** or **Oldest First** controls section and row order. Pinned notes stay first, ordered by their pin timestamps.
@@ -71,6 +122,56 @@ The workflow has read-only repository access, pins actions to full commit SHAs, 
 
 Unit-test commands live directly in `ci.yml`, with no extra helper scripts or Python files. They use the shared `Notra` scheme, select only `NotraTests`, and use the public local-only configuration without personal signing credentials. `NotraUITests` remains available in Xcode but is not executed by CI. Run the `NotraTests` target in Xcode for local unit testing.
 
+Search-dependent store tests require confirmed index readiness before querying. A monotonic deadline reports stalled or unavailable indexing as a readiness failure instead of a missing search result.
+
+## Publishing GitHub development releases
+
+`.github/workflows/release-macos.yml` runs only for pushed version tags such as `v1.3` or `v1.3.1`. It requires the tagged commit to belong to `master`, the app's Release marketing version to match the tag, and successful master CI for that exact commit. It produces only arm64 binaries; App Store architecture settings remain unchanged.
+
+The workflow builds an optimised, local-only app with the public configuration, stages **Notra Preview.app**, and signs it without a provisioning profile using an Apple Development identity in a temporary keychain. Sandbox and hardened-runtime protection remain enabled; debugger access and iCloud entitlements are absent. It uploads only the ZIP and checksum, stages and verifies a draft, then automatically publishes a **prerelease**. Apple credentials are unavailable to the publishing job.
+
+### One-time owner setup
+
+1. In **Xcode → Settings → Accounts → Manage Certificates**, create or select an **Apple Development** identity. Control-click it, choose **Export Certificate**, and save a password-protected `.p12` outside the repository. The export must include its private key.
+2. In GitHub **Settings → Environments**, create or update **macos-preview**. Configure a required reviewer. If you are the only reviewer, leave **Prevent self-review** unchecked. Restrict deployments using **Selected branches and tags → Tag → `v*`**.
+3. Add these **environment secrets**, not variables:
+
+   | Secret | Value |
+   |---|---|
+   | `MACOS_DEVELOPMENT_CERTIFICATE_P12_BASE64` | Base64-encoded Apple Development `.p12` |
+   | `MACOS_DEVELOPMENT_CERTIFICATE_PASSWORD` | The `.p12` export password |
+
+   To copy the encoded identity, run this from the folder containing it:
+
+   ```sh
+   rtk proxy base64 -i Notra-AppleDevelopment.p12 | rtk proxy pbcopy
+   ```
+
+   Paste into the first secret's Value field. Base64 is not encryption; keep the exported identity and password private. No App Store Connect API key, notarization key, iCloud secret, provisioning profile, or personal access token is needed.
+
+4. Under **Settings → Rules → Rulesets**, protect tags matching **`v*`**. Use one active tag ruleset restricting creation, with bypass for authorised releasers, and a separate active ruleset restricting updates/deletions without routine bypass. Keep **CI result** required on `master`.
+
+Signing certificates necessarily expose their public identity, potentially including the developer name and Team ID, in the distributed app. Private keys and passwords must never enter Git, release assets, or logs. Replace the environment identity before its certificate expires.
+
+### Each release
+
+1. Merge the reviewed app version/build update and workflow changes through `dev` into `master`. Wait for successful CI on the exact commit to release.
+2. From a clean worktree, create an unused tag matching the app version:
+
+   ```sh
+   rtk git switch master
+   rtk git pull --ff-only origin master
+   rtk git tag v1.3
+   rtk git push origin v1.3
+   ```
+
+3. Open the release run under **Actions**, select **Review deployments**, and approve **macos-preview**. Publication is automatic after all checks succeed.
+4. Download `Notra-Preview-v1.3-macOS-arm64.zip` and `SHA256SUMS.txt` through a browser. Verify the checksum, first launch on an Apple silicon Mac not registered for development, local note persistence, attachments, and coexistence with the Store edition. Check manual note transfer using temporary fixtures before recommending it to users.
+
+Never move an existing version tag or overwrite a published release. If publication fails after creating a draft, inspect and delete only that incomplete draft before rerunning the same workflow; retain its tag. The guard intentionally rejects any existing release for the tag.
+
+App Store uploads, iCloud credentials, and App Store Connect configuration are not changed by this workflow.
+
 ## Run
 
 The run targets build the selected Debug app before launching it and stream logs. If the ignored `Config/LocalSigning.xcconfig` exists, they sign the build automatically; otherwise they use an unsigned build:
@@ -125,3 +226,5 @@ Scripts/install_git_hooks.sh
 The hook blocks staged local signing files, iCloud identifiers, Apple Developer Team IDs, credentials, private keys, crash reports, logs, databases, local Xcode state, and local user paths. It also reads your ignored local signing config at runtime and blocks those private values if they accidentally appear in staged files.
 
 Do not commit local signing configuration, generated build output, crash reports, logs, personal notes, or private data.
+
+Apple, the Apple logo, Mac, iPhone, and iPad are trademarks of Apple Inc., registered in the U.S. and other countries. App Store is a service mark of Apple Inc. The official download badge is used under [Apple's marketing guidelines](https://developer.apple.com/app-store/marketing/guidelines/).
