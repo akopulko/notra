@@ -27,6 +27,175 @@ struct NotesStoreTests {
     }
 
     @Test
+    func `selection preserves unedited note timestamps and order`() async throws {
+        let harness = try makeHarness()
+        defer { harness.cleanup() }
+        let alpha = try harness.makeNote(markdown: "Alpha")
+        let beta = try harness.makeNote(markdown: "Beta")
+        try setModificationDates(of: alpha, to: Date(timeIntervalSince1970: 946684800))
+        try setModificationDates(of: beta, to: Date(timeIntervalSince1970: 978307200))
+        let alphaDates = try modificationDates(of: alpha)
+        let betaDates = try modificationDates(of: beta)
+
+        await harness.store.loadNotes()
+        harness.store.setSortField(.dateEdited)
+        harness.store.setSortDirection(.latestFirst)
+        let initialSummaries = harness.store.notes
+        #expect(initialSummaries.map(\.id) == [beta.id, alpha.id])
+        for noteID in [alpha.id, beta.id, alpha.id] {
+            harness.store.selectedNoteID = noteID
+            await harness.store.selectionChanged()
+        }
+
+        #expect(try modificationDates(of: alpha) == alphaDates)
+        #expect(try modificationDates(of: beta) == betaDates)
+        #expect(try harness.repository.loadNote(at: alpha.url).markdown == "Alpha")
+        #expect(try harness.repository.loadNote(at: beta.url).markdown == "Beta")
+        #expect(harness.store.notes == initialSummaries)
+    }
+
+    @Test
+    func `selection flushes pending edits without touching the destination`() async throws {
+        let gate = AutosavePauseGate()
+        let harness = try makeHarness(
+            autosavePause: { await gate.pause() },
+            autosaveCompletion: { await gate.markCompleted() }
+        )
+        defer { harness.cleanup() }
+        let alpha = try harness.makeNote(markdown: "Alpha")
+        let beta = try harness.makeNote(markdown: "Beta")
+        try setModificationDates(of: alpha, to: Date(timeIntervalSince1970: 946684800))
+        try setModificationDates(of: beta, to: Date(timeIntervalSince1970: 978307200))
+        let alphaDates = try modificationDates(of: alpha)
+        let betaDates = try modificationDates(of: beta)
+        await harness.store.loadNotes()
+        harness.store.selectedNoteID = alpha.id
+        await harness.store.selectionChanged()
+        harness.store.updateEditorText("Edited Alpha")
+        await gate.waitUntilEntered()
+
+        harness.store.selectedNoteID = beta.id
+        await harness.store.selectionChanged()
+        let savedDates = try modificationDates(of: alpha)
+        await gate.release()
+        await gate.waitUntilCompleted()
+
+        #expect(try harness.repository.loadNote(at: alpha.url).markdown == "Edited Alpha")
+        #expect(savedDates.text > alphaDates.text)
+        #expect(try modificationDates(of: alpha) == savedDates)
+        #expect(try modificationDates(of: beta) == betaDates)
+        #expect(harness.store.editorText == "Beta")
+        #expect(harness.store.notes.first { $0.id == alpha.id }?.modifiedAt == savedDates.text)
+    }
+
+    @Test
+    func `selection does not rewrite an autosaved note`() async throws {
+        let gate = AutosavePauseGate()
+        let harness = try makeHarness(
+            autosavePause: { await gate.pause() },
+            autosaveCompletion: { await gate.markCompleted() }
+        )
+        defer { harness.cleanup() }
+        let alpha = try harness.makeNote(markdown: "Alpha")
+        let beta = try harness.makeNote(markdown: "Beta")
+        try setModificationDates(of: alpha, to: Date(timeIntervalSince1970: 946684800))
+        await harness.store.loadNotes()
+        harness.store.selectedNoteID = alpha.id
+        await harness.store.selectionChanged()
+        harness.store.updateEditorText("Autosaved Alpha")
+        await gate.waitUntilEntered()
+        await gate.release()
+        await gate.waitUntilCompleted()
+        let savedDates = try modificationDates(of: alpha)
+        #expect(try harness.repository.loadNote(at: alpha.url).markdown == "Autosaved Alpha")
+
+        harness.store.selectedNoteID = beta.id
+        await harness.store.selectionChanged()
+        #expect(try modificationDates(of: alpha) == savedDates)
+        #expect(harness.store.editorText == "Beta")
+    }
+
+    @Test
+    func `explicit saves write only changed content`() async throws {
+        let harness = try makeHarness()
+        defer { harness.cleanup() }
+        let alpha = try harness.makeNote(markdown: "Alpha")
+        let beta = try harness.makeNote(markdown: "Beta")
+        try setModificationDates(of: alpha, to: Date(timeIntervalSince1970: 946684800))
+        let originalDates = try modificationDates(of: alpha)
+        await harness.store.loadNotes()
+        harness.store.selectedNoteID = alpha.id
+        await harness.store.selectionChanged()
+
+        await harness.store.saveNow()
+        #expect(try modificationDates(of: alpha) == originalDates)
+        harness.store.updateEditorText("Saved Alpha")
+        await harness.store.saveNow()
+        let savedDates = try modificationDates(of: alpha)
+        #expect(savedDates.text > originalDates.text)
+        #expect(try harness.repository.loadNote(at: alpha.url).markdown == "Saved Alpha")
+
+        await harness.store.saveNow()
+        harness.store.selectedNoteID = beta.id
+        await harness.store.selectionChanged()
+        #expect(try modificationDates(of: alpha) == savedDates)
+    }
+
+    @Test
+    func `cancelled autosave preserves the newer explicit save baseline`() async throws {
+        let gate = AutosavePauseGate()
+        let completions = AutosaveCompletionCounter()
+        let harness = try makeHarness(
+            autosavePause: { await gate.pause() },
+            autosaveCompletion: { await completions.markCompleted() }
+        )
+        defer { harness.cleanup() }
+        let alpha = try harness.makeNote(markdown: "Alpha")
+        let beta = try harness.makeNote(markdown: "Beta")
+        await harness.store.loadNotes()
+        harness.store.selectedNoteID = alpha.id
+        await harness.store.selectionChanged()
+        harness.store.updateEditorText("Older edit")
+        await gate.waitUntilEntered()
+        harness.store.updateEditorText("Newer edit")
+        await harness.store.saveNow()
+        let savedDates = try modificationDates(of: alpha)
+        await gate.release()
+        await completions.waitUntilCompleted(count: 2)
+
+        harness.store.selectedNoteID = beta.id
+        await harness.store.selectionChanged()
+        #expect(try harness.repository.loadNote(at: alpha.url).markdown == "Newer edit")
+        #expect(try modificationDates(of: alpha) == savedDates)
+        #expect(harness.store.editorText == "Beta")
+    }
+
+    @Test
+    func `failed explicit save leaves edits pending for retry`() async throws {
+        let harness = try makeHarness()
+        defer { harness.cleanup() }
+        let alpha = try harness.makeNote(markdown: "Alpha")
+        await harness.store.loadNotes()
+        harness.store.selectedNoteID = alpha.id
+        await harness.store.selectionChanged()
+        harness.store.updateEditorText("Pending edit")
+        let textURL = alpha.url.appendingPathComponent(TextBundleNoteRepository.textFilename)
+        let backupURL = alpha.url.appendingPathComponent("original.md")
+        try FileManager.default.moveItem(at: textURL, to: backupURL)
+        try FileManager.default.createDirectory(at: textURL, withIntermediateDirectories: false)
+        await harness.store.saveNow()
+        #expect(harness.store.errorMessage != nil)
+        try FileManager.default.removeItem(at: textURL)
+        try FileManager.default.moveItem(at: backupURL, to: textURL)
+
+        await harness.store.saveNow()
+        #expect(try harness.repository.loadNote(at: alpha.url).markdown == "Pending edit")
+        let savedDates = try modificationDates(of: alpha)
+        await harness.store.saveNow()
+        #expect(try modificationDates(of: alpha) == savedDates)
+    }
+
+    @Test
     func `deleting selected note selects previous note`() async throws {
         let harness = try makeHarness()
         defer {
@@ -1039,7 +1208,12 @@ struct NotesStoreTests {
         )
     }
 
-    private func makeHarness() throws -> NotesStoreHarness {
+    private func makeHarness(
+        autosavePause: @escaping @Sendable () async -> Void = {
+            try? await Task.sleep(for: .milliseconds(500))
+        },
+        autosaveCompletion: @escaping @Sendable () async -> Void = {}
+    ) throws -> NotesStoreHarness {
         let rootURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: rootURL, withIntermediateDirectories: true)
@@ -1061,10 +1235,31 @@ struct NotesStoreTests {
                 repository: repository,
                 sortPreferenceStorage: sortStorage,
                 searchIndex: searchIndex,
-                iCloudAvailability: { false }
+                iCloudAvailability: { false },
+                autosavePause: autosavePause,
+                autosaveCompletion: autosaveCompletion
             ),
             userDefaults: userDefaults,
             suiteName: suiteName
+        )
+    }
+
+    private func setModificationDates(of note: Note, to date: Date) throws {
+        try FileManager.default.setAttributes(
+            [.modificationDate: date],
+            ofItemAtPath: note.url.appendingPathComponent(TextBundleNoteRepository.textFilename).path
+        )
+        try FileManager.default.setAttributes([.modificationDate: date], ofItemAtPath: note.url.path)
+    }
+
+    private func modificationDates(of note: Note) throws -> NoteModificationDates {
+        let textAttributes = try FileManager.default.attributesOfItem(
+            atPath: note.url.appendingPathComponent(TextBundleNoteRepository.textFilename).path
+        )
+        let bundleAttributes = try FileManager.default.attributesOfItem(atPath: note.url.path)
+        return try NoteModificationDates(
+            text: #require(textAttributes[.modificationDate] as? Date),
+            bundle: #require(bundleAttributes[.modificationDate] as? Date)
         )
     }
 
@@ -1199,5 +1394,30 @@ private actor AutosavePauseGate {
         await withCheckedContinuation { continuation in
             completionWaiter = continuation
         }
+    }
+}
+
+private struct NoteModificationDates: Equatable {
+    let text: Date
+    let bundle: Date
+}
+
+private actor AutosaveCompletionCounter {
+    private var count = 0
+    private var target = 0
+    private var waiter: CheckedContinuation<Void, Never>?
+
+    func markCompleted() {
+        count += 1
+        if count >= target {
+            waiter?.resume()
+            waiter = nil
+        }
+    }
+
+    func waitUntilCompleted(count target: Int) async {
+        guard count < target else { return }
+        self.target = target
+        await withCheckedContinuation { waiter = $0 }
     }
 }
