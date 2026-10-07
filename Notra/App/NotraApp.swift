@@ -25,7 +25,7 @@ struct NotraApp: App {
         }
         .defaultSize(width: 1040, height: 720)
         .windowResizability(.contentMinSize)
-        .windowToolbarStyle(.unified(showsTitle: false))
+        .windowToolbarStyle(.unified)
         .commands {
             NotraCommands()
         }

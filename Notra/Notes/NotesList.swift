@@ -56,6 +56,8 @@ struct NotesList: View {
 
     var body: some View {
         notesList
+            .navigationTitle("Notra")
+            .navigationSubtitle(Text("\(store.notes.count) Notes"))
             .toolbar {
                 ToolbarItemGroup(placement: .primaryAction) {
                     NewNoteButton(action: createNote)
