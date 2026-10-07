@@ -79,7 +79,7 @@ struct NotesSidebar: View {
         return Button {
             toggleTag(tag)
         } label: {
-            TagCapsule(tag: tag, size: .regular, style: .sidebar)
+            TagCapsule(tag: tag, size: .compact, style: .sidebar)
                 .opacity(isSelected ? 0.5 : 1)
         }
         .buttonStyle(.plain)
