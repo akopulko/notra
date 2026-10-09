@@ -292,17 +292,15 @@ struct NotraCommands: Commands {
         CommandGroup(after: .sidebar) {
             Divider()
 
-            Menu {
-                sortFieldButton(.dateEdited)
-                sortFieldButton(.dateCreated)
-
-                Divider()
-
-                sortDirectionButton(.latestFirst)
-                sortDirectionButton(.oldestFirst)
-            } label: {
-                Label("Sort By", systemImage: "arrow.up.arrow.down")
-            }
+            SortNotesMenu(
+                preference: context?.store.sortPreference,
+                setField: { field in
+                    context?.store.setSortField(field)
+                },
+                setDirection: { direction in
+                    context?.store.setSortDirection(direction)
+                }
+            )
             .disabled(context == nil)
         }
 
@@ -343,29 +341,5 @@ struct NotraCommands: Commands {
         }
         .keyboardShortcut(shortcut, modifiers: modifiers)
         .disabled(!(context?.canEditSelectedNote ?? false))
-    }
-
-    private func sortFieldButton(_ field: NoteSortField) -> some View {
-        Button {
-            context?.store.setSortField(field)
-        } label: {
-            if context?.store.sortPreference.field == field {
-                Label(field.menuTitle, systemImage: "checkmark")
-            } else {
-                Text(field.menuTitle)
-            }
-        }
-    }
-
-    private func sortDirectionButton(_ direction: NoteSortDirection) -> some View {
-        Button {
-            context?.store.setSortDirection(direction)
-        } label: {
-            if context?.store.sortPreference.direction == direction {
-                Label(direction.menuTitle, systemImage: "checkmark")
-            } else {
-                Text(direction.menuTitle)
-            }
-        }
     }
 }

@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Presents the persisted field and direction choices in the notes-list sorting submenu.
 struct SortNotesMenu: View {
-    let preference: NoteSortPreference
+    let preference: NoteSortPreference?
     let setField: (NoteSortField) -> Void
     let setDirection: (NoteSortDirection) -> Void
 
@@ -26,7 +26,7 @@ struct SortNotesMenu: View {
         Button {
             setField(field)
         } label: {
-            if preference.field == field {
+            if preference?.field == field {
                 Label(field.menuTitle, systemImage: "checkmark")
             } else {
                 Text(field.menuTitle)
@@ -38,7 +38,7 @@ struct SortNotesMenu: View {
         Button {
             setDirection(direction)
         } label: {
-            if preference.direction == direction {
+            if preference?.direction == direction {
                 Label(direction.menuTitle, systemImage: "checkmark")
             } else {
                 Text(direction.menuTitle)
