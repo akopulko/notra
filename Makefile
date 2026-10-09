@@ -2,7 +2,7 @@ SHELL := /bin/sh
 
 .DEFAULT_GOAL := help
 
-.PHONY: help lint build build-ios build-ios-simulator build-macos test-macos run-ios run-ios-phone run-ios-ipad run-macos privacy hooks
+.PHONY: help lint build build-ios build-ios-simulator build-macos test-macos run-ios run-ios-phone run-ios-ipad run-ios-duo run-macos privacy hooks
 
 ifeq ($(origin CODE_SIGNING_ALLOWED),undefined)
 run_code_signing_allowed := $(if $(wildcard Config/LocalSigning.xcconfig),YES,NO)
@@ -21,6 +21,7 @@ help:
 	@printf '%s\n' '  make run-ios        Build, sign when configured, and run the iOS phone simulator'
 	@printf '%s\n' '  make run-ios-phone  Build, sign when configured, and run the iOS phone simulator'
 	@printf '%s\n' '  make run-ios-ipad   Build, sign when configured, and run the iOS iPad simulator'
+	@printf '%s\n' '  make run-ios-duo    Build, sign when configured, and run the iPhone Duo simulator'
 	@printf '%s\n' '  make run-macos      Build, sign when configured, and run macOS'
 	@printf '%s\n' '  make privacy        Check staged files for private data'
 	@printf '%s\n' '  make hooks          Install local git hooks'
@@ -51,6 +52,10 @@ run-ios-phone:
 run-ios-ipad:
 	CODE_SIGNING_ALLOWED="$(run_code_signing_allowed)" $(MAKE) build-ios-simulator
 	Scripts/run_iOS.sh ipad
+
+run-ios-duo:
+	CODE_SIGNING_ALLOWED="$(run_code_signing_allowed)" $(MAKE) build-ios-simulator
+	Scripts/run_iOS.sh duo
 
 run-macos:
 	CODE_SIGNING_ALLOWED="$(run_code_signing_allowed)" $(MAKE) build-macos

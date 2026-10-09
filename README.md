@@ -183,6 +183,7 @@ The run targets build the selected Debug app before launching it and stream logs
 ```sh
 make run-ios
 make run-ios-ipad
+make run-ios-duo
 make run-macos
 ```
 
