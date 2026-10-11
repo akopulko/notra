@@ -4,8 +4,30 @@ import SwiftUI
 import Testing
 import UniformTypeIdentifiers
 
+enum MarkdownRenderingFixture {
+    static let mixedDocument = """
+    # Verification 👋
+
+    1. Ordered fixture
+       - Nested fixture
+
+    - [ ] Task fixture
+
+    > Quote fixture
+
+    | Key | Value |
+    | --- | --- |
+    | Left fixture | Right fixture |
+
+    ```mermaid
+    flowchart TD
+    A[Start fixture] --> B[End fixture]
+    ```
+    """
+}
+
 @MainActor
-/// Checks parsing, styling, and native Markdown rendering inputs used by preview and PDF export.
+/// Checks parsing, styling, and HTML/PDF rendering behavior.
 struct MarkdownRenderingTests {
     @Test func webThemeKeepsNormalTextSeparateFromCodeText() {
         let webTheme = MarkdownWebTheme(theme: .dark)
@@ -499,93 +521,6 @@ struct MarkdownRenderingTests {
     }
 
     @Test
-    func `compacts a paragraph directly followed by a list`() {
-        let document = SwiftMarkdownParser().parse("""
-        User can:
-        - Create a trip
-        - Archive a trip
-        """)
-
-        #expect(document.renderRows.first?.usesCompactParagraphSpacing == true)
-    }
-
-    @Test
-    func `preserves paragraph spacing before a list separated by a blank line`() {
-        let document = SwiftMarkdownParser().parse("""
-        User can:
-
-        - Create a trip
-        - Archive a trip
-        """)
-
-        #expect(document.renderRows.first?.usesCompactParagraphSpacing == false)
-    }
-
-    @Test
-    func `compacts a paragraph directly followed by an ordered list`() {
-        let document = SwiftMarkdownParser().parse("""
-        Steps:
-        1. Create a trip
-        2. Archive a trip
-        """)
-
-        #expect(document.renderRows.first?.usesCompactParagraphSpacing == true)
-    }
-
-    @Test
-    func `preserves spacing after an unordered list followed by a blank line`() {
-        let document = SwiftMarkdownParser().parse("""
-        - First
-        - Second
-
-        After the list
-        """)
-
-        #expect(document.renderRows.map(\.usesListTrailingParagraphSpacing) == [false, true, false])
-    }
-
-    @Test
-    func `preserves spacing after an ordered list followed by a blank line`() {
-        let document = SwiftMarkdownParser().parse("""
-        1. First
-        2. Second
-
-        After the list
-        """)
-
-        #expect(document.renderRows.map(\.usesListTrailingParagraphSpacing) == [false, true, false])
-    }
-
-    @Test
-    func `preserves compact paragraph spacing in documents with tables`() {
-        let document = SwiftMarkdownParser().parse("""
-        User can:
-        - Create a trip
-
-        | Status |
-        | --- |
-        | Active |
-        """)
-
-        #expect(document.renderRows.first?.usesCompactParagraphSpacing == true)
-    }
-
-    @Test
-    func `preserves list spacing in documents with tables`() {
-        let document = SwiftMarkdownParser().parse("""
-        - First
-
-        After the list
-
-        | Status |
-        | --- |
-        | Active |
-        """)
-
-        #expect(document.renderRows.map(\.usesListTrailingParagraphSpacing) == [true, false, false])
-    }
-
-    @Test
     func `parses raw HTML as literal text`() {
         let document = SwiftMarkdownParser().parse("""
         <section>
@@ -682,55 +617,6 @@ struct MarkdownRenderingTests {
         }
 
         #expect(items.count == 500)
-        #expect(document.renderRows.count == 500)
-    }
-
-    @Test
-    func `flattens nested lists into stable render rows`() {
-        let nestedList = MarkdownBlock.unorderedList(
-            id: "nested-list",
-            items: [
-                MarkdownListItem(
-                    id: "nested-item",
-                    taskState: nil,
-                    taskMarker: nil,
-                    blocks: [
-                        .paragraph(id: "nested-paragraph", [.text("Nested")])
-                    ]
-                )
-            ]
-        )
-        let document = NotraMarkdownDocument(
-            blocks: [
-                .unorderedList(
-                    id: "list",
-                    items: [
-                        MarkdownListItem(
-                            id: "item",
-                            taskState: .unchecked,
-                            taskMarker: nil,
-                            blocks: [
-                                .paragraph(id: "paragraph", [.text("Item")]),
-                                nestedList
-                            ]
-                        )
-                    ]
-                )
-            ]
-        )
-
-        #expect(document.renderRows.map(\.id) == ["paragraph", "nested-paragraph"])
-        #expect(document.renderRows[0].nestingLevel == 0)
-        #expect(document.renderRows[1].nestingLevel == 1)
-        #expect(document.renderRows[0].isInsideListItem)
-        #expect(document.renderRows[1].isInsideListItem)
-
-        guard case .task(.unchecked) = document.renderRows[0].marker,
-              case .unordered(1) = document.renderRows[1].marker
-        else {
-            Issue.record("Expected stable list markers in flattened rows")
-            return
-        }
     }
 
     @Test

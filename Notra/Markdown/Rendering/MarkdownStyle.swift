@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Defines typography, colors, spacing, and code-theme choices for Markdown output.
+/// Defines typography, colors, and code-theme choices for Markdown output.
 struct MarkdownStyle: Equatable {
     let bodyFont: Font
     let previewFontName: String
@@ -18,12 +18,6 @@ struct MarkdownStyle: Equatable {
     let codeSyntaxTheme: MarkdownTheme?
     let codeBlockFont: Font
     let inlineCodeFont: Font
-    let blockSpacing: CGFloat
-    let paragraphSpacing: CGFloat
-    let listItemParagraphSpacing: CGFloat
-    let listIndent: CGFloat
-    let listMarkerWidth: CGFloat
-    let tableCellPadding: CGFloat
 
     static func notra(
         previewFontName: String,
@@ -60,13 +54,7 @@ struct MarkdownStyle: Equatable {
             inlineCodeFont: AppearanceFont.fixedWidthPreviewFont(
                 named: previewFixedWidthFontName,
                 textStyle: .callout
-            ),
-            blockSpacing: 0,
-            paragraphSpacing: 16,
-            listItemParagraphSpacing: 4,
-            listIndent: 24,
-            listMarkerWidth: 26,
-            tableCellPadding: 8
+            )
         )
     }
 

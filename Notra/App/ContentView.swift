@@ -59,13 +59,15 @@ struct ContentView: View {
 
     var body: some View {
         @Bindable var commands = commandContext
+        let availableTags = NoteTagFilter.availableTags(in: store.notes)
+        let availableTagIDs = Set(availableTags.map(\.id))
 
         NavigationSplitView(
             columnVisibility: $columnVisibility,
             preferredCompactColumn: $preferredCompactColumn
         ) {
             NotesSidebar(
-                tags: NoteTagFilter.availableTags(in: store.notes),
+                tags: availableTags,
                 images: NoteSidebarImage.images(in: store.notes),
                 totalImageCount: store.notes.reduce(0) { $0 + $1.attachmentSummary.linkedImageURLs.count },
                 selectedTagIDs: selectedTagIDs,
@@ -401,10 +403,6 @@ private extension ContentView {
                 store.errorMessage = nil
             }
         }
-    }
-
-    var availableTagIDs: Set<String> {
-        Set(NoteTagFilter.availableTags(in: store.notes).map(\.id))
     }
 
     func showAllNotes() {

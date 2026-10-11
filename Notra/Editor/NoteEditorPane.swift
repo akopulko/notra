@@ -132,7 +132,6 @@ struct NoteEditorPane: View {
             focusEditorRequest: commandEditorFocusRequest,
             onFocusFirstLineHandled: consumeFocusFirstLineRequest
         )
-        .backgroundExtensionEffect()
     }
 
     private var preview: some View {
@@ -147,7 +146,6 @@ struct NoteEditorPane: View {
             ),
             toggleTask: store.toggleTask
         )
-        .backgroundExtensionEffect()
     }
 
     private func consumeFocusFirstLineRequest() {

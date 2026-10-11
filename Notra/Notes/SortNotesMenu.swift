@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// Presents the persisted field and direction choices used by the notes sidebar.
+/// Presents the persisted field and direction choices in the notes-list sorting submenu.
 struct SortNotesMenu: View {
-    let preference: NoteSortPreference
+    let preference: NoteSortPreference?
     let setField: (NoteSortField) -> Void
     let setDirection: (NoteSortDirection) -> Void
 
@@ -18,18 +18,15 @@ struct SortNotesMenu: View {
                 sortDirectionButton(direction)
             }
         } label: {
-            Image(systemName: "arrow.up.arrow.down")
+            Label("Sort By", systemImage: "arrow.up.arrow.down")
         }
-        .buttonStyle(.plain)
-        .help("Sort Notes")
-        .accessibilityLabel("Sort Notes")
     }
 
     private func sortFieldButton(_ field: NoteSortField) -> some View {
         Button {
             setField(field)
         } label: {
-            if preference.field == field {
+            if preference?.field == field {
                 Label(field.menuTitle, systemImage: "checkmark")
             } else {
                 Text(field.menuTitle)
@@ -41,7 +38,7 @@ struct SortNotesMenu: View {
         Button {
             setDirection(direction)
         } label: {
-            if preference.direction == direction {
+            if preference?.direction == direction {
                 Label(direction.menuTitle, systemImage: "checkmark")
             } else {
                 Text(direction.menuTitle)

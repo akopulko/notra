@@ -16,10 +16,8 @@ Then visit `http://localhost:8000`.
 
 All links and assets are relative, so the site works from a repository subpath such as `https://USERNAME.github.io/REPOSITORY/`.
 
-## Replacing placeholders
+## Site assets and theme
 
-- Add `notra-macos.png`, `notra-iphone.png`, and `notra-ipad.png` to `assets/screenshots/`. The placeholder panels automatically disappear when the images load.
-- Replace `IOS_APP_STORE_URL` and `MAC_APP_STORE_URL` in `index.html` with the real App Store links. They appear in the download buttons and footer.
-- The logo is at `assets/icons/notra-logo.png`.
+Product screenshots live in `assets/screenshots/`; the promo video and poster live in `assets/video/`; official GitHub marks and the Notra logo live in `assets/icons/`.
 
 The theme follows `prefers-color-scheme` on first load. The header button lets visitors choose light or dark mode, and that choice is saved in `localStorage` under `notra-theme`.

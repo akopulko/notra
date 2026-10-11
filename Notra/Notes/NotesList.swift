@@ -29,9 +29,6 @@ struct NotesList: View {
     let deleteSelectedNoteRequestID: Int
     @Binding var selectedTagIDs: Set<String>
     @Binding var noteRevealRequest: NoteRevealRequest?
-    #if os(iOS)
-    @Namespace private var settingsZoom
-    #endif
     @State private var isSearchPresented = false
     @State private var groupingReferenceDate = Date.now
     @State private var searchFilters: [NoteSearchFilter] = []
@@ -56,16 +53,29 @@ struct NotesList: View {
 
     var body: some View {
         notesList
+            .navigationTitle("Notra")
+            .navigationSubtitle(Text("\(store.notes.count) Notes"))
             .toolbar {
                 ToolbarItemGroup(placement: .primaryAction) {
                     NewNoteButton(action: createNote)
                     #if os(iOS)
-                    SortNotesMenu(
-                        preference: store.sortPreference,
-                        setField: store.setSortField,
-                        setDirection: store.setSortDirection
-                    )
-                    settingsButton
+                    Menu {
+                        SortNotesMenu(
+                            preference: store.sortPreference,
+                            setField: store.setSortField,
+                            setDirection: store.setSortDirection
+                        )
+                        #if os(iOS)
+                        Divider()
+                        Button("Settings", systemImage: "gear") {
+                            isSettingsPresented = true
+                        }
+                        #endif
+                    } label: {
+                        Label("moreActions", systemImage: "ellipsis")
+                            .labelStyle(.iconOnly)
+                    }
+                    .help(Text("moreActions"))
                     #endif
                 }
             }
@@ -177,16 +187,6 @@ struct NotesList: View {
         isSearchPresented = false
         pendingNoteReveal = request
     }
-
-    #if os(iOS)
-    private var settingsButton: some View {
-        Button("Settings", systemImage: "gear") {
-            isSettingsPresented = true
-        }
-        .labelStyle(.iconOnly)
-        .matchedTransitionSource(id: "settings", in: settingsZoom)
-    }
-    #endif
 
     private func searchToken(for filter: NoteSearchFilter) -> some View {
         Label {

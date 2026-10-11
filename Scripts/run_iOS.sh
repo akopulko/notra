@@ -16,8 +16,12 @@ phone)
 ipad)
   device_name="iPad (A16)"
   ;;
+duo)
+  device_name="iPhone Duo"
+  runtime="iOS 27.1"
+  ;;
 *)
-  printf '%s\n' "Usage: Scripts/run_iOS.sh [phone|ipad]" >&2
+  printf '%s\n' "Usage: Scripts/run_iOS.sh [phone|ipad|duo]" >&2
   exit 1
   ;;
 esac
@@ -36,7 +40,7 @@ device_id="$(xcrun simctl list devices available "$runtime" | awk -v name="$devi
 ')"
 
 if [ -z "$device_id" ]; then
-  printf '%s\n' "The ${device_name} simulator is not available on iOS 27." >&2
+  printf '%s\n' "The ${device_name} simulator is not available on ${runtime}." >&2
   exit 1
 fi
 

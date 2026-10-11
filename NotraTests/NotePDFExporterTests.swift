@@ -41,6 +41,7 @@ struct NotePDFExporterTests {
         #expect(document.string?.contains("Line 179: unsaved printable text.") == true)
     }
 
+
     @Test
     func `preserves exported text order`() async throws {
         let fixture = try Fixture()
@@ -208,6 +209,49 @@ struct NotePDFExporterTests {
         #expect(document.string?.contains("Equipment entry") == true)
         #expect(document.string?.contains("Preparation entry") == true)
         #expect(document.string?.contains("Example") == true)
+    }
+
+    @Test
+    func exportsMixedMarkdownBlocksAsPDF() async throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+
+        let item = try await fixture.export(markdown: MarkdownRenderingFixture.mixedDocument)
+        defer { removeExport(item) }
+        let document = try #require(PDFDocument(url: item.fileURL))
+        let text = try #require(document.string)
+
+        for content in [
+            "Verification",
+            "Ordered fixture",
+            "Nested fixture",
+            "Task fixture",
+            "Quote fixture",
+            "Key",
+            "Value",
+            "Left fixture",
+            "Right fixture",
+            "Start fixture",
+            "End fixture"
+        ] {
+            #expect(text.contains(content))
+        }
+
+        let headingIndex = try #require(text.range(of: "Verification")?.lowerBound)
+        let orderedIndex = try #require(text.range(of: "Ordered fixture")?.lowerBound)
+        let nestedIndex = try #require(text.range(of: "Nested fixture")?.lowerBound)
+        let taskIndex = try #require(text.range(of: "Task fixture")?.lowerBound)
+        let quoteIndex = try #require(text.range(of: "Quote fixture")?.lowerBound)
+        #expect(headingIndex < orderedIndex)
+        #expect(orderedIndex < nestedIndex)
+        #expect(nestedIndex < taskIndex)
+        #expect(taskIndex < quoteIndex)
+
+        #expect(document.pageCount == 1)
+        let page = try #require(document.page(at: 0))
+        let mediaBox = page.bounds(for: .mediaBox)
+        #expect(abs(mediaBox.width - NotePDFExporter.pageSize.width) < 0.1)
+        #expect(abs(mediaBox.height - NotePDFExporter.pageSize.height) < 0.1)
     }
 
     @Test

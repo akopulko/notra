@@ -124,6 +124,8 @@ The workflow has read-only repository access, pins actions to full commit SHAs, 
 
 Unit-test commands live directly in `ci.yml`, with no extra helper scripts or Python files. They use the shared `Notra` scheme, select only `NotraTests`, and use the public local-only configuration without personal signing credentials. `NotraUITests` remains available in Xcode but is not executed by CI. Run the `NotraTests` target in Xcode for local unit testing.
 
+Run `make test-macos` for macOS unit and UI tests. The target uses local storage and a unique verification bundle identifier.
+
 Search-dependent store tests require confirmed index readiness before querying. A monotonic deadline reports stalled or unavailable indexing as a readiness failure instead of a missing search result.
 
 ## Publishing GitHub development releases
@@ -181,6 +183,7 @@ The run targets build the selected Debug app before launching it and stream logs
 ```sh
 make run-ios
 make run-ios-ipad
+make run-ios-duo
 make run-macos
 ```
 

@@ -83,7 +83,7 @@ struct TagCapsuleAppearance: ViewModifier {
         case (.previewOverlay, _):
             .caption2
         case (.sidebar, _):
-            .body
+            .caption2
         case (.standard, .compact), (.standard, .regular):
             .caption2.weight(.medium)
         }
