@@ -3,6 +3,7 @@ const themeToggle = document.querySelector('.theme-toggle');
 const mobileMenu = document.querySelector('.menu-toggle');
 const mobileNav = document.querySelector('#mobile-nav');
 const githubButtonHost = document.querySelector('.github-button-host');
+const screenshots = document.querySelectorAll('img[data-src-dark][data-src-light]');
 let githubRenderGeneration = 0;
 const loadGithubRenderer = import('https://esm.sh/github-buttons@2.33.1')
   .then(({ render }) => render)
@@ -40,6 +41,10 @@ function renderGithubButton(theme) {
 
 function setTheme(theme, persist = true) {
   root.dataset.theme = theme;
+  screenshots.forEach((image) => {
+    const source = theme === 'light' ? image.dataset.srcLight : image.dataset.srcDark;
+    if (image.getAttribute('src') !== source) image.src = source;
+  });
   document.querySelector('meta[name="theme-color"]').content = getComputedStyle(root).getPropertyValue('--bg').trim();
   if (persist) localStorage.setItem('notra-theme', theme);
   const nextTheme = theme === 'dark' ? 'light' : 'dark';
