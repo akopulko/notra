@@ -183,24 +183,26 @@ struct TextBundleNoteRepository: Sendable {
         let source = try loadNote(at: sourceURL)
         let destination = try uniqueBundleURL()
         let stagingParent = rootURL.appendingPathComponent(".duplicate-\(UUID().uuidString)", isDirectory: true)
-        let stagedBundle = stagingParent.appendingPathComponent(destination.lastPathComponent, isDirectory: true)
+        var stagedBundle = stagingParent.appendingPathComponent(destination.lastPathComponent, isDirectory: true)
         let fileManager = FileManager.default
+        let sourceTextURL = sourceURL.appendingPathComponent(Self.textFilename)
+        let dateKeys: Set<URLResourceKey> = [.creationDateKey, .contentModificationDateKey]
+        let bundleDates = try sourceURL.resourceValues(forKeys: dateKeys)
+        let textDates = try sourceTextURL.resourceValues(forKeys: dateKeys)
         // Ownership begins only after creation succeeds; never clean up a pre-existing directory.
         try fileManager.createDirectory(at: stagingParent, withIntermediateDirectories: false)
         var published = false
         do {
             try fileManager.copyItem(at: sourceURL, to: stagedBundle)
-            let textURL = stagedBundle.appendingPathComponent(Self.textFilename)
+            var textURL = stagedBundle.appendingPathComponent(Self.textFilename)
             try duplicatedMarkdown(from: source.markdown).write(to: textURL, atomically: true, encoding: .utf8)
             if !preservingPin, source.metadata.pinnedAt != nil {
                 var metadata = source.metadata
                 metadata.pinnedAt = nil
                 try updateNoteMetadata(metadata, for: stagedBundle)
             }
-            let now = Date()
-            let dates: [FileAttributeKey: Any] = [.creationDate: now, .modificationDate: now]
-            try fileManager.setAttributes(dates, ofItemAtPath: textURL.path(percentEncoded: false))
-            try fileManager.setAttributes(dates, ofItemAtPath: stagedBundle.path(percentEncoded: false))
+            try textURL.setResourceValues(textDates)
+            try stagedBundle.setResourceValues(bundleDates)
             _ = try loadNote(at: stagedBundle)
             try fileManager.moveItem(at: stagedBundle, to: destination)
             published = true

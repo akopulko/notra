@@ -95,30 +95,36 @@ struct NotraStorageTests {
             try data.write(to: url)
         }
         let oldDate = Date(timeIntervalSinceReferenceDate: 100000)
-        for url in [source.url, source.url.appendingPathComponent("text.markdown")] {
+        let bundleModifiedAt = oldDate.addingTimeInterval(100)
+        let textCreatedAt = oldDate.addingTimeInterval(200)
+        let textModifiedAt = oldDate.addingTimeInterval(300)
+        for (url, createdAt, modifiedAt) in [
+            (source.url, oldDate, bundleModifiedAt),
+            (source.url.appendingPathComponent("text.markdown"), textCreatedAt, textModifiedAt)
+        ] {
             try fileManager.setAttributes(
-                [.creationDate: oldDate, .modificationDate: oldDate],
+                [.creationDate: createdAt, .modificationDate: modifiedAt],
                 ofItemAtPath: url.path(percentEncoded: false)
             )
         }
         let original = try repository.loadNote(at: source.url)
-        let before = Date()
         let copy = try repository.duplicateNote(at: source.url, preservingPin: preservingPin)
-        let after = Date()
 
         #expect(copy.id != source.id)
         #expect(UUID(uuidString: copy.url.deletingPathExtension().lastPathComponent) != nil)
         #expect(copy.markdown == "# " + expectedDuplicatedTitle("Trip") + body)
         #expect(copy.metadata.tags.map(\.name) == ["Travel"])
         #expect(copy.metadata.pinnedAt == (preservingPin ? pinDate : nil))
-        #expect(copy.createdAt >= before && copy.createdAt <= after)
-        #expect(copy.modifiedAt >= before && copy.modifiedAt <= after)
-        for url in [copy.url, copy.url.appendingPathComponent("text.markdown")] {
-            let dates = try url.resourceValues(forKeys: [.creationDateKey, .contentModificationDateKey])
-            let created = try #require(dates.creationDate)
-            let modified = try #require(dates.contentModificationDate)
-            #expect(abs(created.timeIntervalSince(copy.createdAt)) < 0.01)
-            #expect(abs(modified.timeIntervalSince(copy.modifiedAt)) < 0.01)
+        #expect(copy.createdAt == original.createdAt)
+        #expect(copy.modifiedAt == original.modifiedAt)
+        for (sourceURL, copyURL) in [
+            (source.url, copy.url),
+            (source.url.appendingPathComponent("text.markdown"), copy.url.appendingPathComponent("text.markdown"))
+        ] {
+            let sourceDates = try sourceURL.resourceValues(forKeys: [.creationDateKey, .contentModificationDateKey])
+            let copyDates = try copyURL.resourceValues(forKeys: [.creationDateKey, .contentModificationDateKey])
+            #expect(copyDates.creationDate == sourceDates.creationDate)
+            #expect(copyDates.contentModificationDate == sourceDates.contentModificationDate)
         }
         for (path, data) in members {
             #expect(try Data(contentsOf: copy.url.appendingPathComponent(path)) == data)
