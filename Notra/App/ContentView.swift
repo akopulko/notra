@@ -395,7 +395,7 @@ struct ContentView: View {
 }
 
 private extension ContentView {
-    /// Opens a successfully duplicated note in focused editing without disturbing a newer selection.
+    /// Opens a successfully duplicated note in preview without disturbing a newer selection.
     private func duplicateNote(_ note: NoteSummary) {
         Task { @MainActor in
             guard let duplicatedURL = await store.duplicateNote(note),
@@ -408,8 +408,7 @@ private extension ContentView {
             searchText = ""
             selectedTagIDs = []
             preferredCompactColumn = .detail
-            commandContext.isEditing = true
-            editorFocusRequest += 1
+            commandContext.isEditing = false
         }
     }
 

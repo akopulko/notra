@@ -1220,6 +1220,8 @@ struct NotesStoreTests {
         #expect(sourceReloaded.markdown == "# Trip\n\nlatest")
         #expect(copy.markdown == "# \(duplicatedTitle("Trip"))\n\nlatest")
         #expect(copy.id != source.id)
+        #expect(copy.createdAt == sourceReloaded.createdAt)
+        #expect(copy.modifiedAt == sourceReloaded.modifiedAt)
         #expect(harness.store.selectedNoteID == copy.id)
         #expect(harness.store.editorText == copy.markdown)
         #expect(harness.store.errorMessage == nil)
@@ -1243,6 +1245,9 @@ struct NotesStoreTests {
 
         #expect(try harness.repository.loadNote(at: editor.url).markdown == "# A\n\nPending A")
         #expect(try harness.repository.loadNote(at: copyURL).markdown == "# \(duplicatedTitle("B"))\n\nBody B")
+        let copy = try harness.repository.loadNote(at: copyURL)
+        #expect(copy.createdAt == (try harness.repository.loadNote(at: source.url)).createdAt)
+        #expect(try modificationDates(of: copy) == sourceDates)
         #expect(try modificationDates(of: source) == sourceDates)
         #expect(harness.store.selectedNoteID == copyURL)
     }
