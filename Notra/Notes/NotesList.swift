@@ -23,6 +23,7 @@ struct NotesList: View {
     let isEditing: Bool
     @Binding var searchText: String
     let createNote: () -> Void
+    let duplicateNote: (NoteSummary) -> Void
     /// Shared export entry point used by row context menus and scene commands.
     let exportNote: (NoteSummary, NoteExportAction) -> Void
     /// Monotonic scene command event requesting deletion of the current selection.
@@ -658,6 +659,10 @@ private extension NotesList {
                 }
             }
             Divider()
+            Button(.duplicateNote, systemImage: "plus.square.on.square") {
+                duplicateNote(note)
+            }
+            .disabled(store.isChangingStorage)
             Button("shareWithEllipsis", systemImage: "square.and.arrow.up") {
                 exportNote(note, .sharePDF)
             }
