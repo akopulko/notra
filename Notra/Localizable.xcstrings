@@ -1,6 +1,39 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "duplicateNote" : {
+      "comment" : "Action that creates an independent copy of a note.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Duplizieren" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Duplicate" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Duplicar" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Dupliquer" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Дублировать" } }
+      }
+    },
+    "duplicatedNoteTitle" : {
+      "comment" : "Title of a duplicated note; the placeholder is the original title.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "%@ Kopie" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%@ Copy" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "%@ Copia" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "%@ Copie" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "%@ — копия" } }
+      }
+    },
+    "emptyDuplicatedNoteTitle" : {
+      "comment" : "Title of a duplicated note that has no original title.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Kopie" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Copy" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Copia" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Copie" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Копия" } }
+      }
+    },
     "allNotes" : {
       "extractionState" : "manual",
       "localizations" : {

@@ -6,6 +6,219 @@ import Testing
 @MainActor
 /// Verifies TextBundle creation, metadata, assets, previews, and repository round trips.
 struct NotraStorageTests {
+    @Test(arguments: [
+        ("# Trip\n\nBody", "# ", "Trip", "\n\nBody"),
+        ("   ### **Trip**  ### \nBody", "   ### ", "**Trip**", "  ### \nBody"),
+        ("# Trip#\nBody", "# ", "Trip#", "\nBody"),
+        ("#", "# ", "", ""),
+        ("## ", "## ", "", ""),
+        ("# ###  \nBody", "# ", "", " ###  \nBody"),
+        ("\n\n# Trip\nBody", "\n\n# ", "Trip", "\nBody"),
+        ("# 日本語 👩🏽‍🚀 café\n\nBody", "# ", "日本語 👩🏽‍🚀 café", "\n\nBody"),
+        ("# One\u{2028}two\u{0085}three\n\nBody", "# ", "One\u{2028}two\u{0085}three", "\n\nBody"),
+        ("\u{2028}\n# Trip\nBody", "# ", "Trip", "\n\n\u{2028}\n# Trip\nBody"),
+        ("## Trip ##\r\n\r\nBody\r\n", "## ", "Trip", " ##\r\n\r\nBody\r\n"),
+        ("## Trip\r\rBody\r", "## ", "Trip", "\r\rBody\r"),
+        ("Trip\n====\n\nBody", "", "Trip", "\n====\n\nBody"),
+        ("Trip\n====", "", "Trip", "\n===="),
+        ("Trip\n====\n", "", "Trip", "\n====\n"),
+        ("First line\nLast **line**  \n---\nBody", "First line\n", "Last **line**", "  \n---\nBody"),
+        ("日本語\r\n====\r\nBody", "", "日本語", "\r\n====\r\nBody"),
+        ("Plain title\n\nBody", "# ", "Plain title", "\n\nPlain title\n\nBody"),
+        ("- List title\n\n# Later heading", "# ", "List title", "\n\n- List title\n\n# Later heading"),
+        ("```\n# Inside code\n```\nBody", "# ", "Inside code", "\n\n```\n# Inside code\n```\nBody"),
+        ("Plain\r\n\r\nBody", "# ", "Plain", "\r\n\r\nPlain\r\n\r\nBody"),
+        ("", "# ", "", "\n\n"),
+        (" \r\n\t\r\n", "# ", "", "\r\n\r\n \r\n\t\r\n"),
+        (
+            #"Path\file ! [square] <angle> # hash"#,
+            "# ",
+            ##"Path\\file \! \[square\] \<angle\> \# hash"##,
+            "\n\n" + #"Path\file ! [square] <angle> # hash"#
+        )
+    ])
+    func `duplicates only opening title`(markdown: String, prefix: String, title: String, suffix: String) throws {
+        let repository = try makeRepository()
+        defer { try? FileManager.default.removeItem(at: repository.rootURL) }
+        let source = try repository.createNote(initialMarkdown: markdown)
+
+        let copy = try repository.duplicateNote(at: source.url, preservingPin: true)
+
+        #expect(copy.markdown == prefix + expectedDuplicatedTitle(title) + suffix)
+        #expect(try repository.loadNote(at: source.url).markdown == markdown)
+        #expect(try repository.loadNote(at: copy.url).markdown == copy.markdown)
+        #expect(copy.id != source.id)
+    }
+
+    @Test
+    func `repeated duplication applies localized title again without collisions`() throws {
+        let repository = try makeRepository()
+        defer { try? FileManager.default.removeItem(at: repository.rootURL) }
+        let source = try repository.createNote(initialMarkdown: "# Trip\n\nBody")
+        let first = try repository.duplicateNote(at: source.url, preservingPin: true)
+        let second = try repository.duplicateNote(at: first.url, preservingPin: true)
+
+        #expect(second.markdown == "# " + expectedDuplicatedTitle(expectedDuplicatedTitle("Trip")) + "\n\nBody")
+        #expect(Set([source.id, first.id, second.id]).count == 3)
+        #expect(try repository.loadNote(at: source.url).markdown == "# Trip\n\nBody")
+    }
+
+    @Test(arguments: [true, false])
+    func `duplicates entire bundle independently`(preservingPin: Bool) throws {
+        let repository = try makeRepository()
+        let fileManager = FileManager.default
+        defer { try? fileManager.removeItem(at: repository.rootURL) }
+        let body = "\n\n![Photo](assets/photo%20one.png)\n[Report](assets/report.pdf)\n[External](https://example.com/a)"
+        let source = try repository.createNote(initialMarkdown: "# Trip" + body)
+        let pinDate = Date(timeIntervalSinceReferenceDate: 123456)
+        let info: [String: Any] = [
+            "version": 2, "type": TextBundleInfo.markdownType,
+            "External.App": ["custom": [1, 2, 3]],
+            "app.notra.Notra": [
+                "version": 1, "tags": ["Travel"], "pinnedAt": pinDate.timeIntervalSinceReferenceDate,
+                "future": "keep"
+            ]
+        ]
+        let infoData = try JSONSerialization.data(withJSONObject: info, options: [.prettyPrinted])
+        try infoData.write(to: source.url.appendingPathComponent("info.json"))
+        let members: [String: Data] = [
+            "assets/photo one.png": onePixelPNGData,
+            "assets/report.pdf": Data("%PDF-report".utf8),
+            "assets/unlinked.bin": Data([0, 1, 2, 255]),
+            "assets/nested/.hidden": Data("nested hidden".utf8),
+            ".private": Data("hidden member".utf8),
+            "extra/settings.json": Data(#"{"keep":true}"#.utf8)
+        ]
+        for (path, data) in members {
+            let url = source.url.appendingPathComponent(path)
+            try fileManager.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try data.write(to: url)
+        }
+        let oldDate = Date(timeIntervalSinceReferenceDate: 100000)
+        for url in [source.url, source.url.appendingPathComponent("text.markdown")] {
+            try fileManager.setAttributes(
+                [.creationDate: oldDate, .modificationDate: oldDate],
+                ofItemAtPath: url.path(percentEncoded: false)
+            )
+        }
+        let original = try repository.loadNote(at: source.url)
+        let before = Date()
+        let copy = try repository.duplicateNote(at: source.url, preservingPin: preservingPin)
+        let after = Date()
+
+        #expect(copy.id != source.id)
+        #expect(UUID(uuidString: copy.url.deletingPathExtension().lastPathComponent) != nil)
+        #expect(copy.markdown == "# " + expectedDuplicatedTitle("Trip") + body)
+        #expect(copy.metadata.tags.map(\.name) == ["Travel"])
+        #expect(copy.metadata.pinnedAt == (preservingPin ? pinDate : nil))
+        #expect(copy.createdAt >= before && copy.createdAt <= after)
+        #expect(copy.modifiedAt >= before && copy.modifiedAt <= after)
+        for url in [copy.url, copy.url.appendingPathComponent("text.markdown")] {
+            let dates = try url.resourceValues(forKeys: [.creationDateKey, .contentModificationDateKey])
+            let created = try #require(dates.creationDate)
+            let modified = try #require(dates.contentModificationDate)
+            #expect(abs(created.timeIntervalSince(copy.createdAt)) < 0.01)
+            #expect(abs(modified.timeIntervalSince(copy.modifiedAt)) < 0.01)
+        }
+        for (path, data) in members {
+            #expect(try Data(contentsOf: copy.url.appendingPathComponent(path)) == data)
+            #expect(try Data(contentsOf: source.url.appendingPathComponent(path)) == data)
+        }
+        let copiedInfoData = try Data(contentsOf: copy.url.appendingPathComponent("info.json"))
+        if preservingPin {
+            #expect(copiedInfoData == infoData)
+        }
+        let copiedInfo = try #require(JSONSerialization.jsonObject(with: copiedInfoData) as? [String: Any])
+        #expect(copiedInfo["External.App"] as? [String: [Int]] == ["custom": [1, 2, 3]])
+        let copiedAppInfo = try #require(copiedInfo["app.notra.Notra"] as? [String: Any])
+        #expect(copiedAppInfo["future"] as? String == "keep")
+        #expect(try Data(contentsOf: source.url.appendingPathComponent("info.json")) == infoData)
+        #expect(try repository.loadNote(at: source.url) == original)
+        #expect(try repository.loadNote(at: copy.url) == copy)
+        let summary = try repository.summary(for: copy.url)
+        #expect(summary.attachmentSummary.firstLinkedImageURL
+            == copy.url.appendingPathComponent("assets/photo one.png").notraCanonicalFileURL)
+        #expect(summary.attachmentSummary.hasLinkedNonImageAttachment)
+
+        try Data("changed".utf8).write(to: copy.url.appendingPathComponent("assets/report.pdf"))
+        try repository.deleteAttachment(copy.url.appendingPathComponent("assets/photo one.png"), from: copy.url)
+        #expect(try Data(contentsOf: source.url.appendingPathComponent("assets/report.pdf")) == members["assets/report.pdf"])
+        #expect(try Data(contentsOf: source.url.appendingPathComponent("assets/photo one.png")) == onePixelPNGData)
+        var editedCopy = copy
+        editedCopy.markdown += "\nCopy-only edit"
+        try repository.save(editedCopy)
+        #expect(try repository.loadNote(at: source.url) == original)
+        try repository.delete(summary)
+        #expect(try repository.loadNote(at: source.url) == original)
+
+        let survivingCopy = try repository.duplicateNote(at: source.url, preservingPin: preservingPin)
+        try repository.delete(repository.summary(for: source.url))
+        #expect(try repository.loadNote(at: survivingCopy.url) == survivingCopy)
+        #expect(try Data(contentsOf: survivingCopy.url.appendingPathComponent("assets/photo one.png")) == onePixelPNGData)
+        let entries = try fileManager.contentsOfDirectory(atPath: repository.rootURL.path(percentEncoded: false))
+        #expect(!entries.contains { $0.hasPrefix(".duplicate-") })
+    }
+
+    @Test
+    func `duplication preserves missing metadata and unpinned state`() throws {
+        let repository = try makeRepository()
+        defer { try? FileManager.default.removeItem(at: repository.rootURL) }
+        let source = try repository.createNote(initialMarkdown: "# Trip")
+        let infoURL = source.url.appendingPathComponent("info.json")
+        let originalInfo = try Data(contentsOf: infoURL)
+        let unpinnedCopy = try repository.duplicateNote(at: source.url, preservingPin: false)
+        #expect(unpinnedCopy.metadata.pinnedAt == nil)
+        #expect(try Data(contentsOf: unpinnedCopy.url.appendingPathComponent("info.json")) == originalInfo)
+
+        try FileManager.default.removeItem(at: infoURL)
+        let missingInfoCopy = try repository.duplicateNote(at: source.url, preservingPin: false)
+        #expect(missingInfoCopy.metadata == NoteMetadata())
+        #expect(!FileManager.default.fileExists(
+            atPath: missingInfoCopy.url.appendingPathComponent("info.json").path(percentEncoded: false)
+        ))
+    }
+
+    @Test(arguments: ["missing", "metadata", "utf8", "missingMarkdown"])
+    func `invalid duplication does not publish or remove existing staging`(failure: String) throws {
+        let repository = try makeRepository()
+        let fileManager = FileManager.default
+        defer { try? fileManager.removeItem(at: repository.rootURL) }
+        let source = try repository.createNote(initialMarkdown: "# Trip")
+        let ownedByAnotherOperation = repository.rootURL.appendingPathComponent(".duplicate-existing")
+        try fileManager.createDirectory(at: ownedByAnotherOperation, withIntermediateDirectories: false)
+        let sentinel = ownedByAnotherOperation.appendingPathComponent("sentinel")
+        try Data("keep".utf8).write(to: sentinel)
+        switch failure {
+        case "missing":
+            try fileManager.removeItem(at: source.url)
+        case "metadata":
+            try Data(#"{"app.notra.Notra":{"pinnedAt":"invalid"}}"#.utf8)
+                .write(to: source.url.appendingPathComponent("info.json"))
+        case "utf8":
+            try Data([0xFF, 0xFE, 0xFF]).write(to: source.url.appendingPathComponent("text.markdown"))
+        default:
+            try fileManager.removeItem(at: source.url.appendingPathComponent("text.markdown"))
+        }
+        let entriesBefore = try fileManager.contentsOfDirectory(atPath: repository.rootURL.path(percentEncoded: false))
+        #expect(throws: (any Error).self) {
+            try repository.duplicateNote(at: source.url, preservingPin: true)
+        }
+        let entriesAfter = try fileManager.contentsOfDirectory(atPath: repository.rootURL.path(percentEncoded: false))
+        #expect(Set(entriesBefore) == Set(entriesAfter))
+        #expect(try Data(contentsOf: sentinel) == Data("keep".utf8))
+    }
+
+    private func expectedDuplicatedTitle(_ title: String) -> String {
+        if title.isEmpty {
+            return String(localized: .emptyDuplicatedNoteTitle)
+        }
+        return String(
+            localized: "duplicatedNoteTitle",
+            defaultValue: "\(title) Copy",
+            comment: "Title of a duplicated note; the placeholder is the original title."
+        )
+    }
+
     @Test func createsSpecTextBundle() throws {
         let repository = try makeRepository()
         let note = try repository.createNote()

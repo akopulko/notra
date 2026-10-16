@@ -1,4 +1,5 @@
 import Foundation
+import Markdown
 
 /// Storage failures that can be translated into user-facing note-operation errors.
 enum NoteRepositoryError: Equatable, LocalizedError {
@@ -176,6 +177,53 @@ struct TextBundleNoteRepository: Sendable {
         return try loadNote(at: bundleURL)
     }
 
+    /// Publishes an independent, validated copy of every member of a TextBundle.
+    func duplicateNote(at sourceURL: URL, preservingPin: Bool) throws -> Note {
+        try prepareStorage()
+        let source = try loadNote(at: sourceURL)
+        let destination = try uniqueBundleURL()
+        let stagingParent = rootURL.appendingPathComponent(".duplicate-\(UUID().uuidString)", isDirectory: true)
+        let stagedBundle = stagingParent.appendingPathComponent(destination.lastPathComponent, isDirectory: true)
+        let fileManager = FileManager.default
+        // Ownership begins only after creation succeeds; never clean up a pre-existing directory.
+        try fileManager.createDirectory(at: stagingParent, withIntermediateDirectories: false)
+        var published = false
+        do {
+            try fileManager.copyItem(at: sourceURL, to: stagedBundle)
+            let textURL = stagedBundle.appendingPathComponent(Self.textFilename)
+            try duplicatedMarkdown(from: source.markdown).write(to: textURL, atomically: true, encoding: .utf8)
+            if !preservingPin, source.metadata.pinnedAt != nil {
+                var metadata = source.metadata
+                metadata.pinnedAt = nil
+                try updateNoteMetadata(metadata, for: stagedBundle)
+            }
+            let now = Date()
+            let dates: [FileAttributeKey: Any] = [.creationDate: now, .modificationDate: now]
+            try fileManager.setAttributes(dates, ofItemAtPath: textURL.path(percentEncoded: false))
+            try fileManager.setAttributes(dates, ofItemAtPath: stagedBundle.path(percentEncoded: false))
+            _ = try loadNote(at: stagedBundle)
+            try fileManager.moveItem(at: stagedBundle, to: destination)
+            published = true
+            let copy = try loadNote(at: destination)
+            try fileManager.removeItem(at: stagingParent)
+            return copy
+        } catch {
+            if published {
+                do {
+                    try fileManager.removeItem(at: destination)
+                } catch {
+                    AppLog.error("Failed to roll back duplicated note: \(error.localizedDescription)")
+                }
+            }
+            do {
+                try fileManager.removeItem(at: stagingParent)
+            } catch {
+                AppLog.error("Failed to remove note duplication staging directory: \(error.localizedDescription)")
+            }
+            throw error
+        }
+    }
+
     /// Writes only the Markdown body for an existing note, leaving metadata untouched.
     func save(_ note: Note) throws {
         guard FileManager.default.fileExists(atPath: note.url.path(percentEncoded: false)) else {
@@ -199,6 +247,105 @@ struct TextBundleNoteRepository: Sendable {
 }
 
 private extension TextBundleNoteRepository {
+    /// Changes only an opening heading's title, preserving the original Markdown slices.
+    private func duplicatedMarkdown(from markdown: String) -> String {
+        var lines: [Range<String.Index>] = []
+        var start = markdown.startIndex
+        for index in markdown.indices where markdown[index].isMarkdownLineEnding {
+            lines.append(start..<index)
+            start = markdown.index(after: index)
+        }
+        lines.append(start..<markdown.endIndex)
+
+        let heading = Document(parsing: markdown).children.first { _ in true } as? Heading
+        if let heading, let sourceRange = heading.range {
+            let firstLineIndex = sourceRange.lowerBound.line - 1
+            // Source ranges are half-open; Setext headings can end at column one of the following line.
+            let lastLineIndex = sourceRange.upperBound.line - (sourceRange.upperBound.column == 1 ? 2 : 1)
+            if lines.indices.contains(firstLineIndex), lines.indices.contains(lastLineIndex), lastLineIndex >= firstLineIndex {
+                let firstLine = lines[firstLineIndex]
+                if let copy = duplicatedATXHeading(in: markdown, lineRange: firstLine, level: heading.level) {
+                    return copy
+                }
+                // cmark may include the following body line in a Setext heading's source range.
+                let titleLineIndex = (firstLineIndex..<lastLineIndex).first { index in
+                    markdown[lines[index + 1]].range(of: #"^ {0,3}(=+|-+)[ \t]*$"#, options: .regularExpression) != nil
+                }
+                if let titleLineIndex {
+                    let titleLine = lines[titleLineIndex]
+                    return replacingDuplicatedTitle(in: markdown, range: trimmedHeadingTitle(in: markdown, range: titleLine))
+                }
+            }
+        }
+
+        let preview = Self.preview(for: markdown).text
+        let title = preview == NoteSummary.emptyPreviewText
+            ? ""
+            : String(preview.split(whereSeparator: \.isNewline).first ?? "")
+        let escapedTitle = title.reduce(into: "") { result, character in
+            if "\\`*_[]<>#!".contains(character) {
+                result.append("\\")
+            }
+            result.append(character)
+        }
+        let lineEnding = markdown.first(where: \.isMarkdownLineEnding).map(String.init) ?? "\n"
+        return "# " + duplicatedTitle(escapedTitle) + lineEnding + lineEnding + markdown
+    }
+
+    private func duplicatedATXHeading(in markdown: String, lineRange: Range<String.Index>, level: Int) -> String? {
+        let line = markdown[lineRange]
+        let indentation = line.prefix { $0.isHorizontalHeadingWhitespace }
+        let markers = line.dropFirst(indentation.count).prefix { $0 == "#" }
+        guard !markers.isEmpty, markers.count == level else {
+            return nil
+        }
+        let markerEnd = markdown.index(lineRange.lowerBound, offsetBy: indentation.count + markers.count)
+        let titleRange = trimmedHeadingTitle(in: markdown, range: markerEnd..<lineRange.upperBound)
+        var closingStart = titleRange.upperBound
+        while closingStart > titleRange.lowerBound, markdown[markdown.index(before: closingStart)] == "#" {
+            closingStart = markdown.index(before: closingStart)
+        }
+        let hasClosingHashes = closingStart < titleRange.upperBound
+            && (closingStart == titleRange.lowerBound
+                || markdown[markdown.index(before: closingStart)].isHorizontalHeadingWhitespace)
+        let contentRange = hasClosingHashes
+            ? trimmedHeadingTitle(in: markdown, range: titleRange.lowerBound..<closingStart)
+            : titleRange
+        let leadingSeparator = contentRange.lowerBound == markerEnd ? " " : ""
+        let trailingSeparator = hasClosingHashes && contentRange.isEmpty ? " " : ""
+        return String(markdown[..<contentRange.lowerBound]) + leadingSeparator
+            + duplicatedTitle(String(markdown[contentRange])) + trailingSeparator
+            + String(markdown[contentRange.upperBound...])
+    }
+
+    private func trimmedHeadingTitle(in markdown: String, range: Range<String.Index>) -> Range<String.Index> {
+        var start = range.lowerBound
+        var end = range.upperBound
+        while start < end, markdown[start].isHorizontalHeadingWhitespace {
+            start = markdown.index(after: start)
+        }
+        while end > start, markdown[markdown.index(before: end)].isHorizontalHeadingWhitespace {
+            end = markdown.index(before: end)
+        }
+        return start..<end
+    }
+
+    private func replacingDuplicatedTitle(in markdown: String, range: Range<String.Index>) -> String {
+        String(markdown[..<range.lowerBound]) + duplicatedTitle(String(markdown[range]))
+            + String(markdown[range.upperBound...])
+    }
+
+    private func duplicatedTitle(_ title: String) -> String {
+        guard !title.isEmpty else {
+            return String(localized: .emptyDuplicatedNoteTitle)
+        }
+        return String(
+            localized: "duplicatedNoteTitle",
+            defaultValue: "\(title) Copy",
+            comment: "Title of a duplicated note; the placeholder is the original title."
+        )
+    }
+
     /// Generates a collision-free UUID bundle name, bounded to avoid an infinite filesystem loop.
     private func uniqueBundleURL() throws -> URL {
         for _ in 0..<10 {
@@ -211,6 +358,16 @@ private extension TextBundleNoteRepository {
         }
 
         throw NoteRepositoryError.storageUnavailable
+    }
+}
+
+private extension Character {
+    var isMarkdownLineEnding: Bool {
+        self == "\n" || self == "\r" || self == "\r\n"
+    }
+
+    var isHorizontalHeadingWhitespace: Bool {
+        self == " " || self == "\t"
     }
 }
 

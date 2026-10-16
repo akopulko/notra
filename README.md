@@ -69,6 +69,14 @@ The **Images** section contains linked local images from the whole library. Tapp
 
 The revealed row briefly zooms to 108% scale and back with a spring animation, without a background fill or outline. Each thumbnail tap replays the effect, including another image from the same note. **Reduce Motion** disables the zoom.
 
+## Note duplication
+
+Choose **Duplicate** from a note row's context menu on any platform, or **File → Duplicate** on macOS and supported iPad command menus. The copy opens in editing mode with search and tag filters cleared. On iPhone, long-press a note row; no desktop-style File menu is required.
+
+Duplication saves pending editor changes and creates an independent TextBundle containing the source's tags, linked and unlinked assets, and other bundle files. Only the opening title changes: `Trip` becomes `Trip Copy` in English, using the app language when the copy is created. Notes without an opening heading gain one above their unchanged content; empty notes become `Copy`. Repeated copies append the localised suffix again.
+
+Copies receive fresh creation and modification dates. A source pin is preserved unless all five pin slots are occupied, in which case the copy is unpinned. Editing or deleting either note or its copied assets does not change the other note.
+
 ## Markdown import on macOS
 
 Use **File → Import…** to select one or more Markdown files. Each file becomes a separate note; importing the same file again creates another note.

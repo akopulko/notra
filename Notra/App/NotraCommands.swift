@@ -45,6 +45,7 @@ final class NotraCommandContext {
     private(set) var newNoteRequestID = 0
     private(set) var attachmentRequestID = 0
     private(set) var deleteSelectedNoteRequestID = 0
+    private(set) var duplicateSelectedNoteRequestID = 0
     private(set) var exportRequest: NoteExportRequest?
     #if os(macOS)
     private(set) var noteImportRequestID = 0
@@ -87,6 +88,10 @@ final class NotraCommandContext {
         store.hasSelection && !store.isChangingStorage
     }
 
+    var canDuplicateSelectedNote: Bool {
+        store.hasSelection && store.selectedNoteSummary != nil && !store.isChangingStorage
+    }
+
     func createNote() {
         guard canCreateNote else {
             return
@@ -101,6 +106,14 @@ final class NotraCommandContext {
         }
 
         deleteSelectedNoteRequestID += 1
+    }
+
+    func requestDuplicateSelectedNote() {
+        guard canDuplicateSelectedNote else {
+            return
+        }
+
+        duplicateSelectedNoteRequestID += 1
     }
 
     func togglePreview() {
@@ -174,6 +187,11 @@ struct NotraCommands: Commands {
         }
 
         CommandGroup(after: .newItem) {
+            Button(.duplicateNote, systemImage: "plus.square.on.square") {
+                context?.requestDuplicateSelectedNote()
+            }
+            .disabled(!(context?.canDuplicateSelectedNote ?? false))
+
             Divider()
             Button("Delete", systemImage: "trash", role: .destructive) {
                 context?.requestDeleteSelectedNote()

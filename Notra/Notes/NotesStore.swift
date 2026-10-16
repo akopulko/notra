@@ -565,6 +565,50 @@ extension NotesStore {
 }
 #endif
 extension NotesStore {
+    /// Flushes the editor before copying a captured row into an independently owned TextBundle.
+    func duplicateNote(_ summary: NoteSummary) async -> URL? {
+        guard canMutateNotes, !Task.isCancelled else {
+            return nil
+        }
+        let sourceURL = summary.url
+        let generation = repositoryGeneration
+        do {
+            repeat {
+                try await saveCurrentNoteIfNeeded(generation: generation)
+                guard !Task.isCancelled, isCurrentRepository(generation), !isChangingStorage else {
+                    return nil
+                }
+                await autosaveWorker.finishPendingWrites()
+                guard !Task.isCancelled, isCurrentRepository(generation), !isChangingStorage else {
+                    return nil
+                }
+                // Typing can advance while either the save or its index update suspends.
+            } while selectedNote.map {
+                $0.markdown != editorText
+            } ?? false
+
+            // No suspension between the clean-editor check and replacing its selection.
+            let preservingPin = notes.lazy.filter(\.isPinned).count < NotePinning.maximumPinnedNotes
+            let note = try repository.duplicateNote(at: sourceURL, preservingPin: preservingPin)
+            try refreshNotes()
+            try select(note)
+            _ = await indexNote(note, generation: generation)
+            guard !Task.isCancelled, isCurrentRepository(generation), !isChangingStorage else {
+                return nil
+            }
+            AppLog.info("Duplicated note: \(logName(for: note.url))")
+            return note.url.notraCanonicalFileURL
+        } catch {
+            guard !Task.isCancelled, isCurrentRepository(generation), !isChangingStorage else {
+                return nil
+            }
+            // A committed repository copy remains valid even if refreshing its projections fails.
+            AppLog.error("Failed to duplicate note: \(error.localizedDescription)")
+            errorMessage = error.localizedDescription
+            return nil
+        }
+    }
+
     /// Links an attachment from preview mode by appending a reference to the note.
     func linkAttachment(_ attachment: TextBundleAsset) {
         guard canMutateNotes,

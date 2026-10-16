@@ -83,6 +83,7 @@ struct ContentView: View {
                 isEditing: commands.isEditing,
                 searchText: $searchText,
                 createNote: createNote,
+                duplicateNote: duplicateNote,
                 exportNote: requestExport,
                 deleteSelectedNoteRequestID: commands.deleteSelectedNoteRequestID,
                 selectedTagIDs: $selectedTagIDs,
@@ -160,6 +161,12 @@ struct ContentView: View {
         #endif
         .onChange(of: commandContext.newNoteRequestID) {
             createNote()
+        }
+        .onChange(of: commandContext.duplicateSelectedNoteRequestID) {
+            guard let note = store.selectedNoteSummary else {
+                return
+            }
+            duplicateNote(note)
         }
         .onChange(of: commandContext.attachmentRequestID) {
             presentAttachmentFileImporter()
@@ -388,6 +395,24 @@ struct ContentView: View {
 }
 
 private extension ContentView {
+    /// Opens a successfully duplicated note in focused editing without disturbing a newer selection.
+    private func duplicateNote(_ note: NoteSummary) {
+        Task { @MainActor in
+            guard let duplicatedURL = await store.duplicateNote(note),
+                  store.selectedNoteID == duplicatedURL,
+                  !store.isChangingStorage
+            else {
+                return
+            }
+
+            searchText = ""
+            selectedTagIDs = []
+            preferredCompactColumn = .detail
+            commandContext.isEditing = true
+            editorFocusRequest += 1
+        }
+    }
+
     private func removeTag(_ tag: NoteTag) {
         Task {
             await store.removeTag(tag)

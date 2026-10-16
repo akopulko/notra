@@ -1193,6 +1193,155 @@ struct NotesStoreTests {
     }
 #endif
 
+    @Test
+    func `duplication flushes latest edits and cancels an older deferred save`() async throws {
+        let gate = AutosavePauseGate()
+        let completions = AutosaveCompletionCounter()
+        let harness = try makeHarness(
+            autosavePause: { await gate.pause() },
+            autosaveCompletion: { await completions.markCompleted() }
+        )
+        defer { harness.cleanup() }
+        let source = try harness.makeNote(markdown: "# Trip\n\nOriginal")
+        await harness.store.loadNotes()
+        harness.store.selectedNoteID = source.id
+        await harness.store.selectionChanged()
+        let summary = try #require(harness.store.selectedNoteSummary)
+        harness.store.updateEditorText("# Trip\n\nolder")
+        await gate.waitUntilEntered()
+        harness.store.updateEditorText("# Trip\n\nlatest")
+
+        let copyURL = try #require(await harness.store.duplicateNote(summary))
+        await gate.release()
+        await completions.waitUntilCompleted(count: 2)
+
+        let sourceReloaded = try harness.repository.loadNote(at: source.url)
+        let copy = try harness.repository.loadNote(at: copyURL)
+        #expect(sourceReloaded.markdown == "# Trip\n\nlatest")
+        #expect(copy.markdown == "# \(duplicatedTitle("Trip"))\n\nlatest")
+        #expect(copy.id != source.id)
+        #expect(harness.store.selectedNoteID == copy.id)
+        #expect(harness.store.editorText == copy.markdown)
+        #expect(harness.store.errorMessage == nil)
+    }
+
+    @Test
+    func `duplicating another row saves the editor without rewriting the clean source`() async throws {
+        let harness = try makeHarness()
+        defer { harness.cleanup() }
+        let editor = try harness.makeNote(markdown: "# A")
+        let source = try harness.makeNote(markdown: "# B\n\nBody B")
+        try setModificationDates(of: source, to: Date(timeIntervalSince1970: 946684800))
+        let sourceDates = try modificationDates(of: source)
+        await harness.store.loadNotes()
+        harness.store.selectedNoteID = editor.id
+        await harness.store.selectionChanged()
+        let summary = try #require(harness.store.notes.first { $0.id == source.id })
+        harness.store.updateEditorText("# A\n\nPending A")
+
+        let copyURL = try #require(await harness.store.duplicateNote(summary))
+
+        #expect(try harness.repository.loadNote(at: editor.url).markdown == "# A\n\nPending A")
+        #expect(try harness.repository.loadNote(at: copyURL).markdown == "# \(duplicatedTitle("B"))\n\nBody B")
+        #expect(try modificationDates(of: source) == sourceDates)
+        #expect(harness.store.selectedNoteID == copyURL)
+    }
+
+    @Test
+    func `duplication save failure retains pending edits and creates no copy`() async throws {
+        let harness = try makeHarness()
+        defer { harness.cleanup() }
+        let source = try harness.makeNote(markdown: "# Trip")
+        await harness.store.loadNotes()
+        harness.store.selectedNoteID = source.id
+        await harness.store.selectionChanged()
+        let summary = try #require(harness.store.selectedNoteSummary)
+        harness.store.updateEditorText("# Trip\n\nPending")
+        let textURL = source.url.appendingPathComponent(TextBundleNoteRepository.textFilename)
+        let backupURL = source.url.appendingPathComponent("original.md")
+        try FileManager.default.moveItem(at: textURL, to: backupURL)
+        try FileManager.default.createDirectory(at: textURL, withIntermediateDirectories: false)
+
+        let result = await harness.store.duplicateNote(summary)
+        try FileManager.default.removeItem(at: textURL)
+        try FileManager.default.moveItem(at: backupURL, to: textURL)
+
+        #expect(result == nil)
+        #expect(harness.store.errorMessage != nil)
+        #expect(harness.store.selectedNoteID == source.id)
+        #expect(harness.store.editorText == "# Trip\n\nPending")
+        #expect(try harness.repository.listNotes().map(\.id) == [source.id])
+        await harness.store.saveNow()
+        #expect(try harness.repository.loadNote(at: source.url).markdown == "# Trip\n\nPending")
+    }
+
+    @Test
+    func `duplication rejects unstable storage and cancelled requests`() async throws {
+        let harness = try makeHarness()
+        defer { harness.cleanup() }
+        let source = try harness.makeNote(markdown: "# Trip")
+        await harness.store.loadNotes()
+        let summary = try #require(harness.store.notes.first)
+        harness.store.isChangingStorage = true
+        #expect(await harness.store.duplicateNote(summary) == nil)
+        harness.store.isChangingStorage = false
+        let task = Task { @MainActor in await harness.store.duplicateNote(summary) }
+        task.cancel()
+        #expect(await task.value == nil)
+        #expect(try harness.repository.listNotes().map(\.id) == [source.id])
+        #expect(harness.store.errorMessage == nil)
+    }
+
+    @Test(arguments: [1, 5])
+    func `duplication preserves pins only below the limit`(pinCount: Int) async throws {
+        let harness = try makeHarness()
+        defer { harness.cleanup() }
+        let pinDate = Date(timeIntervalSince1970: 946684800)
+        for index in 0..<pinCount {
+            var note = try harness.makeNote(markdown: "# Note \(index)")
+            note.metadata.pinnedAt = pinDate
+            try harness.repository.updateNoteMetadata(note.metadata, for: note.url)
+        }
+        await harness.store.loadNotes()
+        let summary = try #require(harness.store.notes.first)
+        let copyURL = try #require(await harness.store.duplicateNote(summary))
+        let copy = try harness.repository.loadNote(at: copyURL)
+        #expect(copy.metadata.pinnedAt == (pinCount < NotePinning.maximumPinnedNotes ? pinDate : nil))
+        #expect(harness.store.notes.filter(\.isPinned).count == min(pinCount + 1, NotePinning.maximumPinnedNotes))
+        #expect(try harness.repository.loadNote(at: summary.url).metadata.pinnedAt == pinDate)
+        #expect(harness.store.errorMessage == nil)
+    }
+
+    @Test
+    func `body and tag searches resolve independent duplicated identities`() async throws {
+        let harness = try makeHarness()
+        defer { harness.cleanup() }
+        var source = try harness.makeNote(markdown: "# Trip\n\nuniquetrip")
+        source.metadata.tags = try [#require(NoteTag("Travel"))]
+        try harness.repository.updateNoteMetadata(source.metadata, for: source.url)
+        await harness.store.loadNotes()
+        try await waitUntilSearchReady(harness.store)
+        let summary = try #require(harness.store.notes.first)
+        let copyURL = try #require(await harness.store.duplicateNote(summary))
+        for query in ["uniquetrip", "Travel"] {
+            let page = try #require(await harness.store.searchNotes(query: query, limit: 50, offset: 0))
+            #expect(Set(page.results.map(\.noteID)) == Set([source.id, copyURL]))
+        }
+        let copySummary = try #require(harness.store.selectedNoteSummary)
+        await harness.store.deleteNotes([copySummary])
+        let remaining = try #require(await harness.store.searchNotes(query: "uniquetrip", limit: 50, offset: 0))
+        #expect(remaining.results.map(\.noteID) == [source.id])
+        #expect(try harness.repository.loadNote(at: source.url).markdown == source.markdown)
+    }
+
+    private func duplicatedTitle(_ title: String) -> String {
+        String(
+            localized: "duplicatedNoteTitle",
+            defaultValue: "\(title) Copy",
+            comment: "Title of a duplicated note; the placeholder is the original title."
+        )
+    }
+
     private func waitUntilSearchReady(_ store: NotesStore) async throws {
         let clock = ContinuousClock()
         let deadline = clock.now.advanced(by: .seconds(10))

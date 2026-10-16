@@ -88,6 +88,53 @@ struct NotraCommandsTests {
         #expect(context.deleteSelectedNoteRequestID == 2)
     }
 
+    @Test
+    func duplicateRequiresSelectedNoteAndStableStorage() async {
+        let rootURL = URL.temporaryDirectory.appending(path: UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+        let searchIndex = SQLiteNoteSearchIndex(databaseURL: rootURL.appendingPathExtension("sqlite"))
+
+        let store = NotesStore(
+            repository: TextBundleNoteRepository(rootURL: rootURL),
+            searchIndex: searchIndex,
+            iCloudAvailability: { false }
+        )
+        let context = NotraCommandContext(store: store)
+
+        #expect(!context.canDuplicateSelectedNote)
+        context.requestDuplicateSelectedNote()
+        #expect(context.duplicateSelectedNoteRequestID == 0)
+
+        await store.createNote()
+        #expect(store.hasSelection)
+        #expect(store.selectedNoteSummary != nil)
+        #expect(!context.isEditing)
+        let rows = store.notes
+        store.notes = []
+        #expect(!context.canDuplicateSelectedNote)
+        context.requestDuplicateSelectedNote()
+        #expect(context.duplicateSelectedNoteRequestID == 0)
+        store.notes = rows
+        #expect(context.canDuplicateSelectedNote)
+
+        context.isEditing = true
+        #expect(context.canDuplicateSelectedNote)
+
+        store.isChangingStorage = true
+        #expect(!context.canDuplicateSelectedNote)
+        let requestID = context.duplicateSelectedNoteRequestID
+        context.requestDuplicateSelectedNote()
+        #expect(context.duplicateSelectedNoteRequestID == requestID)
+
+        context.isEditing = false
+        #expect(!context.canDuplicateSelectedNote)
+        context.requestDuplicateSelectedNote()
+        #expect(context.duplicateSelectedNoteRequestID == requestID)
+
+        store.isChangingStorage = false
+        #expect(context.canDuplicateSelectedNote)
+    }
+
     @Test func previewToggleRequestsEditorFocusOnlyWhenEnteringEditMode() async throws {
         let rootURL = URL.temporaryDirectory.appending(path: UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: rootURL) }
