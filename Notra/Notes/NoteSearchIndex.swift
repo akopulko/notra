@@ -530,10 +530,7 @@ private extension SQLiteNoteSearchIndex {
             insertMetadata,
             2,
             metadata.modifiedAt.timeIntervalSince1970
-        ) == SQLITE_OK else {
-            throw databaseError()
-        }
-        guard sqlite3_bind_int64(insertMetadata, 3, metadata.byteCount) == SQLITE_OK else {
+        ) == SQLITE_OK, sqlite3_bind_int64(insertMetadata, 3, metadata.byteCount) == SQLITE_OK else {
             throw databaseError()
         }
         try bind(metadata.tagHash, to: 4, in: insertMetadata)

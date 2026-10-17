@@ -131,11 +131,7 @@ enum AppearanceFont {
     #endif
 
     static func bodyFont(named fontName: String) -> Font {
-        guard !fontName.isEmpty else {
-            return .body
-        }
-
-        guard isInstalled(fontName) else {
+        guard !fontName.isEmpty, isInstalled(fontName) else {
             return .body
         }
 
