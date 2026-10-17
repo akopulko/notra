@@ -293,10 +293,7 @@ final class NotesStore {
             let note = try repository.createNote(initialMarkdown: initialMarkdown)
             try refreshNotes()
             try select(note)
-            guard await indexNote(note, generation: generation) else {
-                return
-            }
-            guard isCurrentRepository(generation) else {
+            guard await indexNote(note, generation: generation), isCurrentRepository(generation) else {
                 return
             }
             AppLog.info("Created note: \(logName(for: note.url))")
@@ -750,10 +747,7 @@ extension NotesStore {
             var metadata = selectedNote.metadata
             metadata.remove(tag)
             try saveSelectedNoteMetadata(metadata, in: &selectedNote)
-            guard await indexNote(selectedNote, generation: generation) else {
-                return
-            }
-            guard isCurrentRepository(generation) else {
+            guard await indexNote(selectedNote, generation: generation), isCurrentRepository(generation) else {
                 return
             }
             AppLog.info("Tag removed; tag=\(tag.name)")
@@ -914,10 +908,7 @@ extension NotesStore {
                 if editorRevision == revision {
                     editorText = updatedMarkdown
                 }
-                guard await indexNote(updatedNote, generation: generation) else {
-                    return
-                }
-                guard isCurrentRepository(generation) else {
+                guard await indexNote(updatedNote, generation: generation), isCurrentRepository(generation) else {
                     return
                 }
             }
@@ -1001,13 +992,11 @@ extension NotesStore {
             recordPersistedMarkdown(
                 selectedNote.markdown, for: selectedNote.id, generation: generation, revision: revision
             )
-            guard isCurrentRepository(generation) else {
-                return
-            }
-            guard await indexNote(selectedNote, generation: generation) else {
-                return
-            }
-            guard isCurrentRepository(generation) else {
+            guard
+                isCurrentRepository(generation),
+                await indexNote(selectedNote, generation: generation),
+                isCurrentRepository(generation)
+            else {
                 return
             }
             selectedNoteBundleSize = repository.totalBundleSize(at: selectedNote.url)
@@ -1054,10 +1043,7 @@ extension NotesStore {
         do {
             guard let page = try await searchIndexGate.run(for: generation, operation: {
                 try await self.searchIndex.search(query, filter: filter, limit: limit, offset: offset)
-            }) else {
-                return nil
-            }
-            guard isCurrentRepository(generation) else {
+            }), isCurrentRepository(generation) else {
                 return nil
             }
             AppLog.debug(
@@ -1285,11 +1271,7 @@ private extension NotesStore {
                     } else {
                         try await index.synchronize(noteIDs: noteIDs)
                     }
-                }) != nil else {
-                    return
-                }
-
-                guard !Task.isCancelled, let self, isCurrentRepository(generation) else {
+                }) != nil, !Task.isCancelled, let self, isCurrentRepository(generation) else {
                     return
                 }
                 markSearchIndexReady()
@@ -1339,10 +1321,7 @@ private extension NotesStore {
                     tags: tags,
                     analysis: analysis
                 )
-            })) != nil else {
-                return false
-            }
-            guard isCurrentRepository(generation) else {
+            })) != nil, isCurrentRepository(generation) else {
                 return false
             }
             AppLog.debug("Indexed changed note: \(logName(for: noteID))")
@@ -1368,10 +1347,7 @@ private extension NotesStore {
         do {
             guard try await (searchIndexGate.run(for: generation, operation: {
                 try await self.searchIndex.remove(noteID: noteID)
-            })) != nil else {
-                return false
-            }
-            guard isCurrentRepository(generation) else {
+            })) != nil, isCurrentRepository(generation) else {
                 return false
             }
             return true
@@ -1488,10 +1464,7 @@ private extension NotesStore {
                     return
                 }
                 let analysis = MarkdownDocumentAnalysis.analyse(markdown: noteToSave.markdown)
-                guard await indexNote(noteToSave, analysis: analysis, generation: generation) else {
-                    return
-                }
-                guard !Task.isCancelled,
+                guard await indexNote(noteToSave, analysis: analysis, generation: generation), !Task.isCancelled,
                       isCurrentRepository(generation),
                       editorRevision == revision,
                       selectedNoteID == noteID

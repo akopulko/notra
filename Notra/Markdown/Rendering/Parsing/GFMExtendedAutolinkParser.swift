@@ -224,11 +224,7 @@ struct GFMExtendedAutolinkParser: Sendable {
 
     private nonisolated func isValidExtendedAutolinkDomain(_ domain: String) -> Bool {
         let segments = domain.split(separator: ".", omittingEmptySubsequences: false)
-        guard segments.count >= 2, segments.allSatisfy({ !$0.isEmpty }) else {
-            return false
-        }
-
-        guard segments.suffix(2).allSatisfy({ !$0.contains("_") }) else {
+        guard segments.count >= 2, segments.allSatisfy({ !$0.isEmpty }), segments.suffix(2).allSatisfy({ !$0.contains("_") }) else {
             return false
         }
 

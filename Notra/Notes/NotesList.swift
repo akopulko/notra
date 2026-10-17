@@ -335,9 +335,7 @@ struct NotesList: View {
         }
 
         try? await Task.sleep(for: .milliseconds(200))
-        guard !Task.isCancelled, searchGeneration == generation, request == searchRequest else { return }
-
-        guard let batch = await NoteTagFilter.loadSearchBatch(
+        guard !Task.isCancelled, searchGeneration == generation, request == searchRequest, let batch = await NoteTagFilter.loadSearchBatch(
             offset: 0,
             limit: 50,
             matchingBundleNames: request.matchingBundleNames,
@@ -349,10 +347,7 @@ struct NotesList: View {
                     offset: offset
                 )
             }
-        ) else {
-            return
-        }
-        guard !Task.isCancelled, searchGeneration == generation, request == searchRequest else { return }
+        ), !Task.isCancelled, searchGeneration == generation, request == searchRequest else { return }
 
         let noteBundleNames = Set(store.notes.map { $0.url.lastPathComponent })
         let mappedResultCount = batch.resultIDs.reduce(into: 0) { count, resultID in
@@ -409,10 +404,7 @@ private extension NotesList {
                         offset: pageOffset
                     )
                 }
-            ) else {
-                return
-            }
-            guard !Task.isCancelled, searchGeneration == generation, request == searchRequest else { return }
+            ), !Task.isCancelled, searchGeneration == generation, request == searchRequest else { return }
 
             searchResultIDs.append(contentsOf: batch.resultIDs)
             searchResultOffset = batch.nextOffset

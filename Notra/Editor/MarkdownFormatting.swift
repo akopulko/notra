@@ -567,11 +567,7 @@ private extension MarkdownFormatting {
         }
 
         let markerEnd = line.index(after: line.startIndex)
-        guard markerEnd == line.endIndex || isHorizontalWhitespace(line[markerEnd]) else {
-            return nil
-        }
-
-        guard !isThematicBreak(line) else {
+        guard markerEnd == line.endIndex || isHorizontalWhitespace(line[markerEnd]), !isThematicBreak(line) else {
             return nil
         }
 

@@ -56,9 +56,7 @@ enum NoteTagFilter {
         var nextOffset = offset
         var resultIDs: [URL] = []
         repeat {
-            guard !Task.isCancelled else { return nil }
-            guard let page = await fetchPage(nextOffset, limit) else { return nil }
-            guard !Task.isCancelled else { return nil }
+            guard !Task.isCancelled, let page = await fetchPage(nextOffset, limit), !Task.isCancelled else { return nil }
             guard !page.results.isEmpty else {
                 return NoteTagSearchBatch(resultIDs: resultIDs, nextOffset: nextOffset, hasMore: false)
             }

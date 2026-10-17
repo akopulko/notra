@@ -443,11 +443,7 @@ extension MarkdownNativeTextEditor {
             }
 
             DispatchQueue.main.async { [weak self] in
-                guard let self, textView.isFocusRequested else {
-                    return
-                }
-
-                guard textView.window != nil else {
+                guard let self, textView.isFocusRequested, textView.window != nil else {
                     return
                 }
 
