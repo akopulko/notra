@@ -18,12 +18,11 @@ defaults:
 
 jobs:
   guard:
-    name: Check version, master ancestry, and CI
+    name: Validate release tag
     runs-on: xcode-27
     timeout-minutes: 10
     permissions:
       contents: read
-      actions: read
     outputs:
       version: ${{ steps.check.outputs.version }}
       commit: ${{ steps.check.outputs.commit }}
@@ -37,7 +36,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Require a new matching version on validated master
+      - name: Require matching version and master ancestry
         id: check
         run: |
           set -euo pipefail
@@ -62,16 +61,6 @@ jobs:
             echo 'The tag must match the Notra Release marketing version.' >&2
             exit 1
           }
-          run_id=$(gh api "repos/$GH_REPO/actions/workflows/ci.yml/runs?head_sha=$commit&event=push&branch=master&per_page=100" --jq '
-            .workflow_runs | sort_by(.created_at, .id) | last |
-            select(.status == "completed" and .conclusion == "success") | .id
-          ')
-          [[ "$run_id" =~ ^[0-9]+$ ]] || {
-            echo 'Wait for successful master CI on this exact commit before releasing.' >&2
-            exit 1
-          }
-          gh api "repos/$GH_REPO/actions/runs/$run_id/jobs?filter=latest&per_page=100" |
-            jq -e 'any(.jobs[]; .name == "CI result" and .conclusion == "success")' >/dev/null
           existing=$(gh api --paginate "repos/$GH_REPO/releases?per_page=100" \
             --jq ".[] | select(.tag_name == \"$RELEASE_TAG\") | .id")
           [[ -z "$existing" ]] || {
@@ -80,9 +69,14 @@ jobs:
           }
           printf 'version=%s\ncommit=%s\n' "$version" "$commit" >> "$GITHUB_OUTPUT"
 
+  validate:
+    name: Full validation on tagged source
+    needs: guard
+    uses: ./.github/workflows/validate.yml
+
   package:
     name: Build and sign local-only arm64 app
-    needs: guard
+    needs: [guard, validate]
     runs-on: xcode-27
     timeout-minutes: 45
     environment: macos-preview
@@ -97,10 +91,6 @@ jobs:
         with:
           ref: ${{ needs.guard.outputs.commit }}
           persist-credentials: false
-      - name: Prepare lint tools
-        run: brew install swiftlint
-      - name: Check formatting and lint
-        run: make lint
       - name: Build unsigned Release for Apple silicon
         run: |
           set -euo pipefail

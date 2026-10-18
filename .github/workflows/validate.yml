@@ -1,0 +1,79 @@
+name: Full app validation
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  validate:
+    name: Lint, build, and unit tests
+    runs-on: xcode-27
+    timeout-minutes: 45
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.0.app/Contents/Developer
+      CODE_SIGNING_ALLOWED: 'NO'
+      HOMEBREW_NO_AUTO_UPDATE: '1'
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Prepare lint tools
+        run: |
+          brew install swiftlint
+          swiftformat --version
+          swiftlint version
+      - name: Report Apple toolchain
+        run: |
+          sw_vers
+          xcodebuild -version
+          xcodebuild -showsdks
+          xcrun simctl list devices available
+      - name: Check SwiftFormat and SwiftLint
+        run: make lint
+      - name: Build iOS simulator and device
+        run: make build-ios
+      - name: Run iOS unit tests
+        run: |
+          xcodebuild test \
+            -project Notra.xcodeproj \
+            -scheme Notra \
+            -configuration Debug \
+            -destination 'platform=iOS Simulator,name=iPhone 17,OS=27.0' \
+            -derivedDataPath "${TMPDIR:-/tmp}/NotraDerivedData" \
+            -parallel-testing-enabled NO \
+            -only-testing:NotraTests \
+            CODE_SIGNING_ALLOWED=NO \
+            DEVELOPMENT_TEAM= \
+            NOTRA_BUNDLE_IDENTIFIER=app.notra.Notra \
+            NOTRA_ICLOUD_CONTAINER_IDENTIFIER= \
+            NOTRA_CODE_SIGN_ENTITLEMENTS=Notra/Notra.entitlements \
+            NOTRA_INFO_PLIST_FILE=NotraInfo.plist \
+            GCC_TREAT_WARNINGS_AS_ERRORS=YES \
+            OTHER_LDFLAGS="\$(inherited) -Wl,-fatal_warnings"
+      - name: Build macOS
+        run: make build-macos
+      - name: Run macOS unit tests
+        run: |
+          xcodebuild test \
+            -project Notra.xcodeproj \
+            -scheme Notra \
+            -configuration Debug \
+            -destination 'platform=macOS,arch=arm64' \
+            -derivedDataPath "${TMPDIR:-/tmp}/NotraDerivedData-macOS" \
+            -parallel-testing-enabled NO \
+            -only-testing:NotraTests \
+            CODE_SIGNING_ALLOWED=NO \
+            DEVELOPMENT_TEAM= \
+            NOTRA_BUNDLE_IDENTIFIER=app.notra.Notra \
+            NOTRA_ICLOUD_CONTAINER_IDENTIFIER= \
+            NOTRA_CODE_SIGN_ENTITLEMENTS=Notra/Notra.entitlements \
+            NOTRA_INFO_PLIST_FILE=NotraInfo.plist \
+            GCC_TREAT_WARNINGS_AS_ERRORS=YES \
+            OTHER_LDFLAGS="\$(inherited) -Wl,-fatal_warnings"
