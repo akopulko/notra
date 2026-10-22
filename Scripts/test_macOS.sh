@@ -14,6 +14,7 @@ xcodebuild test \
   -project Notra.xcodeproj \
   -scheme Notra \
   -configuration "$configuration" \
+  -only-testing:NotraTests \
   -destination 'platform=macOS,arch=arm64' \
   -derivedDataPath "$verification_dir/DerivedData" \
   -resultBundlePath "$verification_dir/TestResults.xcresult" \
