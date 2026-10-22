@@ -15,7 +15,7 @@ struct ShareComposerView: View {
                     .foregroundStyle(.secondary)
                 TextEditor(text: $model.body)
                     .accessibilityLabel("Note content")
-                    .disabled(!model.canSave && model.assets.isEmpty)
+                    .disabled(!model.isBodyEditable)
                 if !model.assets.isEmpty {
                     ScrollView(.horizontal) {
                         HStack {

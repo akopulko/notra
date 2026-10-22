@@ -30,7 +30,6 @@ enum SharePayloadLoader {
         let repository = TextBundleNoteRepository(rootURL: draftDirectory)
         let note = try repository.createNote()
         let providers = items.flatMap { $0.attachments ?? [] }
-        guard !providers.isEmpty else { throw Failure.unsupportedContent }
         var accumulator = Accumulator()
         for provider in providers {
             try await append(
@@ -171,23 +170,61 @@ enum SharePayloadLoader {
     private static func loadURL(from provider: NSItemProvider) async throws -> URL {
         try await withCheckedThrowingContinuation { continuation in
             provider.loadItem(forTypeIdentifier: UTType.url.identifier, options: nil) { item, error in
-                if let url = item as? URL, error == nil {
-                    continuation.resume(returning: url)
-                } else {
+                guard error == nil else {
                     continuation.resume(throwing: Failure.loadFailed)
+                    return
                 }
+                let value: String?
+                if let url = item as? URL {
+                    value = url.absoluteString
+                } else if let string = item as? String {
+                    value = string
+                } else if let data = item as? Data, data.count <= 1024 * 1024 {
+                    value = String(data: data, encoding: .utf8)
+                } else if item is Data {
+                    continuation.resume(throwing: Failure.limitExceeded)
+                    return
+                } else {
+                    value = nil
+                }
+                guard let value, let url = URL(string: value) else {
+                    continuation.resume(throwing: Failure.loadFailed)
+                    return
+                }
+                continuation.resume(returning: url)
             }
         }
     }
 
     private static func loadText(from provider: NSItemProvider) async throws -> String {
         try await withCheckedThrowingContinuation { continuation in
-            provider.loadObject(ofClass: NSString.self) { value, error in
-                if let value = value as? String, error == nil {
-                    continuation.resume(returning: value)
-                } else {
+            provider.loadItem(forTypeIdentifier: UTType.plainText.identifier, options: nil) { item, error in
+                guard error == nil else {
                     continuation.resume(throwing: Failure.loadFailed)
+                    return
                 }
+                let text: String?
+                if let string = item as? String {
+                    text = string
+                } else if let attributedText = item as? NSAttributedString {
+                    text = attributedText.string
+                } else if let data = item as? Data, data.count <= 1024 * 1024 {
+                    text = String(data: data, encoding: .utf8)
+                } else if item is Data {
+                    continuation.resume(throwing: Failure.limitExceeded)
+                    return
+                } else {
+                    text = nil
+                }
+                guard let text else {
+                    continuation.resume(throwing: Failure.loadFailed)
+                    return
+                }
+                guard text.utf8.count <= 1024 * 1024 else {
+                    continuation.resume(throwing: Failure.limitExceeded)
+                    return
+                }
+                continuation.resume(returning: text)
             }
         }
     }

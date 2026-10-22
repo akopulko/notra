@@ -1,10 +1,20 @@
+#if os(iOS)
 import Foundation
 import Observation
 import UIKit
 
 @MainActor @Observable
 final class ShareComposerModel {
-    enum State { case loading, ready, saving, error(String), completed, cancelled }
+    enum State {
+        case loading, ready, saving, error(String), completed, cancelled
+
+        var allowsBodyEditing: Bool {
+            switch self {
+            case .ready, .error: true
+            case .loading, .saving, .completed, .cancelled: false
+            }
+        }
+    }
 
     private(set) var state: State = .loading
     var body = ""
@@ -44,6 +54,10 @@ final class ShareComposerModel {
     var canSave: Bool {
         guard case .ready = state else { return false }
         return !body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !assets.isEmpty
+    }
+
+    var isBodyEditable: Bool {
+        state.allowsBodyEditing
     }
 
     func save() {
@@ -87,3 +101,5 @@ final class ShareComposerModel {
         }
     }
 }
+
+#endif

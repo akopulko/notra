@@ -1,9 +1,72 @@
 import Foundation
+#if os(iOS)
+import UIKit
+import UniformTypeIdentifiers
+#endif
 @testable import Notra
 import Testing
 
 @MainActor
 struct SharedCaptureTests {
+#if os(iOS)
+    @Test
+    func composerAllowsRetypingAfterClearingSharedText() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = SharedCaptureStore(rootURL: root)
+        let draft = try store.createDraftDirectory()
+        let model = ShareComposerModel(store: store, draftDirectory: draft, context: nil)
+        let item = NSExtensionItem()
+        item.attributedContentText = NSAttributedString(string: "Selected text")
+        await model.load(items: [item])
+
+        #expect(model.canSave)
+        #expect(model.isBodyEditable)
+
+        model.body = ""
+        #expect(!model.canSave)
+        #expect(model.isBodyEditable)
+
+        model.body = "Retyped text"
+        #expect(model.canSave)
+        #expect(model.isBodyEditable)
+    }
+
+    @Test
+    func attributedTextCanBeLoadedWithoutAttachments() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+
+        let item = NSExtensionItem()
+        item.attributedContentText = NSAttributedString(string: "Selected words")
+        let capture = try await SharePayloadLoader.load(items: [item], draftDirectory: root)
+
+        #expect(capture.body == "Selected words")
+        #expect(capture.assets.isEmpty)
+    }
+
+    @Test
+    func plainTextDataRepresentationLoadsAsSelectedText() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+
+        let provider = NSItemProvider()
+        provider.registerDataRepresentation(forTypeIdentifier: UTType.plainText.identifier, visibility: .all) {
+            completion in
+            completion(Data("Selected from Safari".utf8), nil)
+            return nil
+        }
+        let item = NSExtensionItem()
+        item.attachments = [provider]
+        let capture = try await SharePayloadLoader.load(items: [item], draftDirectory: root)
+
+        #expect(capture.body == "Selected from Safari")
+        #expect(capture.assets.isEmpty)
+    }
+#endif
+
     @Test
     func publishedDraftHasMarkerAndAtomicInboxEntry() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
