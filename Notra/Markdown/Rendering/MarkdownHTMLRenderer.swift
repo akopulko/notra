@@ -147,16 +147,16 @@ private extension MarkdownHTMLRenderer {
 
         return """
         details.notra-heading-section > summary {
-          display: flex; align-items: center; gap: 8px; min-height: 44px; cursor: pointer; list-style: none;
+          display: flex; align-items: center; gap: 0; min-height: 44px; cursor: pointer; list-style: none; position: relative;
         }
         details.notra-heading-section > summary::-webkit-details-marker { display: none; }
         details.notra-heading-section > summary::before {
-          content: ""; flex: 0 0 8px; width: 8px; height: 8px;
+          content: ""; position: absolute; left: -16px; top: 50%; width: 8px; height: 8px;
           border-right: 2px solid color-mix(in srgb, currentColor 35%, transparent);
           border-bottom: 2px solid color-mix(in srgb, currentColor 35%, transparent);
-          transform: rotate(-45deg); align-self: center; opacity: 0;
+          transform: translateY(-50%) rotate(-45deg); opacity: 0;
         }
-        details.notra-heading-section[open] > summary::before { transform: rotate(45deg); }
+        details.notra-heading-section[open] > summary::before { transform: translateY(-50%) rotate(45deg); }
         details.notra-heading-section > summary:hover::before { opacity: 1; }
         @media (hover: none) {
           details.notra-heading-section > summary::before { opacity: 1; }
