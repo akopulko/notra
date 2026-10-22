@@ -20,6 +20,8 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>NotraAppGroupIdentifier</key>
+	<string>$(NOTRA_APP_GROUP_IDENTIFIER)</string>
 	<key>NotraICloudContainerIdentifier</key>
 	<string>$(NOTRA_ICLOUD_CONTAINER_IDENTIFIER)</string>
 	<key>NSUbiquitousContainers</key>

@@ -1,6 +1,83 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "shareCaptureLibraryNotice" : {
+      "comment" : "Explains that a shared note is added to the library the next time Notra opens.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Gespeicherte Notizen werden deiner Bibliothek hinzugefügt, wenn du Notra das nächste Mal öffnest." } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Saved notes are added to your library when you next open Notra." } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Las notas guardadas se añaden a tu biblioteca la próxima vez que abras Notra." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Les notes enregistrées sont ajoutées à votre bibliothèque à la prochaine ouverture de Notra." } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Сохранённые заметки появятся в библиотеке при следующем запуске Notra." } }
+      }
+    },
+    "shareCaptureUnsupportedContent" : {
+      "comment" : "Shown when a shared item type is not supported.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Dieser Inhalt kann nicht zu Notra hinzugefügt werden." } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This content cannot be added to Notra." } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Este contenido no se puede añadir a Notra." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Ce contenu ne peut pas être ajouté à Notra." } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Этот материал нельзя добавить в Notra." } }
+      }
+    },
+    "shareCaptureLoadFailed" : {
+      "comment" : "Shown when the share extension cannot load an item.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Der freigegebene Inhalt konnte nicht geladen werden." } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The shared content could not be loaded." } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "No se pudo cargar el contenido compartido." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Le contenu partagé n’a pas pu être chargé." } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Не удалось загрузить отправленный материал." } }
+      }
+    },
+    "shareCaptureLimitExceeded" : {
+      "comment" : "Shown when a shared item exceeds the extension's size or item-count limits.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Der freigegebene Inhalt überschreitet die Freigabelimits von Notra." } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The shared content exceeds Notra’s sharing limits." } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "El contenido compartido supera los límites de Notra." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Le contenu partagé dépasse les limites de partage de Notra." } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Объём или количество отправленных материалов превышает ограничения Notra." } }
+      }
+    },
+    "shareCaptureSaveFailed" : {
+      "comment" : "Shown when saving a shared capture fails.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Die Notiz konnte nicht gespeichert werden." } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The note could not be saved." } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "No se pudo guardar la nota." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "La note n’a pas pu être enregistrée." } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Не удалось сохранить заметку." } }
+      }
+    },
+    "shareCaptureStorageUnavailable" : {
+      "comment" : "Shown when the shared container is unavailable.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Notra kann nicht auf den gemeinsamen Speicher zugreifen." } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Notra cannot access shared storage." } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Notra no puede acceder al almacenamiento compartido." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Notra ne peut pas accéder au stockage partagé." } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Notra не удаётся получить доступ к общему хранилищу." } }
+      }
+    },
+    "shareCaptureImportFailed" : {
+      "comment" : "Shown in Notra when a completed capture cannot be filed into the selected library.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Die freigegebene Notiz konnte nicht zu deiner Bibliothek hinzugefügt werden." } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The shared note could not be added to your library." } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "No se pudo añadir la nota compartida a tu biblioteca." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "La note partagée n’a pas pu être ajoutée à votre bibliothèque." } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Не удалось добавить отправленную заметку в библиотеку." } }
+      }
+    },
     "duplicateNote" : {
       "comment" : "Action that creates an independent copy of a note.",
       "extractionState" : "manual",

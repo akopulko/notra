@@ -50,7 +50,7 @@ struct TextBundleNoteRepository: Sendable {
     /// The location represented by `rootURL`, retained for settings and inspector descriptions.
     nonisolated let storageLocation: NoteStorageLocation
 
-    init(rootURL: URL, isUsingICloud: Bool = false) {
+    nonisolated init(rootURL: URL, isUsingICloud: Bool = false) {
         self.rootURL = rootURL
         storageLocation = isUsingICloud ? .iCloud : .localStore
     }
@@ -135,7 +135,7 @@ struct TextBundleNoteRepository: Sendable {
     }
 
     /// Loads Markdown and Notra metadata from one TextBundle into an editable note value.
-    func loadNote(at url: URL) throws -> Note {
+    nonisolated func loadNote(at url: URL) throws -> Note {
         guard FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) else {
             throw NoteRepositoryError.noteNotFound
         }

@@ -8,6 +8,29 @@
 
 /* Begin PBXBuildFile section */
 		8B60EAA13014890000D21FD1 /* Markdown in Frameworks */ = {isa = PBXBuildFile; productRef = 8B60EAA03014890000D21FD1 /* Markdown */; };
+		B00000000000000000000001 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000001 /* NotraShareExtension/ShareViewController.swift */; };
+		B00000000000000000000002 /* ShareComposerModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000002 /* NotraShareExtension/ShareComposerModel.swift */; };
+		B00000000000000000000003 /* ShareComposerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000003 /* NotraShareExtension/ShareComposerView.swift */; };
+		B00000000000000000000004 /* TextBundleNoteRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000004 /* Notra/Storage/TextBundleNoteRepository.swift */; };
+		B00000000000000000000005 /* TextBundleNoteRepositoryAssets.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000005 /* Notra/Storage/TextBundleNoteRepositoryAssets.swift */; };
+		B00000000000000000000006 /* TextBundleNoteRepositoryMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000006 /* Notra/Storage/TextBundleNoteRepositoryMetadata.swift */; };
+		B00000000000000000000007 /* TextBundleNoteRepositoryPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000007 /* Notra/Storage/TextBundleNoteRepositoryPreview.swift */; };
+		B00000000000000000000008 /* TextBundleInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000008 /* Notra/Storage/TextBundleInfo.swift */; };
+		B00000000000000000000009 /* TextBundleAsset.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000009 /* Notra/Storage/TextBundleAsset.swift */; };
+		B0000000000000000000000A /* NoteStorageLocation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000000A /* Notra/Storage/NoteStorageLocation.swift */; };
+		B0000000000000000000000B /* Note.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000000B /* Notra/Notes/Note.swift */; };
+		B0000000000000000000000C /* NoteTag.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000000C /* Notra/Notes/NoteTag.swift */; };
+		B0000000000000000000000D /* NoteSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000000D /* Notra/Settings/NoteSettings.swift */; };
+		B0000000000000000000000E /* MarkdownDocumentAnalysis.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000000E /* Notra/MarkdownDocumentAnalysis.swift */; };
+		B0000000000000000000000F /* MarkdownAttachmentReferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000000F /* Notra/Markdown/MarkdownAttachmentReferences.swift */; };
+		B00000000000000000000010 /* AppLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000010 /* Notra/App/AppLog.swift */; };
+		B00000000000000000000011 /* ImageThumbnailDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000011 /* Notra/Attachments/ImageThumbnailDecoder.swift */; };
+		B00000000000000000000012 /* SharedCaptureStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000012 /* Notra/ShareCapture/SharedCaptureStore.swift */; };
+		B00000000000000000000013 /* SharePayloadLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000013 /* Notra/ShareCapture/SharePayloadLoader.swift */; };
+		B00000000000000000000014 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000014 /* Notra/Localizable.xcstrings */; };
+		B00000000000000000000015 /* NotraShareExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = A00000000000000000000017 /* NotraShareExtension.appex */; platformFilters = (ios, ); settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		B00000000000000000000016 /* Markdown in Share Extension Frameworks */ = {isa = PBXBuildFile; productRef = C0000000000000000000000F /* Markdown */; };
+		B00000000000000000000017 /* AppIntents.framework in Share Extension Frameworks */ = {isa = PBXBuildFile; fileRef = A00000000000000000000018 /* AppIntents.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -25,6 +48,13 @@
 			remoteGlobalIDString = 8B60EA733014794200D21FD1;
 			remoteInfo = Notra;
 		};
+		C00000000000000000000006 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 8B60EA6C3014794200D21FD1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = C00000000000000000000005;
+			remoteInfo = NotraShareExtension;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
@@ -32,6 +62,30 @@
 		8B60EA833014794400D21FD1 /* NotraTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = NotraTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		8B60EA8D3014794400D21FD1 /* NotraUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = NotraUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		8B60EAB03014900000D21FD1 /* Config/PublicSigning.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config/PublicSigning.xcconfig; sourceTree = "<group>"; };
+		A00000000000000000000015 /* NotraShareExtension/Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = NotraShareExtension/Info.plist; sourceTree = SOURCE_ROOT; };
+		A00000000000000000000016 /* NotraShareExtension/NotraShareExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = NotraShareExtension/NotraShareExtension.entitlements; sourceTree = SOURCE_ROOT; };
+		A00000000000000000000017 /* NotraShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = wrapper.app-extension; includeInIndex = 0; path = NotraShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		A00000000000000000000001 /* NotraShareExtension/ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotraShareExtension/ShareViewController.swift; sourceTree = SOURCE_ROOT; };
+		A00000000000000000000002 /* NotraShareExtension/ShareComposerModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotraShareExtension/ShareComposerModel.swift; sourceTree = SOURCE_ROOT; };
+		A00000000000000000000003 /* NotraShareExtension/ShareComposerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotraShareExtension/ShareComposerView.swift; sourceTree = SOURCE_ROOT; };
+		A00000000000000000000004 /* Notra/Storage/TextBundleNoteRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Notra/Storage/TextBundleNoteRepository.swift; sourceTree = SOURCE_ROOT; };
+		A00000000000000000000005 /* Notra/Storage/TextBundleNoteRepositoryAssets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Notra/Storage/TextBundleNoteRepositoryAssets.swift; sourceTree = SOURCE_ROOT; };
+		A00000000000000000000006 /* Notra/Storage/TextBundleNoteRepositoryMetadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Notra/Storage/TextBundleNoteRepositoryMetadata.swift; sourceTree = SOURCE_ROOT; };
+		A00000000000000000000007 /* Notra/Storage/TextBundleNoteRepositoryPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Notra/Storage/TextBundleNoteRepositoryPreview.swift; sourceTree = SOURCE_ROOT; };
+		A00000000000000000000008 /* Notra/Storage/TextBundleInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Notra/Storage/TextBundleInfo.swift; sourceTree = SOURCE_ROOT; };
+		A00000000000000000000009 /* Notra/Storage/TextBundleAsset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Notra/Storage/TextBundleAsset.swift; sourceTree = SOURCE_ROOT; };
+		A0000000000000000000000A /* Notra/Storage/NoteStorageLocation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Notra/Storage/NoteStorageLocation.swift; sourceTree = SOURCE_ROOT; };
+		A0000000000000000000000B /* Notra/Notes/Note.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Notra/Notes/Note.swift; sourceTree = SOURCE_ROOT; };
+		A0000000000000000000000C /* Notra/Notes/NoteTag.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Notra/Notes/NoteTag.swift; sourceTree = SOURCE_ROOT; };
+		A0000000000000000000000D /* Notra/Settings/NoteSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Notra/Settings/NoteSettings.swift; sourceTree = SOURCE_ROOT; };
+		A0000000000000000000000E /* Notra/MarkdownDocumentAnalysis.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Notra/MarkdownDocumentAnalysis.swift; sourceTree = SOURCE_ROOT; };
+		A0000000000000000000000F /* Notra/Markdown/MarkdownAttachmentReferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Notra/Markdown/MarkdownAttachmentReferences.swift; sourceTree = SOURCE_ROOT; };
+		A00000000000000000000010 /* Notra/App/AppLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Notra/App/AppLog.swift; sourceTree = SOURCE_ROOT; };
+		A00000000000000000000011 /* Notra/Attachments/ImageThumbnailDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Notra/Attachments/ImageThumbnailDecoder.swift; sourceTree = SOURCE_ROOT; };
+		A00000000000000000000012 /* Notra/ShareCapture/SharedCaptureStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Notra/ShareCapture/SharedCaptureStore.swift; sourceTree = SOURCE_ROOT; };
+		A00000000000000000000013 /* Notra/ShareCapture/SharePayloadLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Notra/ShareCapture/SharePayloadLoader.swift; sourceTree = SOURCE_ROOT; };
+		A00000000000000000000014 /* Notra/Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Notra/Localizable.xcstrings; sourceTree = SOURCE_ROOT; };
+		A00000000000000000000018 /* AppIntents.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppIntents.framework; path = System/Library/Frameworks/AppIntents.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -75,6 +129,15 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C0000000000000000000000A /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B00000000000000000000016 /* Markdown in Share Extension Frameworks */,
+				B00000000000000000000017 /* AppIntents.framework in Share Extension Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -85,6 +148,7 @@
 				8B60EA763014794300D21FD1 /* Notra */,
 				8B60EA863014794400D21FD1 /* NotraTests */,
 				8B60EA903014794400D21FD1 /* NotraUITests */,
+				C00000000000000000000004 /* NotraShareExtension */,
 				8B60EA753014794300D21FD1 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -95,8 +159,21 @@
 				8B60EA743014794300D21FD1 /* Notra.app */,
 				8B60EA833014794400D21FD1 /* NotraTests.xctest */,
 				8B60EA8D3014794400D21FD1 /* NotraUITests.xctest */,
+				A00000000000000000000017 /* NotraShareExtension.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		C00000000000000000000004 /* NotraShareExtension */ = {
+			isa = PBXGroup;
+			children = (
+				A00000000000000000000001,
+				A00000000000000000000002,
+				A00000000000000000000003,
+				A00000000000000000000015,
+				A00000000000000000000016,
+			);
+			path = NotraShareExtension;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -109,10 +186,12 @@
 				8B60EA703014794200D21FD1 /* Sources */,
 				8B60EA713014794200D21FD1 /* Frameworks */,
 				8B60EA723014794200D21FD1 /* Resources */,
+				C00000000000000000000008 /* Embed App Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				C00000000000000000000007 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				8B60EA763014794300D21FD1 /* Notra */,
@@ -171,6 +250,24 @@
 			productReference = 8B60EA8D3014794400D21FD1 /* NotraUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		C00000000000000000000005 /* NotraShareExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C0000000000000000000000C /* Build configuration list for PBXNativeTarget "NotraShareExtension" */;
+			buildPhases = (
+				C00000000000000000000009 /* Sources */,
+				C0000000000000000000000A /* Frameworks */,
+				C0000000000000000000000B /* Resources */,
+			);
+			buildRules = ();
+			dependencies = ();
+			name = NotraShareExtension;
+			packageProductDependencies = (
+				C0000000000000000000000F /* Markdown */,
+			);
+			productName = NotraShareExtension;
+			productReference = A00000000000000000000017 /* NotraShareExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -218,10 +315,24 @@
 				8B60EA733014794200D21FD1 /* Notra */,
 				8B60EA823014794400D21FD1 /* NotraTests */,
 				8B60EA8C3014794400D21FD1 /* NotraUITests */,
+				C00000000000000000000005 /* NotraShareExtension */,
 			);
 		};
 /* End PBXProject section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		C00000000000000000000008 /* Embed App Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				B00000000000000000000015 /* NotraShareExtension.appex in Embed App Extensions */,
+			);
+			name = "Embed App Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 /* Begin PBXResourcesBuildPhase section */
 		8B60EA723014794200D21FD1 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
@@ -241,6 +352,14 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C0000000000000000000000B /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B00000000000000000000014 /* Localizable.xcstrings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -268,6 +387,32 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C00000000000000000000009 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B00000000000000000000001,
+				B00000000000000000000002,
+				B00000000000000000000003,
+				B00000000000000000000004,
+				B00000000000000000000005,
+				B00000000000000000000006,
+				B00000000000000000000007,
+				B00000000000000000000008,
+				B00000000000000000000009,
+				B0000000000000000000000A,
+				B0000000000000000000000B,
+				B0000000000000000000000C,
+				B0000000000000000000000D,
+				B0000000000000000000000E,
+				B0000000000000000000000F,
+				B00000000000000000000010,
+				B00000000000000000000011,
+				B00000000000000000000012,
+				B00000000000000000000013,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -280,6 +425,12 @@
 			isa = PBXTargetDependency;
 			target = 8B60EA733014794200D21FD1 /* Notra */;
 			targetProxy = 8B60EA8E3014794400D21FD1 /* PBXContainerItemProxy */;
+		};
+		C00000000000000000000007 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = C00000000000000000000005 /* NotraShareExtension */;
+			targetProxy = C00000000000000000000006 /* PBXContainerItemProxy */;
+			platformFilters = (ios, );
 		};
 /* End PBXTargetDependency section */
 
@@ -415,6 +566,8 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = "$(NOTRA_CODE_SIGN_ENTITLEMENTS)";
+				"CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]" = "$(NOTRA_IOS_CODE_SIGN_ENTITLEMENTS)";
+				"CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]" = "$(NOTRA_IOS_CODE_SIGN_ENTITLEMENTS)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 8;
 				"ENABLE_APP_SANDBOX[sdk=macosx*]" = YES;
@@ -462,6 +615,8 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = "$(NOTRA_CODE_SIGN_ENTITLEMENTS)";
+				"CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]" = "$(NOTRA_IOS_CODE_SIGN_ENTITLEMENTS)";
+				"CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]" = "$(NOTRA_IOS_CODE_SIGN_ENTITLEMENTS)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 8;
 				"ENABLE_APP_SANDBOX[sdk=macosx*]" = YES;
@@ -593,6 +748,62 @@
 			};
 			name = Release;
 		};
+		C0000000000000000000000D /* Debug */ = {
+			baseConfigurationReference = 8B60EAB03014900000D21FD1 /* Config/PublicSigning.xcconfig */;
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = NotraShareExtension/NotraShareExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 8;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = NotraShareExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.4;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(NOTRA_BUNDLE_IDENTIFIER).ShareExtension";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_TREAT_WARNINGS_AS_ERRORS = YES;
+				GCC_TREAT_WARNINGS_AS_ERRORS = YES;
+				SWIFT_VERSION = 6.0;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		C0000000000000000000000E /* Release */ = {
+			baseConfigurationReference = 8B60EAB03014900000D21FD1 /* Config/PublicSigning.xcconfig */;
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = NotraShareExtension/NotraShareExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 8;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = NotraShareExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.4;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(NOTRA_BUNDLE_IDENTIFIER).ShareExtension";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_TREAT_WARNINGS_AS_ERRORS = YES;
+				GCC_TREAT_WARNINGS_AS_ERRORS = YES;
+				SWIFT_VERSION = 6.0;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -632,6 +843,15 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		C0000000000000000000000C /* Build configuration list for PBXNativeTarget "NotraShareExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C0000000000000000000000D /* Debug */,
+				C0000000000000000000000E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
@@ -647,6 +867,11 @@
 
 /* Begin XCSwiftPackageProductDependency section */
 		8B60EAA03014890000D21FD1 /* Markdown */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 8B60EA9F3014890000D21FD1 /* XCRemoteSwiftPackageReference "swift-markdown" */;
+			productName = Markdown;
+		};
+		C0000000000000000000000F /* Markdown */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 8B60EA9F3014890000D21FD1 /* XCRemoteSwiftPackageReference "swift-markdown" */;
 			productName = Markdown;

@@ -86,10 +86,13 @@ nonisolated struct NoteMetadata: Equatable, Sendable {
     var tags: [NoteTag]
     /// Timestamp used to persist pin state and ordering with the TextBundle.
     var pinnedAt: Date?
+    /// Identifies captures waiting for app-side library filing.
+    var shareCaptureID: UUID?
 
-    init(tags: [NoteTag] = [], pinnedAt: Date? = nil) {
+    init(tags: [NoteTag] = [], pinnedAt: Date? = nil, shareCaptureID: UUID? = nil) {
         self.tags = Array(Self.unique(tags).prefix(Self.maximumTagsPerNote))
         self.pinnedAt = pinnedAt
+        self.shareCaptureID = shareCaptureID
     }
 
     /// Adds a tag unless it already exists or the per-note limit has been reached.

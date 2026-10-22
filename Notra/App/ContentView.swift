@@ -7,7 +7,6 @@ import UIKit
 
 /// Owns the app's split-view shell and connects note-store state to its sidebar and editor.
 struct ContentView: View {
-    /// Shared store bound into both columns of the split view.
     @Bindable var store: NotesStore
     /// Routes scene commands to the active Notra window.
     @State private var commandContext: NotraCommandContext
@@ -119,7 +118,7 @@ struct ContentView: View {
             }
         )
         .task {
-            await store.loadNotes()
+            await store.loadNotesThenImportSharedCaptures()
         }
         .focusedSceneValue(commandContext)
         .onChange(of: store.selectedNoteID) {
@@ -133,18 +132,16 @@ struct ContentView: View {
                 await store.selectionChanged()
             }
         }
-        .onChange(of: store.storageLocation) {
+        #if os(iOS)
+        .modifier(ShareCaptureLifecycleModifier(
+            selectedTagIDs: $selectedTagIDs,
+            store: store,
+            availableTagIDs: availableTagIDs
+        ) {
             selectedTagIDs = []
             noteRevealRequest = nil
-        }
-        .onChange(of: availableTagIDs) { _, tagIDs in
-            guard !store.isLoading else { return }
-            selectedTagIDs.formIntersection(tagIDs)
-        }
-        .onChange(of: store.isLoading) { wasLoading, isLoading in
-            guard wasLoading, !isLoading else { return }
-            selectedTagIDs.formIntersection(availableTagIDs)
-        }
+        })
+        #endif
         #if os(macOS)
         .onChange(of: columnVisibility) { _, visibility in
             switch visibility {

@@ -1071,6 +1071,62 @@ extension NotesStore {
     }
 }
 
+extension NotesStore {
+    func loadNotesThenImportSharedCaptures() async {
+        await loadNotes()
+        #if os(iOS)
+        await importSharedCaptures()
+        #endif
+    }
+
+    #if os(iOS)
+    func importSharedCaptures() async {
+        let generation = repositoryGeneration
+        let selectedRepository = repository
+        do {
+            guard selectedRepository.storageLocation == storageLocation,
+                  storagePreferenceStorage.location != .iCloud || storageLocation == .iCloud,
+                  storageLocation != .iCloud || iCloudAvailability()
+            else {
+                throw NoteRepositoryError.storageUnavailable
+            }
+            let durableRepository = try repositoryFactory(storageLocation)
+            guard durableRepository.rootURL.standardizedFileURL.resolvingSymlinksInPath()
+                == selectedRepository.rootURL.standardizedFileURL.resolvingSymlinksInPath()
+            else {
+                throw NoteRepositoryError.storageUnavailable
+            }
+            let inbox = try SharedCaptureStore.production()
+            let result = await SharedCaptureImporter.shared.drain(
+                inboxURL: inbox.rootURL,
+                destination: selectedRepository
+            )
+            guard isCurrentRepository(generation), repository.rootURL == selectedRepository.rootURL else { return }
+            for note in result.notes where !notes.contains(where: { $0.id == note.id }) {
+                try notes.append(selectedRepository.summary(for: note.url))
+            }
+            notes = sortPreference.sorted(notes)
+            if !result.notes.isEmpty {
+                startSearchIndexSynchronization()
+            }
+            if !result.errors.isEmpty {
+                for error in result.errors {
+                    AppLog.error("Shared capture import failed: \(error)")
+                }
+                errorMessage = String(localized: .shareCaptureImportFailed)
+            }
+        } catch {
+            AppLog.error("Shared capture import could not start: \(error.localizedDescription)")
+            if (error as? NoteRepositoryError) == .storageUnavailable {
+                errorMessage = String(localized: .shareCaptureStorageUnavailable)
+            } else {
+                errorMessage = String(localized: .shareCaptureImportFailed)
+            }
+        }
+    }
+    #endif
+}
+
 private extension NotesStore {
     /// Commits metadata-only edits and immediately updates every selected-note projection.
     private func saveSelectedNoteMetadata(_ metadata: NoteMetadata, in note: inout Note) throws {
