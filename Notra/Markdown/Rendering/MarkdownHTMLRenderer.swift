@@ -167,6 +167,15 @@ private extension MarkdownHTMLRenderer {
         details.notra-heading-section > summary > h4,
         details.notra-heading-section > summary > h5,
         details.notra-heading-section > summary > h6 { flex: 1; min-width: 0; }
+        details.notra-heading-section:not([open]):has(> .notra-heading-content > *) > summary > h1::after,
+        details.notra-heading-section:not([open]):has(> .notra-heading-content > *) > summary > h2::after,
+        details.notra-heading-section:not([open]):has(> .notra-heading-content > *) > summary > h3::after,
+        details.notra-heading-section:not([open]):has(> .notra-heading-content > *) > summary > h4::after,
+        details.notra-heading-section:not([open]):has(> .notra-heading-content > *) > summary > h5::after,
+        details.notra-heading-section:not([open]):has(> .notra-heading-content > *) > summary > h6::after {
+          content: " …"; font: inherit;
+        }
+
         details.notra-heading-section > summary:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
         """
     }
