@@ -5,7 +5,8 @@ import WebKit
 
 @MainActor
 struct MarkdownPreviewImageTests {
-    @Test func attachedTextBundleImageLoadsInInitialPreviewDocument() async throws {
+    @Test
+    func `attached text bundle image loads in initial preview document`() async throws {
         let rootURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         let bundleURL = rootURL.appendingPathComponent("Preview.textbundle", isDirectory: true)
@@ -50,8 +51,9 @@ struct MarkdownPreviewImageTests {
         coordinator.cancelPendingReadiness()
         webView.stopLoading()
     }
+
     @Test
-    func mixedMarkdownRendersAcrossWebKitBlockTypes() async throws {
+    func `mixed markdown renders across web kit block types`() async throws {
         let parsed = SwiftMarkdownParser().parse(MarkdownRenderingFixture.mixedDocument)
         var renderer = MarkdownHTMLRenderer(
             style: .notra(previewFontName: AppearanceFont.defaultName),
@@ -68,7 +70,7 @@ struct MarkdownPreviewImageTests {
         coordinator.update(document: document, in: webView)
 
         var hasLoadedPreview = false
-        for _ in 0 ..< 100 {
+        for _ in 0..<100 {
             let readiness = try await webView.callAsyncJavaScript(
                 "return document.readyState === 'complete' && Boolean(document.querySelector('h1'));",
                 arguments: [:],
@@ -127,4 +129,90 @@ struct MarkdownPreviewImageTests {
         #expect(diagramText.contains("End fixture"))
     }
 
+    @Test
+    func `refresh keeps collapsed heading and fragment navigation reveals it`() async throws {
+        let body = (0..<40).map { "Paragraph \($0) keeps the preview scrollable." }.joined(separator: "\n\n")
+        func render(_ suffix: String) -> MarkdownHTMLDocument {
+            let markdown = "# Overview\n\n## Target\n\n\(body)\n\n\(suffix)"
+            var renderer = MarkdownHTMLRenderer(
+                style: .notra(previewFontName: AppearanceFont.defaultName),
+                mode: .preview,
+                context: .empty
+            )
+            return renderer.render(SwiftMarkdownParser().parse(markdown))
+        }
+
+        let coordinator = Coordinator(openURL: { _ in }, toggleTask: { _, _ in })
+        let webView = coordinator.makeWebView()
+        defer {
+            coordinator.cancelPendingReadiness()
+            webView.stopLoading()
+        }
+        coordinator.update(document: render("Initial"), in: webView)
+
+        let selector = "details.notra-heading-section[data-notra-heading-anchor='target']"
+        var targetReady = false
+        for _ in 0..<100 {
+            let result = try await webView.callAsyncJavaScript(
+                "return Boolean(document.querySelector(\(String(reflecting: selector))));",
+                arguments: [:],
+                in: nil,
+                contentWorld: .page
+            )
+            targetReady = result as? Bool == true
+            if targetReady {
+                break
+            }
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        #expect(targetReady)
+
+        _ = try await webView.callAsyncJavaScript(
+            """
+            document.querySelector(\(String(reflecting: selector))).open = false;
+            window.scrollTo(0, 180);
+            return true;
+            """,
+            arguments: [:],
+            in: nil,
+            contentWorld: .page
+        )
+        coordinator.update(document: render("Updated"), in: webView)
+
+        var collapsedAfterRefresh = false
+        for _ in 0..<100 {
+            let result = try await webView.callAsyncJavaScript(
+                """
+                const section = document.querySelector(\(String(reflecting: selector)));
+                return Boolean(section && !section.open && document.body.textContent.includes('Updated'));
+                """,
+                arguments: [:],
+                in: nil,
+                contentWorld: .page
+            )
+            collapsedAfterRefresh = result as? Bool == true
+            if collapsedAfterRefresh {
+                break
+            }
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        #expect(collapsedAfterRefresh)
+
+        coordinator.scroll(to: "target", in: webView)
+        var revealedAfterNavigation = false
+        for _ in 0..<100 {
+            let result = try await webView.callAsyncJavaScript(
+                "return document.querySelector(\(String(reflecting: selector))).open;",
+                arguments: [:],
+                in: nil,
+                contentWorld: .page
+            )
+            revealedAfterNavigation = result as? Bool == true
+            if revealedAfterNavigation {
+                break
+            }
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        #expect(revealedAfterNavigation)
+    }
 }

@@ -42,7 +42,7 @@ struct MarkdownHTMLRenderer {
         mermaidSectionCount = 0
         hasMermaidBlocks = false
         indexHeadingAnchors(in: document.blocks)
-        let content = document.blocks.map { render($0) }.joined(separator: "\n")
+        let content = renderBlocks(document.blocks[...], separator: "\n")
         let bodyContent = mode == .pdf ? "<main class=\"pdf-content\">\(content)</main>" : content
         let modeAttribute = mode == .pdf ? "pdf" : "preview"
         let runtime = hasMermaidBlocks ? "<script src=\"notra-mermaid://bundle/mermaid.min.js\"></script>" : ""
@@ -96,6 +96,7 @@ private extension MarkdownHTMLRenderer {
         .task-checkbox { margin: 0 6px 0 0; vertical-align: baseline; }
         .task-checkbox:not(:disabled) { cursor: pointer; }
         \(taskCheckboxRules(theme: theme))
+        \(headingDisclosureRules)
         blockquote { border-left: 4px solid \(theme.quoteAccent); color: \(theme.quoteText); margin: 0 0 16px; padding-left: 12px; }
         a { color: \(theme.linkText); } code { font-family: \(fixedWidthFontFamily); }
         strong { color: \(theme.boldText); } em { color: \(theme.italicText); } del { color: \(theme.strikethroughText); }
@@ -137,6 +138,75 @@ private extension MarkdownHTMLRenderer {
         \(pdfLayoutRules)
         </style>
         """
+    }
+
+    var headingDisclosureRules: String {
+        guard mode == .preview else {
+            return ""
+        }
+
+        return """
+        details.notra-heading-section > summary {
+          display: flex; align-items: center; gap: 8px; min-height: 44px; cursor: pointer; list-style: none;
+        }
+        details.notra-heading-section > summary::-webkit-details-marker { display: none; }
+        details.notra-heading-section > summary::before {
+          content: ""; flex: 0 0 8px; width: 8px; height: 8px;
+          border-right: 2px solid color-mix(in srgb, currentColor 35%, transparent);
+          border-bottom: 2px solid color-mix(in srgb, currentColor 35%, transparent);
+          transform: rotate(-45deg); align-self: center; opacity: 0;
+        }
+        details.notra-heading-section[open] > summary::before { transform: rotate(45deg); }
+        details.notra-heading-section > summary:hover::before { opacity: 1; }
+        @media (hover: none) {
+          details.notra-heading-section > summary::before { opacity: 1; }
+        }
+        details.notra-heading-section > summary > h1,
+        details.notra-heading-section > summary > h2,
+        details.notra-heading-section > summary > h3,
+        details.notra-heading-section > summary > h4,
+        details.notra-heading-section > summary > h5,
+        details.notra-heading-section > summary > h6 { flex: 1; min-width: 0; }
+        details.notra-heading-section > summary:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+        """
+    }
+
+    mutating func renderBlocks(_ blocks: ArraySlice<MarkdownBlock>, separator: String = "") -> String {
+        guard mode == .preview else {
+            return blocks.map { render($0) }.joined(separator: separator)
+        }
+
+        var output = ""
+        var activeLevels: [Int] = []
+
+        var isFirst = true
+        for block in blocks {
+            if !isFirst {
+                output += separator
+            }
+            isFirst = false
+            if case let .heading(id, level, inlines) = block {
+                let safeLevel = min(max(level, 1), 6)
+                while activeLevels.last.map({ $0 >= safeLevel }) == true {
+                    output += "</div></details>"
+                    activeLevels.removeLast()
+                }
+                let anchor = headingAnchorIDs[id] ?? headingSlug(for: plainText(inlines))
+                let heading = render(block)
+                output += "<details class=\"notra-heading-section\" "
+                output += "data-notra-heading-anchor=\"\(escapeAttribute(anchor))\" open>"
+                output += "<summary>\(heading)</summary><div class=\"notra-heading-content\">"
+                activeLevels.append(safeLevel)
+            } else {
+                output += render(block)
+            }
+        }
+
+        while !activeLevels.isEmpty {
+            output += "</div></details>"
+            activeLevels.removeLast()
+        }
+        return output
     }
 
     var previewWidthRules: String {
@@ -199,7 +269,7 @@ private extension MarkdownHTMLRenderer {
         case let .orderedList(_, start, items):
             return "<ol start=\"\(start)\">\(items.map { render($0) }.joined())</ol>"
         case let .blockQuote(_, blocks):
-            return "<blockquote>\(blocks.map { render($0) }.joined())</blockquote>"
+            return "<blockquote>\(renderBlocks(blocks[...]))</blockquote>"
         case let .codeBlock(_, language, code):
             guard let language, MarkdownCodeLanguage(fenceTag: language) == .mermaid else {
                 return "<pre><code>\(renderCode(code, language: language))</code></pre>"
@@ -228,15 +298,15 @@ private extension MarkdownHTMLRenderer {
         let checkbox = taskCheckbox(for: item)
 
         guard item.taskState != nil else {
-            return "<li>\(item.blocks.map { render($0) }.joined())</li>"
+            return "<li>\(renderBlocks(item.blocks[...]))</li>"
         }
 
         if case let .paragraph(_, inlines)? = item.blocks.first {
-            let nestedBlocks = item.blocks.dropFirst().map { render($0) }.joined()
+            let nestedBlocks = renderBlocks(item.blocks.dropFirst()[...])
             return "<li class=\"task-item\">\(checkbox)<span>\(render(inlines))</span>\(nestedBlocks)</li>"
         }
 
-        return "<li class=\"task-item\">\(checkbox)\(item.blocks.map { render($0) }.joined())</li>"
+        return "<li class=\"task-item\">\(checkbox)\(renderBlocks(item.blocks[...]))</li>"
     }
 
     func taskCheckbox(for item: MarkdownListItem) -> String {
