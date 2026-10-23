@@ -105,6 +105,8 @@ See the [privacy policy](docs/privacy.html) used for the App Store submission.
 - Xcode 27 with iOS 27 and macOS 27 SDKs
 - SwiftFormat and SwiftLint available on your PATH
 
+Markdown parsing uses [Swift-Markdown](https://github.com/swiftlang/swift-markdown) with a minimum version of 0.9.0. The shared `Package.resolved` pins both Swift-Markdown and its Swift-cmark dependency to 0.9.0 for reproducible builds.
+
 ## Build
 
 Run validation builds before opening a pull request:
@@ -137,6 +139,8 @@ Run `make test-macos` for macOS unit tests or `make test-ios` for iOS simulator 
 Search-dependent store tests require confirmed index readiness before querying. A monotonic deadline reports stalled or unavailable indexing as a readiness failure instead of a missing search result.
 
 Refactoring regressions cover search token boundaries and whole-page pagination, stable attachment grouping, retained failed share captures, and sidebar previews. Preview selection consumes at most three nonblank, non-table source lines before stripping Markdown; markup-only lines still count toward that limit.
+
+A clean Xcode macOS unit-test build currently emits upstream Swift-Markdown 0.9.0 `Sendable` diagnostics in `ChildIndexPath.swift` and `RawMarkup.swift`, despite warnings-as-errors being enabled. Passing tests do not establish a warning-free build; these diagnostics are not suppressed.
 
 ## Publishing GitHub development releases
 
