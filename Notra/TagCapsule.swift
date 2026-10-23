@@ -89,8 +89,8 @@ struct TagCapsuleAppearance: ViewModifier {
         }
     }
 
-    private var backgroundStyle: AnyShapeStyle {
-        AnyShapeStyle(tagColors.backgroundColor.opacity(backgroundOpacity))
+    private var backgroundStyle: Color {
+        tagColors.backgroundColor.opacity(backgroundOpacity)
     }
 
     private var roundedRectangle: RoundedRectangle {

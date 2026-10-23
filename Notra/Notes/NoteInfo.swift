@@ -16,7 +16,7 @@ struct NoteStatistics: Equatable, Sendable {
         var count = 0
         markdown.enumerateSubstrings(
             in: markdown.startIndex..<markdown.endIndex,
-            options: .byWords
+            options: [.byWords, .substringNotRequired]
         ) { _, _, _, _ in
             count += 1
         }

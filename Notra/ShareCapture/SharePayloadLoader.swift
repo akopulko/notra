@@ -97,7 +97,6 @@ enum SharePayloadLoader {
             accumulator.text.append(block)
         } else if provider.hasItemConformingToTypeIdentifier(UTType.plainText.identifier) {
             let text = try await loadText(from: provider)
-            guard text.utf8.count <= 1024 * 1024 else { throw Failure.limitExceeded }
             let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
             if let url = webURL(from: trimmed) {
                 let linkBlock = "<\(url.absoluteString)>"

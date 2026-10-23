@@ -294,8 +294,9 @@ final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler 
                 do {
                     _ = try await webView.callAsyncJavaScript(
                         """
+                        const sections = Array.from(document.querySelectorAll('details.notra-heading-section'));
                         for (const anchor of anchors) {
-                            const section = Array.from(document.querySelectorAll('details.notra-heading-section'))
+                            const section = sections
                                 .find(candidate => candidate.getAttribute('data-notra-heading-anchor') === anchor);
                             if (section) section.open = false;
                         }

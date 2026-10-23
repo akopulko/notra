@@ -39,14 +39,15 @@ actor SharedCaptureImporter {
             options: [.skipsHiddenFiles]
         ) {
             let pendingEntries = entries
-                .sorted { $0.lastPathComponent < $1.lastPathComponent }
-                .filter { entry in
-                    guard let captureID = UUID(uuidString: entry.lastPathComponent) else { return false }
-                    return !attempted.contains(captureID)
+                .compactMap { entry -> (url: URL, captureID: UUID)? in
+                    guard let captureID = UUID(uuidString: entry.lastPathComponent),
+                          !attempted.contains(captureID)
+                    else { return nil }
+                    return (entry, captureID)
                 }
+                .sorted { $0.url.lastPathComponent < $1.url.lastPathComponent }
             guard !pendingEntries.isEmpty else { break }
-            for entry in pendingEntries {
-                guard let captureID = UUID(uuidString: entry.lastPathComponent) else { continue }
+            for (entry, captureID) in pendingEntries {
                 attempted.insert(captureID)
                 do {
                     let note = try fileCapture(captureID, at: entry, destination: destination)

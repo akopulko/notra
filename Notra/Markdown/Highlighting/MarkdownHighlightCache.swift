@@ -443,23 +443,13 @@ struct MarkdownHighlightCache {
 
         for (index, entry) in entries.enumerated() {
             let nextLine = entries.count > index + 1 ? entries[index + 1].content : nil
-            let parsed = highlighter.parseLine(entry.content, fenceState: fenceState, nextLine: nextLine)
-            let spans = parsed.spans.map { span in
-                MarkdownUTF16Span(
-                    role: span.role,
-                    lower: entry.range.lowerBound + span.range.lowerBound.utf16Offset(in: entry.content),
-                    upper: entry.range.lowerBound + span.range.upperBound.utf16Offset(in: entry.content)
-                )
-            }
-            lines.append(
-                MarkdownLineHighlight(
-                    range: entry.range,
-                    spans: spans,
-                    fenceStateBefore: fenceState,
-                    fenceStateAfter: parsed.fenceStateAfter
-                )
+            appendParsedLine(
+                entry: entry,
+                highlighter: highlighter,
+                fenceState: &fenceState,
+                nextLine: nextLine,
+                into: &lines
             )
-            fenceState = parsed.fenceStateAfter
         }
 
         return lines

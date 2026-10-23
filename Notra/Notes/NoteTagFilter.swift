@@ -62,11 +62,13 @@ enum NoteTagFilter {
             }
 
             if let matchingBundleNames {
-                resultIDs.append(contentsOf: page.results.compactMap { result in
-                    matchingBundleNames.contains(result.noteID.lastPathComponent) ? result.noteID : nil
-                })
+                for result in page.results where matchingBundleNames.contains(result.noteID.lastPathComponent) {
+                    resultIDs.append(result.noteID)
+                }
             } else {
-                resultIDs.append(contentsOf: page.results.map(\.noteID))
+                for result in page.results {
+                    resultIDs.append(result.noteID)
+                }
             }
             nextOffset += page.results.count
             if resultIDs.count >= limit || !page.hasMore {
