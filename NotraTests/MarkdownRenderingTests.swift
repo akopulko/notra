@@ -26,10 +26,11 @@ enum MarkdownRenderingFixture {
     """
 }
 
-@MainActor
 /// Checks parsing, styling, and HTML/PDF rendering behavior.
+@MainActor
 struct MarkdownRenderingTests {
-    @Test func webThemeKeepsNormalTextSeparateFromCodeText() {
+    @Test
+    func `web theme keeps normal text separate from code text`() {
         let webTheme = MarkdownWebTheme(theme: .dark)
 
         #expect(webTheme.bodyText == MarkdownTheme.dark.preview.body.hex)
@@ -39,7 +40,8 @@ struct MarkdownRenderingTests {
         #expect(webTheme.codeColour(for: .keyword) == MarkdownTheme.dark.code.keyword.hex)
     }
 
-    @Test func webThemePreservesSystemFallbacksWhenPreviewThemingIsDisabled() {
+    @Test
+    func `web theme preserves system fallbacks when preview theming is disabled`() {
         let webTheme = MarkdownWebTheme(theme: nil)
 
         #expect(webTheme.bodyText == "CanvasText")
@@ -58,7 +60,8 @@ struct MarkdownRenderingTests {
         #expect(PreviewTagDisplay.text(for: shortTag) == "#swift")
     }
 
-    @Test func htmlRendererAppliesPreviewAndCodeSemanticColours() {
+    @Test
+    func `html renderer applies preview and code semantic colours`() {
         let document = SwiftMarkdownParser().parse("""
         # Heading
 
@@ -91,7 +94,8 @@ struct MarkdownRenderingTests {
         #expect(html.contains("class=\"code-constant\" style=\"color:#f7768e\">true</span>"))
     }
 
-    @Test func htmlRendererPreservesInlineImageOrder() throws {
+    @Test
+    func `html renderer preserves inline image order`() throws {
         let document = SwiftMarkdownParser().parse("Before ![Image](https://example.com/image.png) After")
         var renderer = MarkdownHTMLRenderer(
             style: .notra(previewFontName: AppearanceFont.defaultName),
@@ -108,7 +112,8 @@ struct MarkdownRenderingTests {
         #expect(imageIndex < afterIndex)
     }
 
-    @Test func htmlRendererCreatesMatchingHeadingAnchors() {
+    @Test
+    func `html renderer creates matching heading anchors`() {
         let document = SwiftMarkdownParser().parse("""
         [First section](#first-section)
         [Equipment](#Equipment)
@@ -137,9 +142,139 @@ struct MarkdownRenderingTests {
         #expect(html.contains("<h1 id=\"first-section\">First section</h1>"))
         #expect(html.contains("<h2 id=\"first-section-1\">First section</h2>"))
         #expect(html.contains("<h2 id=\"equipment\">Equipment</h2>"))
+        #expect(html.contains("data-notra-heading-anchor=\"first-section\""))
+        #expect(html.contains("data-notra-heading-anchor=\"first-section-1\""))
     }
 
-    @Test func htmlRendererNormalisesHeadingAnchorText() {
+    @Test
+    func `preview heading sections respect hierarchy and container boundaries`() throws {
+        let document = SwiftMarkdownParser().parse("""
+        Intro boundary.
+
+        ## Parent marker
+        Parent body marker.
+
+        #### Deep marker
+        Deep body marker.
+
+        ## Peer marker
+        Peer body marker.
+
+        # Root marker
+        Root body marker.
+
+        > ### Quote marker
+        > Quote body marker.
+
+        - Item marker
+
+          ### List marker
+          List body marker.
+
+        Outside marker.
+        """)
+        var renderer = MarkdownHTMLRenderer(
+            style: .notra(previewFontName: AppearanceFont.defaultName),
+            mode: .preview,
+            context: .empty
+        )
+        let html = renderer.render(document).html
+        let intro = try #require(html.range(of: "Intro boundary.")?.lowerBound)
+        let parent = try #require(html.range(of: "data-notra-heading-anchor=\"parent-marker\"")?.lowerBound)
+        let deep = try #require(html.range(of: "data-notra-heading-anchor=\"deep-marker\"")?.lowerBound)
+        let peer = try #require(html.range(of: "data-notra-heading-anchor=\"peer-marker\"")?.lowerBound)
+        let root = try #require(html.range(of: "data-notra-heading-anchor=\"root-marker\"")?.lowerBound)
+        let quote = try #require(html.range(of: "data-notra-heading-anchor=\"quote-marker\"")?.lowerBound)
+        let list = try #require(html.range(of: "data-notra-heading-anchor=\"list-marker\"")?.lowerBound)
+        let quoteStart = try #require(html.range(of: "<blockquote>")?.lowerBound)
+        let quoteEnd = try #require(html.range(of: "</blockquote>")?.lowerBound)
+        let listStart = try #require(html.range(of: "<ul>")?.lowerBound)
+        let listEnd = try #require(html.range(of: "</ul>")?.lowerBound)
+
+        #expect(intro < parent)
+        #expect(parent < deep)
+        #expect(deep < peer)
+        #expect(peer < root)
+        #expect(root < quoteStart)
+        #expect(quoteStart < quote)
+        #expect(quote < quoteEnd)
+        #expect(quoteEnd < listStart)
+        #expect(listStart < list)
+        #expect(list < listEnd)
+        let outside = try #require(html.range(of: "Outside marker.")?.lowerBound)
+        let parentBody = try #require(html.range(of: "Parent body marker.")?.lowerBound)
+        let deepBody = try #require(html.range(of: "Deep body marker.")?.lowerBound)
+        let peerBody = try #require(html.range(of: "Peer body marker.")?.lowerBound)
+        let rootBody = try #require(html.range(of: "Root body marker.")?.lowerBound)
+        let quoteBody = try #require(html.range(of: "Quote body marker.")?.lowerBound)
+        let listBody = try #require(html.range(of: "List body marker.")?.lowerBound)
+        let deepEndRange = try #require(html.range(of: "</div></details>", range: deep..<peer))
+        let deepEnd = deepEndRange.lowerBound
+        let parentEnd = try #require(
+            html.range(of: "</div></details>", range: deepEndRange.upperBound..<peer)?.lowerBound
+        )
+        let listItemEnd = try #require(html.range(of: "</li>", range: list..<listEnd)?.lowerBound)
+
+        #expect(listEnd < outside)
+        #expect(html.components(separatedBy: "<details class=\"notra-heading-section\"").count == 7)
+        #expect(html.components(separatedBy: " open><summary>").count == 7)
+        #expect(parent < parentBody && parentBody < deep)
+        #expect(deep < deepBody && deepBody < deepEnd)
+        #expect(deepEnd < parentEnd && parentEnd < peer)
+        #expect(peer < peerBody && peerBody < root)
+        #expect(root < rootBody && rootBody < quoteStart)
+        #expect(quote < quoteBody && quoteBody < quoteEnd)
+        #expect(list < listBody && listBody < listItemEnd && listItemEnd < listEnd)
+    }
+
+    @Test
+    func `pdf headings remain non interactive`() {
+        let document = SwiftMarkdownParser().parse("""
+        Intro boundary.
+
+        ## Parent marker
+        Parent body marker.
+
+        #### Deep marker
+        Deep body marker.
+
+        ## Peer marker
+        Peer body marker.
+
+        # Root marker
+        Root body marker.
+
+        > ### Quote marker
+        > Quote body marker.
+
+        - Item marker
+
+          ### List marker
+          List body marker.
+
+        Outside marker.
+        """)
+        var renderer = MarkdownHTMLRenderer(
+            style: .notra(previewFontName: AppearanceFont.defaultName),
+            mode: .pdf,
+            context: .empty
+        )
+
+        let html = renderer.render(document).html
+
+        for marker in [
+            "Intro boundary.", "Parent marker", "Parent body marker.", "Deep marker", "Deep body marker.",
+            "Peer marker", "Peer body marker.", "Root marker", "Root body marker.", "Quote marker",
+            "Quote body marker.", "Item marker", "List marker", "List body marker.", "Outside marker."
+        ] {
+            #expect(html.contains(marker))
+        }
+        #expect(!html.contains("<details"))
+        #expect(!html.contains("notra-heading-section"))
+    }
+
+    @Test
+    func `html renderer normalises heading anchor text`() {
         let document = SwiftMarkdownParser().parse("# API & Usage!")
         var renderer = MarkdownHTMLRenderer(
             style: .notra(previewFontName: AppearanceFont.defaultName),
@@ -152,7 +287,8 @@ struct MarkdownRenderingTests {
         #expect(html.contains("<h1 id=\"api-usage\">API &amp; Usage!</h1>"))
     }
 
-    @Test func checkedTaskCheckboxesUseThePreviewItalicColour() {
+    @Test
+    func `checked task checkboxes use the preview italic colour`() {
         let document = SwiftMarkdownParser().parse("- [x] Done")
         var darkRenderer = MarkdownHTMLRenderer(
             style: .notra(previewFontName: AppearanceFont.defaultName, theme: .dark),
@@ -179,7 +315,8 @@ struct MarkdownRenderingTests {
         #expect(!pdfHTML.contains("accent-color:"))
     }
 
-    @Test func previewConstrainsWideContentWithoutChangingPDFLayout() {
+    @Test
+    func `preview constrains wide content without changing PDF layout`() {
         let longToken = String(repeating: "unbroken", count: 64)
         let document = SwiftMarkdownParser().parse("Preview `\(longToken)`")
         let style = MarkdownStyle.notra(previewFontName: AppearanceFont.defaultName)
@@ -202,7 +339,8 @@ struct MarkdownRenderingTests {
         #expect(!pdfHTML.contains(constrainedRoot))
     }
 
-    @Test func previewCodeSyntaxThemeFollowsThePreviewThemeOption() {
+    @Test
+    func `preview code syntax theme follows the preview theme option`() {
         let themedPreview = MarkdownStyle.notra(
             previewFontName: AppearanceFont.defaultName,
             theme: .dark
@@ -219,7 +357,8 @@ struct MarkdownRenderingTests {
         #expect(themedPDF.codeSyntaxTheme == nil)
     }
 
-    @Test func pdfHTMLUsesAThemeIndependentLightA4Layout() {
+    @Test
+    func `pdf HTML uses A theme independent light A 4 layout`() {
         let document = SwiftMarkdownParser().parse("# Heading\n\n```swift\nlet value = 42\n```")
         var renderer = MarkdownHTMLRenderer(
             style: .notra(
@@ -243,7 +382,8 @@ struct MarkdownRenderingTests {
         #expect(!html.contains(MarkdownTheme.dark.code.keyword.hex))
     }
 
-    @Test func pdfHTMLIncludesRemoteImages() {
+    @Test
+    func `pdf HTML includes remote images`() {
         let document = SwiftMarkdownParser().parse("![Remote](https://example.com/test-image.jpg)")
         var renderer = MarkdownHTMLRenderer(
             style: .notra(previewFontName: AppearanceFont.defaultName, renderMode: .pdf),
@@ -504,7 +644,7 @@ struct MarkdownRenderingTests {
         let text = "- Item"
         let formatted = MarkdownFormatting.applyTodoResult(
             to: text,
-            selection: text.startIndex ..< text.endIndex
+            selection: text.startIndex..<text.endIndex
         ).text
         let document = SwiftMarkdownParser().parse(formatted)
 
@@ -713,15 +853,15 @@ struct MarkdownRenderingTests {
     }
 
     private nonisolated static func delayedMarkdownParser(_ markdown: String) -> NotraMarkdownDocument {
-            if markdown == "slow" {
-                Thread.sleep(forTimeInterval: 0.2)
-            }
+        if markdown == "slow" {
+            Thread.sleep(forTimeInterval: 0.2)
+        }
 
-            return NotraMarkdownDocument(
-                blocks: [
-                    .paragraph(id: markdown, [.text(markdown)])
-                ]
-            )
+        return NotraMarkdownDocument(
+            blocks: [
+                .paragraph(id: markdown, [.text(markdown)])
+            ]
+        )
     }
 
     private func parsedParagraphText(in state: MarkdownPreviewModel.State) -> String? {
@@ -785,7 +925,8 @@ struct MarkdownRenderingTests {
         }
     }
 
-    @Test func mermaidFenceUsesLocalRuntimeAndEscapedSourceOnlyForRecognisedTags() {
+    @Test
+    func `mermaid fence uses local runtime and escaped source only for recognised tags`() {
         let document = SwiftMarkdownParser().parse("""
         ```mErMaId
         flowchart TD
@@ -811,6 +952,7 @@ struct MarkdownRenderingTests {
         #expect(html.contains("<pre><code>&lt;script&gt;ordinary&lt;/script&gt;"))
         #expect(html.contains("data-notra-render-mode=\"preview\""))
     }
+
     private func plainText(in inlines: [MarkdownInline]) -> String {
         inlines.map { inline in
             switch inline {

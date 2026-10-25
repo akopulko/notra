@@ -67,11 +67,14 @@ nonisolated struct NotraMetadata: Codable, Equatable {
     let tags: [NoteTag]
     /// Optional timestamp used to keep this note in the pinned group.
     let pinnedAt: Date?
+    /// Optional marker identifying a note published from the shared capture inbox.
+    let shareCaptureID: UUID?
 
-    init(version: Int = 1, tags: [NoteTag] = [], pinnedAt: Date? = nil) {
+    init(version: Int = 1, tags: [NoteTag] = [], pinnedAt: Date? = nil, shareCaptureID: UUID? = nil) {
         self.version = version
         self.tags = NoteMetadata(tags: tags).tags
         self.pinnedAt = pinnedAt
+        self.shareCaptureID = shareCaptureID
     }
 
     /// Coding keys kept explicit so metadata remains compatible with existing bundles.
@@ -79,6 +82,7 @@ nonisolated struct NotraMetadata: Codable, Equatable {
         case version
         case tags
         case pinnedAt
+        case shareCaptureID
     }
 
     init(from decoder: Decoder) throws {
@@ -87,5 +91,6 @@ nonisolated struct NotraMetadata: Codable, Equatable {
         let decodedTags = try container.decodeIfPresent([NoteTag].self, forKey: .tags) ?? []
         tags = NoteMetadata(tags: decodedTags).tags
         pinnedAt = try container.decodeIfPresent(Date.self, forKey: .pinnedAt)
+        shareCaptureID = try container.decodeIfPresent(UUID.self, forKey: .shareCaptureID)
     }
 }

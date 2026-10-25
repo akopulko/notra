@@ -105,6 +105,8 @@ See the [privacy policy](docs/privacy.html) used for the App Store submission.
 - Xcode 27 with iOS 27 and macOS 27 SDKs
 - SwiftFormat and SwiftLint available on your PATH
 
+Markdown parsing uses [Swift-Markdown](https://github.com/swiftlang/swift-markdown) with a minimum version of 0.9.0. The shared `Package.resolved` pins both Swift-Markdown and its Swift-cmark dependency to 0.9.0 for reproducible builds.
+
 ## Build
 
 Run validation builds before opening a pull request:
@@ -130,11 +132,15 @@ CI uses GitHub's [`xcode-27` preview runner](https://github.com/actions/runner-i
 
 The workflow has read-only repository access, pins actions to full commit SHAs, does not persist checkout credentials, and requires no Apple signing secrets. Version comments identify each pinned release; unlike tags such as `v7`, these references cannot move to different code. CI does not run UI tests or change the separate Pages deployment. Configure branch protection on `master` to require **CI result**, not the conditionally skipped validation job.
 
-Unit-test commands live directly in `ci.yml`, with no extra helper scripts or Python files. They use the shared `Notra` scheme, select only `NotraTests`, and use the public local-only configuration without personal signing credentials. `NotraUITests` remains available in Xcode but is not executed by CI. Run the `NotraTests` target in Xcode for local unit testing.
+Unit-test scripts use the shared `Notra` scheme, select only `NotraTests`, and use the public local-only configuration without personal signing credentials. `NotraUITests` remains available in Xcode but is not executed by these commands.
 
-Run `make test-macos` for macOS unit and UI tests. The target uses local storage and a unique verification bundle identifier.
+Run `make test-macos` for macOS unit tests or `make test-ios` for iOS simulator unit tests. Both targets use local storage and a unique verification bundle identifier.
 
 Search-dependent store tests require confirmed index readiness before querying. A monotonic deadline reports stalled or unavailable indexing as a readiness failure instead of a missing search result.
+
+Refactoring regressions cover search token boundaries and whole-page pagination, stable attachment grouping, retained failed share captures, and sidebar previews. Preview selection consumes at most three nonblank, non-table source lines before stripping Markdown; markup-only lines still count toward that limit.
+
+A clean Xcode macOS unit-test build currently emits upstream Swift-Markdown 0.9.0 `Sendable` diagnostics in `ChildIndexPath.swift` and `RawMarkup.swift`, despite warnings-as-errors being enabled. Passing tests do not establish a warning-free build; these diagnostics are not suppressed.
 
 ## Publishing GitHub development releases
 

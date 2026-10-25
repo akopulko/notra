@@ -79,7 +79,7 @@ struct ImportedTextBundleAsset: Equatable, Sendable {
     /// Final filename written below the bundle's assets directory.
     let filename: String
 
-    init(url: URL, source: String, kind: TextBundleAssetKind, filename: String) {
+    nonisolated init(url: URL, source: String, kind: TextBundleAssetKind, filename: String) {
         self.url = url.notraCanonicalFileURL
         self.source = source
         self.kind = kind
@@ -88,7 +88,7 @@ struct ImportedTextBundleAsset: Equatable, Sendable {
 }
 
 extension String {
-    var percentEncodedMarkdownPathComponent: String {
+    nonisolated var percentEncodedMarkdownPathComponent: String {
         var allowed = CharacterSet.urlPathAllowed
         allowed.remove(charactersIn: "/?#[]@!$&'()*+,;=")
         return addingPercentEncoding(withAllowedCharacters: allowed) ?? self

@@ -109,7 +109,7 @@ struct Note: Identifiable, Equatable {
     /// Last Markdown modification timestamp observed on disk.
     var modifiedAt: Date
 
-    init(
+    nonisolated init(
         url: URL,
         markdown: String,
         metadata: NoteMetadata = NoteMetadata(),

@@ -65,43 +65,49 @@ extension TextBundleNoteRepository {
             AppLog.warning("Image import failed because the image data could not be decoded")
             throw NoteRepositoryError.invalidImageData
         }
+        return try writeJPEG(image, originalFilename: originalFilename, into: noteURL, jpegQuality: jpegQuality)
+    }
 
+    /// Decodes and orientation-corrects a bounded image before storing its JPEG asset.
+    nonisolated func importImage(
+        from sourceURL: URL,
+        originalFilename: String = "image",
+        into noteURL: URL,
+        maximumPixelSize: Int,
+        jpegQuality: CGFloat = 0.9
+    ) throws -> ImportedTextBundleAsset {
+        guard let image = ImageThumbnailDecoder.decode(from: sourceURL, maximumPixelSize: maximumPixelSize) else {
+            throw NoteRepositoryError.invalidImageData
+        }
+        return try writeJPEG(image, originalFilename: originalFilename, into: noteURL, jpegQuality: jpegQuality)
+    }
+
+    private nonisolated func writeJPEG(
+        _ image: CGImage,
+        originalFilename: String,
+        into noteURL: URL,
+        jpegQuality: CGFloat
+    ) throws -> ImportedTextBundleAsset {
         let encodedData = NSMutableData()
         guard let destination = CGImageDestinationCreateWithData(
             encodedData,
             UTType.jpeg.identifier as CFString,
             1,
             nil
-        )
-        else {
-            AppLog.error("Image import failed because the JPEG destination could not be created")
+        ) else {
             throw NoteRepositoryError.imageEncodingFailed
         }
-
-        CGImageDestinationAddImage(
-            destination,
-            image,
-            [kCGImageDestinationLossyCompressionQuality: jpegQuality] as CFDictionary
-        )
+        CGImageDestinationAddImage(destination, image, [kCGImageDestinationLossyCompressionQuality: jpegQuality] as CFDictionary)
         guard CGImageDestinationFinalize(destination) else {
-            AppLog.error("Image import failed because JPEG encoding could not be finalized")
             throw NoteRepositoryError.imageEncodingFailed
         }
-        AppLog.info("Encoded imported image as JPEG; outputBytes=\(encodedData.length)")
-
         let assetsURL = try preparedAssetsURL(in: noteURL)
-        let filename = try uniqueAssetFilename(
-            preferredName: jpegFilename(for: originalFilename),
-            in: assetsURL
-        )
+        let filename = try uniqueAssetFilename(preferredName: jpegFilename(for: originalFilename), in: assetsURL)
         let assetURL = assetsURL.appendingPathComponent(filename)
-
         try (encodedData as Data).write(to: assetURL, options: .atomic)
-        let source = "\(Self.assetsFolder)/\(filename.percentEncodedMarkdownPathComponent)"
-        AppLog.info("Wrote imported image asset; source=\(source)")
         return ImportedTextBundleAsset(
             url: assetURL,
-            source: source,
+            source: "\(Self.assetsFolder)/\(filename.percentEncodedMarkdownPathComponent)",
             kind: .image,
             filename: filename
         )
@@ -159,7 +165,7 @@ extension TextBundleNoteRepository {
     }
 
     /// Ensures the assets directory exists before an import writes into it.
-    private func preparedAssetsURL(in noteURL: URL) throws -> URL {
+    private nonisolated func preparedAssetsURL(in noteURL: URL) throws -> URL {
         let assetsURL = noteURL.appendingPathComponent(Self.assetsFolder, isDirectory: true)
         try FileManager.default.createDirectory(at: assetsURL, withIntermediateDirectories: true)
         return assetsURL
@@ -200,7 +206,7 @@ extension TextBundleNoteRepository {
     }
 
     /// Sanitizes an imported name and appends a numeric suffix on case-insensitive collisions.
-    private func uniqueAssetFilename(preferredName: String, in assetsURL: URL) throws -> String {
+    private nonisolated func uniqueAssetFilename(preferredName: String, in assetsURL: URL) throws -> String {
         let sanitizedName = sanitizedFilename(preferredName)
         let existingNames = try Set(FileManager.default.contentsOfDirectory(atPath: assetsURL.path(percentEncoded: false))
             .map { $0.lowercased() })
@@ -229,7 +235,7 @@ extension TextBundleNoteRepository {
     }
 
     /// Removes path separators while retaining a readable attachment filename.
-    private func sanitizedFilename(_ filename: String) -> String {
+    private nonisolated func sanitizedFilename(_ filename: String) -> String {
         let trimmedFilename = filename.trimmingCharacters(in: .whitespacesAndNewlines)
         let fallback = trimmedFilename.isEmpty ? "attachment" : trimmedFilename
         let sanitized = fallback
@@ -239,7 +245,7 @@ extension TextBundleNoteRepository {
     }
 
     /// Replaces the source extension so image imports advertise their canonical JPEG format.
-    private func jpegFilename(for originalFilename: String) -> String {
+    private nonisolated func jpegFilename(for originalFilename: String) -> String {
         let fileURL = URL(fileURLWithPath: originalFilename)
         let baseName = fileURL.deletingPathExtension().lastPathComponent
             .trimmingCharacters(in: .whitespacesAndNewlines)

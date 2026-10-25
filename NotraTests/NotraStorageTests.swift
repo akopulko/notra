@@ -797,6 +797,37 @@ struct NotraStorageTests {
         #expect(summary.previewFirstLineIsHeading)
     }
 
+    @Test func previewConsumesMarkupOnlyLinesBeforeStripping() {
+        let empty = TextBundleNoteRepository.preview(for: "***\n___\n```\nFourth line")
+        #expect(empty.text == NoteSummary.emptyPreviewText)
+        #expect(!empty.firstLineIsHeading)
+
+        let heading = TextBundleNoteRepository.preview(for: "***\n# Title\n___\nFourth line")
+        #expect(heading.text == "Title")
+        #expect(heading.firstLineIsHeading)
+    }
+
+    @Test func previewPreservesMixedNewlineBoundaries() {
+        let preview = TextBundleNoteRepository.preview(for: "\r\n \r# Title\r\nSecond\u{0085}Third\u{2028}Fourth")
+        #expect(preview.text == "Title\nSecond\nThird")
+        #expect(preview.firstLineIsHeading)
+    }
+
+    @Test func previewPreservesTableLookaheadAndRowBoundaries() {
+        let skipped = TextBundleNoteRepository.preview(
+            for: "| A | B |\n| --- | --- |\n| one | two |\nuneven | row | still skipped\n\n# After\nBody\nLast\nFourth"
+        )
+        #expect(skipped.text == "After\nBody\nLast")
+        #expect(skipped.firstLineIsHeading)
+
+        let mismatched = TextBundleNoteRepository.preview(for: "A | B\n--- | --- | ---\nBody\nFourth")
+        #expect(mismatched.text == "A | B\n--- | --- | ---\nBody")
+        let interrupted = TextBundleNoteRepository.preview(for: "A | B\n\n--- | ---\nFourth")
+        #expect(interrupted.text == "A | B\n--- | ---\nFourth")
+        let finalHeader = TextBundleNoteRepository.preview(for: "A | B")
+        #expect(finalHeader.text == "A | B")
+    }
+
     @Test func emptyNotesUsePlaceholderPreview() throws {
         let repository = try makeRepository()
         _ = try makeTextBundle(named: "Empty", markdown: "\n \n", in: repository.rootURL)

@@ -55,6 +55,13 @@ final class MarkdownPreviewModel {
                 parser(markdown)
             }
 
+            guard !Task.isCancelled,
+                  generation == requestGeneration,
+                  markdown == parsedMarkdown
+            else {
+                return
+            }
+
             var renderer = MarkdownHTMLRenderer(style: style, mode: .preview, context: context)
             let preparedHTML = renderer.render(document)
 

@@ -635,17 +635,14 @@ private extension SQLiteNoteSearchIndex {
 
         return tokens.compactMap { token in
             let words = token.value.split { !$0.isLetter && !$0.isNumber }
-                .map(String.init)
-                .filter { !$0.isEmpty }
             guard !words.isEmpty else {
                 return nil
             }
 
-            let escaped = words.map { $0.replacingOccurrences(of: "\"", with: "\"\"") }
             if token.isPhrase {
-                return "\"\(escaped.joined(separator: " "))\""
+                return "\"\(words.joined(separator: " "))\""
             }
-            return escaped.map { "\($0)*" }.joined(separator: " ")
+            return words.map { "\($0)*" }.joined(separator: " ")
         }
         .joined(separator: " ")
     }

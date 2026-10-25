@@ -64,41 +64,24 @@ extension TextBundleNoteRepository {
 
     /// Builds a short plain-text preview while skipping table structure and Markdown markers.
     nonisolated static func preview(for markdown: String) -> NotePreview {
-        let lines = previewSourceLines(from: markdown)
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-
-        let previewLines = lines
-            .prefix(3)
-            .map { line in
-                NotePreview.Line(text: plainText(fromMarkdownLine: line), isHeading: isMarkdownHeading(line))
-            }
-            .filter { !$0.text.isEmpty }
-
-        guard !previewLines.isEmpty else {
-            return NotePreview(text: NoteSummary.emptyPreviewText, firstLineIsHeading: false)
-        }
-
-        return NotePreview(
-            text: previewLines.map(\.text).joined(separator: "\n"),
-            firstLineIsHeading: previewLines.first?.isHeading ?? false
-        )
-    }
-
-    /// Removes complete GFM table blocks before choosing the first preview lines.
-    private nonisolated static func previewSourceLines(from markdown: String) -> [String] {
         let lines = markdown.components(separatedBy: .newlines)
-        var previewLines: [String] = []
+        var previewLines: [NotePreview.Line] = []
         var index = 0
+        var sourceLineCount = 0
 
-        while index < lines.count {
+        while index < lines.count, sourceLineCount < 3 {
             guard isTableHeader(lines[index]),
                   index + 1 < lines.count,
                   let columnCount = tableColumnCount(in: lines[index + 1]),
                   tableCellCount(in: lines[index]) == columnCount
             else {
-                previewLines.append(lines[index])
+                let line = lines[index].trimmingCharacters(in: .whitespacesAndNewlines)
                 index += 1
+                guard !line.isEmpty else { continue }
+                sourceLineCount += 1
+                let text = plainText(fromMarkdownLine: line)
+                guard !text.isEmpty else { continue }
+                previewLines.append(NotePreview.Line(text: text, isHeading: isMarkdownHeading(line)))
                 continue
             }
 
@@ -108,7 +91,14 @@ extension TextBundleNoteRepository {
             }
         }
 
-        return previewLines
+        guard !previewLines.isEmpty else {
+            return NotePreview(text: NoteSummary.emptyPreviewText, firstLineIsHeading: false)
+        }
+
+        return NotePreview(
+            text: previewLines.map(\.text).joined(separator: "\n"),
+            firstLineIsHeading: previewLines.first?.isHeading ?? false
+        )
     }
 
     private nonisolated static func isTableHeader(_ line: String) -> Bool {

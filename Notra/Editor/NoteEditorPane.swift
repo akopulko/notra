@@ -146,6 +146,7 @@ struct NoteEditorPane: View {
             ),
             toggleTask: store.toggleTask
         )
+        .id(store.selectedNoteID)
     }
 
     private func consumeFocusFirstLineRequest() {

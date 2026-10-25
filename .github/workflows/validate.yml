@@ -1,0 +1,47 @@
+name: Full app validation
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  validate:
+    name: Lint, build, and unit tests
+    runs-on: xcode-27
+    timeout-minutes: 45
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.0.app/Contents/Developer
+      CODE_SIGNING_ALLOWED: 'NO'
+      HOMEBREW_NO_AUTO_UPDATE: '1'
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Prepare lint tools
+        run: |
+          brew install swiftlint
+          swiftformat --version
+          swiftlint version
+      - name: Report Apple toolchain
+        run: |
+          sw_vers
+          xcodebuild -version
+          xcodebuild -showsdks
+          xcrun simctl list devices available
+      - name: Check SwiftFormat and SwiftLint
+        run: make lint
+      - name: Build iOS simulator and device
+        run: make build-ios
+      - name: Run iOS unit tests
+        run: make test-ios
+      - name: Build macOS
+        run: make build-macos
+      - name: Run macOS unit tests
+        run: make test-macos

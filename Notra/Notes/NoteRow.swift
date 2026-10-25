@@ -56,15 +56,17 @@ struct NoteRow: View {
     private var previewText: some View {
         if note.previewFirstLineIsHeading {
             let lines = note.previewText.components(separatedBy: .newlines)
-            let remainingPreviewText = lines.dropFirst().joined(separator: "\n")
             VStack(alignment: .leading, spacing: 2) {
                 titleText(lines.first ?? NoteSummary.emptyPreviewText)
-                if showsNotePreview, !remainingPreviewText.isEmpty {
-                    Text(verbatim: remainingPreviewText)
-                        .font(.body)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(max(previewLineLimit - 1, 1))
-                        .truncationMode(.tail)
+                if showsNotePreview {
+                    let remainingPreviewText = lines.dropFirst().joined(separator: "\n")
+                    if !remainingPreviewText.isEmpty {
+                        Text(verbatim: remainingPreviewText)
+                            .font(.body)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(max(previewLineLimit - 1, 1))
+                            .truncationMode(.tail)
+                    }
                 }
             }
         } else {

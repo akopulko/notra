@@ -88,10 +88,10 @@ enum MarkdownAttachmentReferences {
             return nil
         }
 
-        let relativeComponents: [Substring] = if components.first == Substring(TextBundleNoteRepository.assetsFolder) {
-            Array(components.dropFirst())
+        let relativeComponents: ArraySlice<Substring> = if components.first == Substring(TextBundleNoteRepository.assetsFolder) {
+            components.dropFirst()
         } else {
-            Array(components)
+            components[...]
         }
         guard !relativeComponents.isEmpty else {
             return nil

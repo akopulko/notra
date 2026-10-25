@@ -28,6 +28,51 @@ struct NoteSearchIndexTests {
         #expect(phrasePage.results.map(\.noteID) == [first.url.standardizedFileURL])
     }
 
+    @Test func searchPreservesPunctuationUnicodeAndQuoteBoundaries() async throws {
+        let repository = try makeRepository()
+        defer { try? FileManager.default.removeItem(at: repository.rootURL) }
+        let note = try makeNote(markdown: "Café 東京 123 alpha beta alphabet", in: repository)
+        let other = try makeNote(markdown: "alpha separated beta", in: repository)
+        let index = makeIndex(for: repository)
+        try await index.synchronize(noteIDs: [note.url, other.url])
+
+        for query in ["café—東京/123", "\"alpha, beta\"", "\"alpha beta", "café!!!", "123"] {
+            let page = try await index.search(query, limit: 50, offset: 0)
+            #expect(page.results.map(\.noteID) == [note.url.standardizedFileURL])
+        }
+        for query in ["", " \n\t ", "!!!—()", "\"\"", "\"!!!\""] {
+            let page = try await index.search(query, limit: 50, offset: 0)
+            #expect(page.results.isEmpty)
+            #expect(!page.hasMore)
+        }
+        let prefixes = try await index.search("alph bet", limit: 50, offset: 0)
+        #expect(Set(prefixes.results.map(\.noteID)) == Set([note.url.standardizedFileURL, other.url.standardizedFileURL]))
+    }
+
+    @Test func tagBatchConsumesWholeFinalPageAndRetainsDuplicates() async throws {
+        let first = URL(fileURLWithPath: "/notes/first.textbundle")
+        let second = URL(fileURLWithPath: "/notes/second.textbundle")
+        let excluded = URL(fileURLWithPath: "/notes/excluded.textbundle")
+        var requestedOffsets: [Int] = []
+        let batch = try #require(await NoteTagFilter.loadSearchBatch(
+            offset: 7,
+            limit: 3,
+            matchingBundleNames: [first.lastPathComponent, second.lastPathComponent],
+            fetchPage: { offset, _ in
+                requestedOffsets.append(offset)
+                let ids = offset == 7 ? [first, excluded, excluded] : [second, first, second]
+                return NoteSearchPage(
+                    results: ids.map { NoteSearchResult(noteID: $0, rank: 0) },
+                    hasMore: offset == 7
+                )
+            }
+        ))
+        #expect(requestedOffsets == [7, 10])
+        #expect(batch.resultIDs == [first, second, first, second])
+        #expect(batch.nextOffset == 13)
+        #expect(!batch.hasMore)
+    }
+
     @Test func updatesAndRemovesIndexedNotes() async throws {
         let repository = try makeRepository()
         defer { try? FileManager.default.removeItem(at: repository.rootURL) }

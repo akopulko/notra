@@ -10,7 +10,7 @@ extension TextBundleNoteRepository {
 
         let data = try Data(contentsOf: infoURL)
         let info = try JSONDecoder().decode(NotraMetadataEnvelope.self, from: data)
-        return NoteMetadata(tags: info.notra.tags, pinnedAt: info.notra.pinnedAt)
+        return NoteMetadata(tags: info.notra.tags, pinnedAt: info.notra.pinnedAt, shareCaptureID: info.notra.shareCaptureID)
     }
 
     /// Keeps damaged notes discoverable while recording why their metadata could not be read.

@@ -4,6 +4,28 @@ import SwiftUI
 import AppKit
 #endif
 
+struct AttachmentInspectorGroups {
+    private(set) var linkedImages: [TextBundleAsset] = []
+    private(set) var unlinkedImages: [TextBundleAsset] = []
+    private(set) var linkedFiles: [TextBundleAsset] = []
+    private(set) var unlinkedFiles: [TextBundleAsset] = []
+
+    init(attachments: [TextBundleAsset]) {
+        for attachment in attachments {
+            switch (attachment.kind, attachment.isLinked) {
+            case (.image, true):
+                linkedImages.append(attachment)
+            case (.image, false):
+                unlinkedImages.append(attachment)
+            case (.attachment, true):
+                linkedFiles.append(attachment)
+            case (.attachment, false):
+                unlinkedFiles.append(attachment)
+            }
+        }
+    }
+}
+
 /// Shows note metadata, tags, and attached files while keeping selection actions platform-aware.
 struct AttachmentInspectorView: View {
     let store: NotesStore
@@ -20,6 +42,8 @@ struct AttachmentInspectorView: View {
     #endif
 
     var body: some View {
+        let groups = AttachmentInspectorGroups(attachments: store.attachments)
+
         List(selection: $selectedAttachmentURL) {
             AttachmentInspectorInfoSection(store: store)
 
@@ -33,8 +57,8 @@ struct AttachmentInspectorView: View {
                     sectionHeader("Attachments")
                 }
             } else {
-                assetSection(title: "Images", attachments: imageAttachments)
-                assetSection(title: "Other Attachments", attachments: otherAttachments)
+                assetSection(title: "Images", linked: groups.linkedImages, unlinked: groups.unlinkedImages)
+                assetSection(title: "Other Attachments", linked: groups.linkedFiles, unlinked: groups.unlinkedFiles)
             }
         }
         #if os(macOS)
@@ -78,14 +102,6 @@ struct AttachmentInspectorView: View {
             tagEntryFeedback = nil
         }
         .inspectorColumnWidth(min: 260, ideal: 300, max: 420)
-    }
-
-    private var imageAttachments: [TextBundleAsset] {
-        store.attachments.filter { $0.kind == .image }
-    }
-
-    private var otherAttachments: [TextBundleAsset] {
-        store.attachments.filter { $0.kind == .attachment }
     }
 
     private var tagSection: some View {
@@ -187,11 +203,15 @@ struct AttachmentInspectorView: View {
     }
 
     @ViewBuilder
-    private func assetSection(title: LocalizedStringKey, attachments: [TextBundleAsset]) -> some View {
-        if !attachments.isEmpty {
+    private func assetSection(
+        title: LocalizedStringKey,
+        linked: [TextBundleAsset],
+        unlinked: [TextBundleAsset]
+    ) -> some View {
+        if !linked.isEmpty || !unlinked.isEmpty {
             Section {
-                attachmentGroup(title: "Linked", attachments: attachments.filter(\.isLinked))
-                attachmentGroup(title: "Unlinked", attachments: attachments.filter { !$0.isLinked })
+                attachmentGroup(title: "Linked", attachments: linked)
+                attachmentGroup(title: "Unlinked", attachments: unlinked)
             } header: {
                 sectionHeader(title)
             }

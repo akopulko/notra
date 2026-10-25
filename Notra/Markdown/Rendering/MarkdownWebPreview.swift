@@ -130,7 +130,12 @@ final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler 
     private let toggleTask: (MarkdownTaskMarker, MarkdownTaskState) -> Void
     private var renderedHTML: String?
     private var documentGeneration = 0
-    private var pendingScrollOffset: Double?
+    private struct PreviewState {
+        let scrollOffset: Double
+        let collapsedHeadingAnchors: [String]
+    }
+
+    private var pendingPreviewState: PreviewState?
 
     static let taskToggleMessageName = "notraTaskToggle"
 
@@ -176,14 +181,28 @@ final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler 
     /// WebKit normalises fragment URLs loaded from an in-memory document, so
     /// resolve same-note links in the document before navigation delegates see them.
     private static let anchorNavigationScript = """
+    window.notraRevealAnchor = function(anchor) {
+        const target = document.getElementById(anchor);
+        if (!target) return;
+        for (let section = target.closest('details.notra-heading-section');
+             section;
+             section = section.parentElement.closest('details.notra-heading-section')) {
+            section.open = true;
+        }
+        target.scrollIntoView({ block: 'start', inline: 'nearest' });
+    };
     document.addEventListener('click', function(event) {
         const link = event.target.closest('a[href^="#"]');
         if (!link) return;
-        const anchor = decodeURIComponent(link.getAttribute('href').slice(1));
-        const target = document.getElementById(anchor);
-        if (!target) return;
+        let anchor;
+        try {
+            anchor = decodeURIComponent(link.getAttribute('href').slice(1));
+        } catch (_) {
+            return;
+        }
+        if (!document.getElementById(anchor)) return;
         event.preventDefault();
-        target.scrollIntoView({ block: 'start', inline: 'nearest' });
+        window.notraRevealAnchor(anchor);
     });
     """
 
@@ -216,40 +235,108 @@ final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler 
         renderedHTML = document.html
         documentGeneration += 1
         let generation = documentGeneration
-        pendingScrollOffset = nil
         guard previousHTML != nil else {
+            pendingPreviewState = nil
             webView.loadHTMLString(document.html, baseURL: nil)
             return
         }
-        webView.evaluateJavaScript("window.scrollY") { [weak self, weak webView] value, _ in
-            guard let self, let webView, generation == documentGeneration else {
-                return
+
+        if pendingPreviewState != nil {
+            webView.loadHTMLString(document.html, baseURL: nil)
+            return
+        }
+
+        let captureScript = """
+        return {
+            scrollOffset: window.scrollY,
+            collapsedHeadingAnchors: Array.from(document.querySelectorAll('details.notra-heading-section:not([open])'))
+                .map(section => section.getAttribute('data-notra-heading-anchor'))
+                .filter(anchor => typeof anchor === 'string')
+        };
+        """
+        Task { [weak self, weak webView] in
+            guard let self, let webView else { return }
+            let value = try? await webView.callAsyncJavaScript(
+                captureScript,
+                arguments: [:],
+                in: nil,
+                contentWorld: .page
+            )
+            guard generation == documentGeneration else { return }
+            if let value {
+                pendingPreviewState = Self.previewState(from: value)
             }
-            pendingScrollOffset = (value as? NSNumber)?.doubleValue
             webView.loadHTMLString(document.html, baseURL: nil)
         }
     }
 
+    private static func previewState(from value: Any) -> PreviewState? {
+        guard let dictionary = value as? [String: Any],
+              let offset = (dictionary["scrollOffset"] as? NSNumber)?.doubleValue,
+              offset.isFinite,
+              let anchors = dictionary["collapsedHeadingAnchors"] as? [String]
+        else {
+            return nil
+        }
+        return PreviewState(scrollOffset: offset, collapsedHeadingAnchors: anchors)
+    }
+
     func cancelPendingReadiness() {
         documentGeneration += 1
-        pendingScrollOffset = nil
+        pendingPreviewState = nil
     }
 
     func webView(_ webView: WKWebView, didFinish _: WKNavigation?) {
         let generation = documentGeneration
         Task { [weak self, weak webView] in
-            guard let self, let webView else { return }
+            guard let self, let webView, generation == documentGeneration else { return }
+            if let state = pendingPreviewState {
+                do {
+                    _ = try await webView.callAsyncJavaScript(
+                        """
+                        const sections = Array.from(document.querySelectorAll('details.notra-heading-section'));
+                        for (const anchor of anchors) {
+                            const section = sections
+                                .find(candidate => candidate.getAttribute('data-notra-heading-anchor') === anchor);
+                            if (section) section.open = false;
+                        }
+                        return true;
+                        """,
+                        arguments: ["anchors": state.collapsedHeadingAnchors],
+                        in: nil,
+                        contentWorld: .page
+                    )
+                } catch {
+                    _ = try? await webView.callAsyncJavaScript(
+                        "document.querySelectorAll('details.notra-heading-section').forEach(section => section.open = true);",
+                        arguments: [:],
+                        in: nil,
+                        contentWorld: .page
+                    )
+                    guard generation == documentGeneration else { return }
+                    pendingPreviewState = nil
+                }
+                guard generation == documentGeneration else { return }
+            }
             _ = try? await webView.callAsyncJavaScript(
                 "await window.notraMermaidReady; return true;",
                 arguments: [:],
                 in: nil,
                 contentWorld: .page
             )
-            guard generation == documentGeneration, let pendingScrollOffset else {
-                return
+            guard generation == documentGeneration, let state = pendingPreviewState else { return }
+            do {
+                _ = try await webView.callAsyncJavaScript(
+                    "window.scrollTo(0, offset); return true;",
+                    arguments: ["offset": state.scrollOffset],
+                    in: nil,
+                    contentWorld: .page
+                )
+            } catch {
+                // The loaded document remains usable if scroll restoration fails.
             }
-            self.pendingScrollOffset = nil
-            _ = try? await webView.evaluateJavaScript("window.scrollTo(0, \(pendingScrollOffset));")
+            guard generation == documentGeneration else { return }
+            pendingPreviewState = nil
         }
     }
 
@@ -307,19 +394,16 @@ final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler 
         return fragment.removingPercentEncoding ?? fragment
     }
 
-    private func scroll(to anchor: String, in webView: WKWebView) {
-        guard let data = try? JSONEncoder().encode(anchor),
-              let anchorLiteral = String(data: data, encoding: .utf8)
-        else {
-            return
+    func scroll(to anchor: String, in webView: WKWebView) {
+        Task { [weak webView] in
+            guard let webView else { return }
+            _ = try? await webView.callAsyncJavaScript(
+                "window.notraRevealAnchor(anchor); return true;",
+                arguments: ["anchor": anchor],
+                in: nil,
+                contentWorld: .page
+            )
         }
-
-        // loadHTMLString gives the preview an about:blank URL. Scrolling the
-        // element directly is reliable across both WebKit platform wrappers.
-        webView.evaluateJavaScript(
-            "document.getElementById(\(anchorLiteral))?.scrollIntoView({ block: 'start', inline: 'nearest' });",
-            completionHandler: nil
-        )
     }
 }
 
