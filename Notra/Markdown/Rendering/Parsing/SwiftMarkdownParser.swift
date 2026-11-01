@@ -153,13 +153,13 @@ struct SwiftMarkdownParser {
     private nonisolated func tableAlignment(_ alignment: Table.ColumnAlignment?) -> MarkdownTableAlignment {
         switch alignment {
         case .left, nil:
-            return .leading
+            .leading
         case .center:
-            return .center
+            .center
         case .right:
-            return .trailing
+            .trailing
         @unknown default:
-            return .leading
+            .leading
         }
     }
 
