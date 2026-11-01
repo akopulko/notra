@@ -766,7 +766,6 @@ private struct NoteDeletionConfirmationModifier: ViewModifier {
 }
 
 private extension View {
-    @ViewBuilder
     func notePinSwipeAction(note: NoteSummary, action: @escaping () -> Void) -> some View {
         #if os(iOS)
         swipeActions(edge: .leading) {
@@ -783,7 +782,6 @@ private extension View {
         #endif
     }
 
-    @ViewBuilder
     func noteDeletionSwipeAction(action: @escaping () -> Void) -> some View {
         #if os(iOS)
         swipeActions(edge: .trailing) {

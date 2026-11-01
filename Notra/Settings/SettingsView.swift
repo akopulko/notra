@@ -233,7 +233,6 @@ struct SettingsHeaderView: View {
 }
 
 extension View {
-    @ViewBuilder
     func settingsCategoryListStyle() -> some View {
         #if os(macOS)
         listStyle(.sidebar)
@@ -242,7 +241,6 @@ extension View {
         #endif
     }
 
-    @ViewBuilder
     func settingsDetailFormStyle() -> some View {
         #if os(macOS)
         formStyle(.grouped)
@@ -256,7 +254,6 @@ extension View {
             .listRowBackground(Color.clear)
     }
 
-    @ViewBuilder
     func settingsDetailNavigationTitle(_ title: LocalizedStringResource) -> some View {
         #if os(iOS)
         navigationTitle(title)
